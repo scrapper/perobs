@@ -17,7 +17,7 @@ module PEROBS
       # The name of the data base directory
       @db_dir = data_base
       # The in-memory objects hashed by ID
-      @objects = {}
+      @working_set = {}
       # The named (global) objects IDs hashed by their name
       @named_objects = {}
       # Flag that indicates that the named_objects list differs from the
@@ -54,16 +54,20 @@ module PEROBS
       # The the ID of the object. If we already have a named object, we reuse
       # the ID. Otherwise, we generate a new one.
       id = @named_objects[name] || new_id
-      # Add the object to the in-memory storage list.
-      @objects[id] = obj
+
+      # If the passed object is nil, we delete the entry if it exists.
+      if obj.nil?
+        @named_objects.delete(id)
+        return nil
+      end
+
       # Register it with the PersistentRubyObjectStore.
       obj.register(self, id)
       # Store the name and mark the name list as modified.
       @named_objects[name] = id
       @named_objects_modified = true
-      # If the in-memory list has reached the upper limit, flush out the
-      # modified objects to disk and shrink the list.
-      sync if @objects.length > @max_objects
+      # Add the object to the in-memory storage list.
+      add_to_working_set(obj, id)
 
       obj
     end
@@ -87,16 +91,16 @@ module PEROBS
                              "#{name_or_id.class}"
       end
 
-      if @objects.include?(id)
+      if @working_set.include?(id)
         # We have the object in memory so we can just return it.
-        return @objects[id]
+        return @working_set[id]
       else
         # We don't have the object in memory. Let's find it on the disk.
-        obj_file = obj_file_name(id)
+        obj_file = object_file_name(id)
         if File.exists?(obj_file)
           # Great, object found. Read it into memory and return it.
           obj = PersistentObject::read(obj_file, self, id)
-          @objects[id] = obj
+          @working_set[id] = obj
           return obj
         end
       end
@@ -108,7 +112,14 @@ module PEROBS
     # Return the number of in-memory objects. There is no quick way to
     # determine the number of total objects.
     def length
-      @objects.length
+      @working_set.length
+    end
+
+    def add_to_working_set(obj, id)
+      @working_set[id] = obj
+      # If the in-memory list has reached the upper limit, flush out the
+      # modified objects to disk and shrink the list.
+      sync if @working_set.length > @max_objects
     end
 
     # Flush out all modified objects to disk and shrink the in-memory list if
@@ -122,22 +133,31 @@ module PEROBS
       end
 
       # Write all modified objects to disk
-      @objects.each do |id, obj|
-        obj.sync(obj_file_name(id))
-      end
+      @working_set.each { |id, obj| obj.sync }
 
       # Check if we've reached the defined threshold of in-memory objects and
       # delete the @flush_count least recently used ones from memory.
-      if @objects.length > @max_objects
+      if @working_set.length > @max_objects
         # Create a Array of PersistentObject items sorted by access time.
-        objects_by_atime = @objects.values.sort do |o1, o2|
+        objects_by_atime = @working_set.values.sort do |o1, o2|
           o1.access_time <=> o2.access_time
         end
-        # Delete the least recently used objects from @objects.
-        objects_by_atime[0..@flush_count - 1].each do |o|
-          @objects.delete(o.id)
+        # Delete the least recently used objects from @working_set.
+        objects_by_atime[0..@flush_count].each do |o|
+          @working_set.delete(o.id)
         end
       end
+    end
+
+    # Determine the file name to store the object. The object ID determines
+    # the directory and file name inside the store.
+    # @param id [Fixnum or Bignum] ID of the object
+    def object_file_name(id)
+      hex_id = "%08X" % id
+      dir = hex_id[0..1]
+      ensure_dir_exists(File.join(@db_dir, dir))
+
+      File.join(@db_dir, dir, hex_id + '.json')
     end
 
     private
@@ -148,7 +168,7 @@ module PEROBS
         # 2**62 objects in the same store.
         id = rand(2**64)
         # Ensure that we don't have already another object with this ID.
-      end while File.exists?(obj_file_name(id))
+      end while File.exists?(object_file_name(id))
 
       id
     end
@@ -162,16 +182,6 @@ module PEROBS
           raise IOError, "Cannote create DB directory '#{dir}': #{$!}"
         end
       end
-    end
-
-    # Determine the file name to store the object. The object ID determines
-    # the directory and file name inside the store.
-    def obj_file_name(id)
-      hex_id = "%08X" % id
-      dir = hex_id[0..1]
-      ensure_dir_exists(File.join(@db_dir, dir))
-
-      File.join(@db_dir, dir, hex_id + '.json')
     end
 
   end

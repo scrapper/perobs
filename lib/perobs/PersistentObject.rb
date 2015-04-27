@@ -5,12 +5,15 @@ module PEROBS
 
   class PersistentObject
 
+    # List of attribute types that we support.
+    KNOWN_TYPES = %w( Boolean Integer Float Reference String Time )
+
     # Modify the Metaclass of PersistentObject to add the attribute method and
     # instance variables to store the types and default values of the
     # attributes.
     class << self
 
-      attr_reader :types, :default_values, :known_types
+      attr_reader :types, :default_values
 
       def attribute(attr_type, attr_name, value = nil)
         unless attr_name.is_a?(Symbol)
@@ -18,14 +21,12 @@ module PEROBS
             "#{attr_name.class}"
         end
 
-        # List of attribute types that we support.
-        @known_types = %w( Boolean Integer Float Reference String Time )
 
         # Check that the type is a supported type. These are PROBS specific
         # types that only loosely map to Ruby data types.
-        unless @known_types.include?(attr_type.to_s)
+        unless PersistentObject::KNOWN_TYPES.include?(attr_type.to_s)
           raise ArgumentError, "attr_type is '#{attr_type}' but must be one " +
-            "of #{@known_types.join(', ')}"
+            "of #{PersistentObject::KNOWN_TYPES.join(', ')}"
         end
 
         define_method(attr_name.to_s) do
@@ -60,7 +61,7 @@ module PEROBS
       @access_time = 0
     end
 
-    def sync(file_name)
+    def sync
       return unless @modified
 
       obj = {
@@ -68,11 +69,18 @@ module PEROBS
         :types => self.class.types,
         :data => @attributes
       }
-      File.write(file_name, obj.to_json)
+      File.write(@store.object_file_name(@id), obj.to_json)
       @modified = false
     end
 
+    # Register the object with a Store. An object can only be registered with
+    # one store at a time.
+    # @param store [Store] the store to register with
+    # @param id [Fixnum or Bignum] the ID of the object in the store
     def register(store, id)
+      # Unregister the object with the old store
+      @store[@id] = nil if @store
+
       @store = store
       @id = id
     end
@@ -128,6 +136,10 @@ module PEROBS
       end
       @modified = true
       @access_time = (@@access_counter += 1)
+      # Ensure that the modified object is part of the store working set.
+      @store.add_to_working_set(self, @id)
+
+      val
     end
 
     def get(attr)
@@ -147,7 +159,7 @@ module PEROBS
     def PersistentObject::from_json(type, json_value)
       return nil if json_value.nil?
 
-      unless PersistentObject.class.known_types.include?(type)
+      unless PersistentObject::KNOWN_TYPES.include?(type)
         raise ArgumentError, "Unsupported object class '#{type}'"
       end
 

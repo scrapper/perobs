@@ -82,6 +82,23 @@ module PEROBS
       end
     end
 
+    it 'should detect modification to non-working objects' do
+      store = Store.new('test_db')
+      store.max_objects = 5
+      store.flush_count = 5
+      store[:person] = obj = Person.new
+      obj.name = "John"
+      0.upto(5) do |i|
+        store[":person#{i}".to_sym] = tobj = Person.new
+        tobj.name = "Person #{i}"
+      end
+      obj.name = "Jim"
+      store.sync
+      store = Store.new('test_db')
+      obj = store[:person]
+      obj.name.should == 'Jim'
+    end
+
   end
 
 end
