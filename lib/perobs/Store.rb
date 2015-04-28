@@ -1,3 +1,4 @@
+require 'perobs/FileSystemDB'
 require 'perobs/PersistentObject'
 
 module PEROBS
@@ -12,33 +13,26 @@ module PEROBS
   class Store
 
     attr_accessor :max_objects, :flush_count
+    attr_reader :db
 
     def initialize(data_base)
-      # The name of the data base directory
-      @db_dir = data_base
-      # The in-memory objects hashed by ID
+      # Create a backing store handler
+      @db = FileSystemDB.new(data_base)
+
+      # The in-memory objects hashed by their ID
       @working_set = {}
       # The named (global) objects IDs hashed by their name
-      @named_objects = {}
-      # Flag that indicates that the named_objects list differs from the
+      @root_objectss = {}
+      # Flag that indicates that the root_object list differs from the
       # on-disk version.
-      @named_objects_modified = false
+      @root_objectss_modified = false
       # The maximum number of objects to store in memory.
       @max_objects = 10000
       # The number of objects to remove from memory when the max_objects limit
       # is reached.
       @flush_count = @max_objects / 10
 
-      # Create the database directory if it doesn't exist yet.
-      ensure_dir_exists(@db_dir)
-
-      # Read the list of named objects from disk if it exists.
-      named_objects_file = File.join(@db_dir, 'named_objects.json')
-      if File.exists?(named_objects_file)
-        JSON::parse(File.read(named_objects_file)).each do |name, id|
-          @named_objects[name.to_sym] = id
-        end
-      end
+      @root_objectss = @db.get_root_objects
     end
 
     # Store the provided object under the given name.
@@ -53,60 +47,47 @@ module PEROBS
 
       # The the ID of the object. If we already have a named object, we reuse
       # the ID. Otherwise, we generate a new one.
-      id = @named_objects[name] || new_id
+      id = @root_objectss[name] || @db.new_id
 
       # If the passed object is nil, we delete the entry if it exists.
       if obj.nil?
-        @named_objects.delete(id)
+        @root_objectss.delete(id)
         return nil
+      end
+
+      unless obj.is_a?(PersistentObject)
+        raise ArgumentError, "Object must be of class PersistentObject but "
+                             "is of class #{obj.class}"
       end
 
       # Register it with the PersistentRubyObjectStore.
       obj.register(self, id)
       # Store the name and mark the name list as modified.
-      @named_objects[name] = id
-      @named_objects_modified = true
+      @root_objectss[name] = id
+      @root_objectss_modified = true
       # Add the object to the in-memory storage list.
-      add_to_working_set(obj, id)
+      add_to_working_set(obj)
 
       obj
     end
 
-    # Return the object with the provided name or object ID.
-    # @param name_or_id [Symbol or Fixnum/Bignum] A Symbol specifies the name
-    #        of the object to be returned. A Fixnum or Bignum the object ID.
+    # Return the object with the provided name.
+    # @param name [Symbol] A Symbol specifies the name of the object to be
+    #        returned.
     # @return The requested object or nil if it doesn't exist.
-    def [](name_or_id)
-      if name_or_id.is_a?(Symbol)
+    def [](name)
+      if name.is_a?(Symbol)
         # Return nil if there is no object with that name.
-        return nil unless @named_objects.include?(name_or_id)
+        return nil unless @root_objectss.include?(name)
 
         # Find the object ID.
-        id = @named_objects[name_or_id]
-      elsif name_or_id.is_a?(Bignum) || name_or_id.is_a?(Fixnum)
-        # If the argument is a number it's the object ID.
-        id = name_or_id
+        id = @root_objectss[name]
       else
         raise ArgumentError, "name '#{name_or_id}' must be a Symbol but is a " +
                              "#{name_or_id.class}"
       end
 
-      if @working_set.include?(id)
-        # We have the object in memory so we can just return it.
-        return @working_set[id]
-      else
-        # We don't have the object in memory. Let's find it on the disk.
-        obj_file = object_file_name(id)
-        if File.exists?(obj_file)
-          # Great, object found. Read it into memory and return it.
-          obj = PersistentObject::read(obj_file, self, id)
-          @working_set[id] = obj
-          return obj
-        end
-      end
-
-      # The requested object does not exist. Return nil.
-      nil
+      get_object_by_id(id)
     end
 
     # Return the number of in-memory objects. There is no quick way to
@@ -115,21 +96,13 @@ module PEROBS
       @working_set.length
     end
 
-    def add_to_working_set(obj, id)
-      @working_set[id] = obj
-      # If the in-memory list has reached the upper limit, flush out the
-      # modified objects to disk and shrink the list.
-      sync if @working_set.length > @max_objects
-    end
-
     # Flush out all modified objects to disk and shrink the in-memory list if
     # needed.
     def sync
       # If we have modified the named objects list, write it to disk.
-      if @named_objects_modified
-        File.write(File.join(@db_dir, 'named_objects.json'),
-                   @named_objects.to_json)
-        @named_objects_modified = false
+      if @root_objectss_modified
+        @db.put_root_objects(@root_objectss)
+        @root_objectss_modified = false
       end
 
       # Write all modified objects to disk
@@ -149,39 +122,38 @@ module PEROBS
       end
     end
 
-    # Determine the file name to store the object. The object ID determines
-    # the directory and file name inside the store.
-    # @param id [Fixnum or Bignum] ID of the object
-    def object_file_name(id)
-      hex_id = "%08X" % id
-      dir = hex_id[0..1]
-      ensure_dir_exists(File.join(@db_dir, dir))
+    # Return the object with the provided ID. This method is not part of the
+    # public API and should never be called by outside users. It's purely
+    # intended for internal use.
+    def get_object_by_id(id)
+      if @working_set.include?(id)
+        # We have the object in memory so we can just return it.
+        return @working_set[id]
+      else
+        # We don't have the object in memory. Let's find it in the storage.
+        if @db.include?(id)
+          # Great, object found. Read it into memory and return it.
+          obj = PersistentObject::read(self, id)
+          # Add the object to the in-memory storage list.
+          add_to_working_set(obj)
 
-      File.join(@db_dir, dir, hex_id + '.json')
-    end
-
-    private
-
-    def new_id
-      begin
-        # Generate a random number. It's recommended to not store more than
-        # 2**62 objects in the same store.
-        id = rand(2**64)
-        # Ensure that we don't have already another object with this ID.
-      end while File.exists?(object_file_name(id))
-
-      id
-    end
-
-    # Ensure that we have a directory to store the DB items.
-    def ensure_dir_exists(dir)
-      unless Dir.exists?(dir)
-        begin
-          Dir.mkdir(dir)
-        rescue IOError
-          raise IOError, "Cannote create DB directory '#{dir}': #{$!}"
+          return obj
         end
       end
+
+      # The requested object does not exist. Return nil.
+      nil
+    end
+
+    # Ensure that a specific object is part of the working set. This method is
+    # only intended for internal use. It should never be used the the users of
+    # this library.
+    # @param obj [PersistentObject] The object to include
+    def add_to_working_set(obj)
+      @working_set[obj.id] = obj
+      # If the in-memory list has reached the upper limit, flush out the
+      # modified objects to disk and shrink the list.
+      sync if @working_set.length > @max_objects
     end
 
   end

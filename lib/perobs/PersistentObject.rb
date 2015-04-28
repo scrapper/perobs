@@ -64,12 +64,12 @@ module PEROBS
     def sync
       return unless @modified
 
-      obj = {
+      db_obj = {
         :class => self.class,
         :types => self.class.types,
         :data => @attributes
       }
-      File.write(@store.object_file_name(@id), obj.to_json)
+      @store.db.put_object(db_obj, @id)
       @modified = false
     end
 
@@ -85,28 +85,24 @@ module PEROBS
       @id = id
     end
 
-    def PersistentObject.read(obj_file, store, id)
+    def PersistentObject.read(store, id)
       @store = store
-      # Read the object from disk.
-      begin
-        obj = JSON.parse(File.read(obj_file))
-      rescue IOError
-        raise "Cannot read object file #{obj_file}: #{$!}"
-      end
+      # Read the object from database.
+      db_obj = @store.db.get_object(id)
 
       # Call the constructor of the specified class.
-      new_obj = Object.const_get(obj['class']).new
+      obj = Object.const_get(db_obj['class']).new
       # Register it with the PersistentRubyObjectStore using the specified ID.
-      new_obj.register(store, id)
+      obj.register(store, id)
       # Initialize all attributes with the provided values.
       # TODO: Handle schema changes.
-      obj['data'].each do |attr_name, value|
-        new_obj.send(attr_name + '=',
-                     from_json(obj['types'][attr_name], value))
+      db_obj['data'].each do |attr_name, value|
+        # Call the set method for attr_name
+        obj.send(attr_name + '=', from_json(db_obj['types'][attr_name], value))
       end
       @access_time = @@access_counter
 
-      new_obj
+      obj
     end
 
     private
@@ -137,20 +133,24 @@ module PEROBS
       @modified = true
       @access_time = (@@access_counter += 1)
       # Ensure that the modified object is part of the store working set.
-      @store.add_to_working_set(self, @id)
+      @store.add_to_working_set(self)
 
       val
     end
 
     def get(attr)
+      # Ensure that the object is part of the store working set.
+      @store.add_to_working_set(self)
       @access_time = (@@access_counter += 1)
+
       if self.class.types[attr] == 'Reference'
         unless @store
           raise ArgumentError, "Cannot get references. Object is not " +
                                "stored in any store yet"
         end
         return nil if @attributes[attr].nil?
-        @store[@attributes[attr]]
+
+        @store.get_object_by_id(@attributes[attr])
       else
         @attributes[attr]
       end
