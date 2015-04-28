@@ -22,17 +22,17 @@ module PEROBS
       # The in-memory objects hashed by their ID
       @working_set = {}
       # The named (global) objects IDs hashed by their name
-      @root_objectss = {}
+      @root_objects = {}
       # Flag that indicates that the root_object list differs from the
       # on-disk version.
-      @root_objectss_modified = false
+      @root_objects_modified = false
       # The maximum number of objects to store in memory.
       @max_objects = 10000
       # The number of objects to remove from memory when the max_objects limit
       # is reached.
       @flush_count = @max_objects / 10
 
-      @root_objectss = @db.get_root_objects
+      @root_objects = @db.get_root_objects
     end
 
     # Store the provided object under the given name.
@@ -47,14 +47,16 @@ module PEROBS
 
       # The the ID of the object. If we already have a named object, we reuse
       # the ID. Otherwise, we generate a new one.
-      id = @root_objectss[name] || @db.new_id
+      id = @root_objects[name] || @db.new_id
 
       # If the passed object is nil, we delete the entry if it exists.
       if obj.nil?
-        @root_objectss.delete(id)
+        @root_objects.delete(id)
         return nil
       end
 
+      # We only allow derivatives of PersistentObject to be stored in the
+      # store.
       unless obj.is_a?(PersistentObject)
         raise ArgumentError, "Object must be of class PersistentObject but "
                              "is of class #{obj.class}"
@@ -63,8 +65,8 @@ module PEROBS
       # Register it with the PersistentRubyObjectStore.
       obj.register(self, id)
       # Store the name and mark the name list as modified.
-      @root_objectss[name] = id
-      @root_objectss_modified = true
+      @root_objects[name] = id
+      @root_objects_modified = true
       # Add the object to the in-memory storage list.
       add_to_working_set(obj)
 
@@ -78,10 +80,10 @@ module PEROBS
     def [](name)
       if name.is_a?(Symbol)
         # Return nil if there is no object with that name.
-        return nil unless @root_objectss.include?(name)
+        return nil unless @root_objects.include?(name)
 
         # Find the object ID.
-        id = @root_objectss[name]
+        id = @root_objects[name]
       else
         raise ArgumentError, "name '#{name_or_id}' must be a Symbol but is a " +
                              "#{name_or_id.class}"
@@ -100,9 +102,9 @@ module PEROBS
     # needed.
     def sync
       # If we have modified the named objects list, write it to disk.
-      if @root_objectss_modified
-        @db.put_root_objects(@root_objectss)
-        @root_objectss_modified = false
+      if @root_objects_modified
+        @db.put_root_objects(@root_objects)
+        @root_objects_modified = false
       end
 
       # Write all modified objects to disk

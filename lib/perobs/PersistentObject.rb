@@ -3,6 +3,10 @@ require 'time'
 
 module PEROBS
 
+  # The PersistentObject class is the base class for all objects to be stored
+  # in the Store. It provides all the plumbing to define the class attributes
+  # and to transparently load and store the instances of the class in the
+  # database.
   class PersistentObject
 
     # List of attribute types that we support.
@@ -21,7 +25,6 @@ module PEROBS
             "#{attr_name.class}"
         end
 
-
         # Check that the type is a supported type. These are PROBS specific
         # types that only loosely map to Ruby data types.
         unless PersistentObject::KNOWN_TYPES.include?(attr_type.to_s)
@@ -29,9 +32,11 @@ module PEROBS
             "of #{PersistentObject::KNOWN_TYPES.join(', ')}"
         end
 
+        # Create the attribute reader method with name of attr_name.
         define_method(attr_name.to_s) do
           get(attr_name)
         end
+        # Create the attribute writer method with name of attr_name.
         define_method(attr_name.to_s + '=') do |val|
           set(attr_name, val)
         end
@@ -48,8 +53,11 @@ module PEROBS
 
     @@access_counter = 0
 
+    # Create a new PersistentObject object.
     def initialize
+      # The Store that this object is stored in.
       @store = nil
+      # The store-unique ID. This must be a Fixnum or Bignum.
       @id = nil
       # Create a Hash for the class attributes and initialize them with the
       # default values.
@@ -57,10 +65,14 @@ module PEROBS
       self.class.types.each do |attr_name, type|
         @attributes[attr_name] = self.class.default_values[attr_name]
       end
+      # This flag will be set to true if the object was modified but not yet
+      # written to the Store.
       @modified = false
+      # A counter snapshot from the last access to this object.
       @access_time = 0
     end
 
+    # Write the object into the backing store database.
     def sync
       return unless @modified
 
@@ -73,18 +85,8 @@ module PEROBS
       @modified = false
     end
 
-    # Register the object with a Store. An object can only be registered with
-    # one store at a time.
-    # @param store [Store] the store to register with
-    # @param id [Fixnum or Bignum] the ID of the object in the store
-    def register(store, id)
-      # Unregister the object with the old store
-      @store[@id] = nil if @store
-
-      @store = store
-      @id = id
-    end
-
+    # Read an raw object with the specified ID from the backing store and
+    # instantiate a new object of the specific type.
     def PersistentObject.read(store, id)
       @store = store
       # Read the object from database.
@@ -105,17 +107,32 @@ module PEROBS
       obj
     end
 
+    # Register the object with a Store. An object can only be registered with
+    # one store at a time.
+    # @param store [Store] the store to register with
+    # @param id [Fixnum or Bignum] the ID of the object in the store
+    def register(store, id)
+      # Unregister the object with the old store
+      @store[@id] = nil if @store && @store != store
+
+      @store = store
+      @id = id
+    end
+
     private
 
     def set(attr, val)
       if self.class.types[attr] == 'Reference'
+        # We can only deal with references to objects in the same Store.
         unless @store
           raise ArgumentError, "Cannot set references. Object is not " +
                                "stored in any store yet"
         end
         if val.nil?
+          # Delete the reference.
           @attributes[attr] = nil
         elsif val.is_a?(Bignum) || val.is_a?(Fixnum)
+          # 'val' must be an object ID
           @attributes[attr] = val
         else
           unless val.is_a?(PersistentObject)
