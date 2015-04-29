@@ -67,7 +67,7 @@ module PEROBS
       end
       # This flag will be set to true if the object was modified but not yet
       # written to the Store.
-      @modified = false
+      @modified = true
       # A counter snapshot from the last access to this object.
       @access_time = 0
     end
@@ -111,23 +111,46 @@ module PEROBS
     # one store at a time.
     # @param store [Store] the store to register with
     # @param id [Fixnum or Bignum] the ID of the object in the store
-    def register(store, id)
-      # Unregister the object with the old store
-      @store[@id] = nil if @store && @store != store
+    def register(store, id = nil)
+      if @store.nil?
+        # Object has never been registered with a Store.
+        @store = store
+        @id = id || @store.db.new_id
+      elsif @store == store
+        # The object is already registered with this Store.
+        if id && id != @id
+          raise "Cannot change ID of an already registered object"
+        end
+      else
+        # The object was registered with a different store before.
+        # Unregister the object with the old store.
+        @store.delete(@id) if @store && @store != store
 
-      @store = store
-      @id = id
+        @store = store
+        @id = id || @store.db.new_id
+      end
+    end
+
+    # Return a list of all object IDs that the attributes of this instance are
+    # referencing.
+    # @return [Array of Fixnum or Bignum] IDs of referenced objects
+    def referenced_object_ids
+      ids = []
+      @attributes.each do |name, value|
+        ids << value if value && self.class.types[name] == 'Reference'
+      end
+
+      ids
     end
 
     private
 
     def set(attr, val)
+      unless @store
+        raise ArgumentError, 'The PersistentObject is not assigned to ' +
+                             'any store yet.'
+      end
       if self.class.types[attr] == 'Reference'
-        # We can only deal with references to objects in the same Store.
-        unless @store
-          raise ArgumentError, "Cannot set references. Object is not " +
-                               "stored in any store yet"
-        end
         if val.nil?
           # Delete the reference.
           @attributes[attr] = nil
@@ -139,10 +162,10 @@ module PEROBS
             raise ArgumentError, "val must be a PersistentObject but is a " +
               "#{val.class}."
           end
-          unless (@attributes[attr] = val.id)
-            raise ArgumentError, "The referenced object must be stored in " +
-                                 "the same store as this object."
-          end
+          # Register the referenced object with the Store of the this object.
+          val.register(@store)
+          @store.add_to_working_set(val)
+          @attributes[attr] = val.id
         end
       else
         @attributes[attr] = val
@@ -156,6 +179,11 @@ module PEROBS
     end
 
     def get(attr)
+      unless @store
+        raise ArgumentError, 'The PersistentObject is not assigned to ' +
+                             'any store yet.'
+      end
+
       # Ensure that the object is part of the store working set.
       @store.add_to_working_set(self)
       @access_time = (@@access_counter += 1)
@@ -167,7 +195,7 @@ module PEROBS
         end
         return nil if @attributes[attr].nil?
 
-        @store.get_object_by_id(@attributes[attr])
+        @store.object_by_id(@attributes[attr])
       else
         @attributes[attr]
       end

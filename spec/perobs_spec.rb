@@ -23,12 +23,12 @@ module PEROBS
 
   describe Store do
 
-    before(:all) do
+    before(:each) do
       FileUtils.rm_rf('test_db')
     end
 
     after(:each) do
-      FileUtils.rm_rf('test_db')
+      #FileUtils.rm_rf('test_db')
     end
 
     it 'should store and retrieve simple objects' do
@@ -97,6 +97,23 @@ module PEROBS
       store = Store.new('test_db')
       obj = store[:person]
       obj.name.should == 'Jim'
+    end
+
+    it 'should garbage collect unlinked objects' do
+      store = Store.new('test_db')
+      store[:person1] = obj = Person.new
+      id1 = obj.id
+      store[:person2] = obj = Person.new
+      id2 = obj.id
+      obj.related = obj = Person.new
+      id3 = obj.id
+      store.sync
+      store[:person1] = nil
+      store.gc
+      store = Store.new('test_db')
+      store.object_by_id(id1).should be_nil
+      store[:person2].id.should == id2
+      store[:person2].related.id.should == id3
     end
 
   end

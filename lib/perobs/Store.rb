@@ -45,13 +45,9 @@ module PEROBS
                              "#{name.class}"
       end
 
-      # The the ID of the object. If we already have a named object, we reuse
-      # the ID. Otherwise, we generate a new one.
-      id = @root_objects[name] || @db.new_id
-
       # If the passed object is nil, we delete the entry if it exists.
       if obj.nil?
-        @root_objects.delete(id)
+        @root_objects.delete(name)
         return nil
       end
 
@@ -63,9 +59,9 @@ module PEROBS
       end
 
       # Register it with the PersistentRubyObjectStore.
-      obj.register(self, id)
+      obj.register(self)
       # Store the name and mark the name list as modified.
-      @root_objects[name] = id
+      @root_objects[name] = obj.id
       @root_objects_modified = true
       # Add the object to the in-memory storage list.
       add_to_working_set(obj)
@@ -89,7 +85,7 @@ module PEROBS
                              "#{name_or_id.class}"
       end
 
-      get_object_by_id(id)
+      object_by_id(id)
     end
 
     # Return the number of in-memory objects. There is no quick way to
@@ -124,10 +120,18 @@ module PEROBS
       end
     end
 
+    # Discard all objects that are not somehow connected to the root objects
+    # from the database.
+    def gc
+      sync
+      mark
+      sweep
+    end
+
     # Return the object with the provided ID. This method is not part of the
     # public API and should never be called by outside users. It's purely
     # intended for internal use.
-    def get_object_by_id(id)
+    def object_by_id(id)
       if @working_set.include?(id)
         # We have the object in memory so we can just return it.
         return @working_set[id]
@@ -156,6 +160,23 @@ module PEROBS
       # If the in-memory list has reached the upper limit, flush out the
       # modified objects to disk and shrink the list.
       sync if @working_set.length > @max_objects
+    end
+
+    def mark
+      @db.clear_marks
+      stack = @root_objects.values
+      while !stack.empty?
+        id = stack.pop
+        unless @db.is_marked?(id)
+          @db.mark(id)
+          obj = object_by_id(id)
+          stack += obj.referenced_object_ids
+        end
+      end
+    end
+
+    def sweep
+      @db.delete_unmarked_objects
     end
 
   end

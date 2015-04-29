@@ -1,3 +1,5 @@
+require 'time'
+
 require 'perobs/PersistentObject'
 
 module PEROBS
@@ -68,6 +70,36 @@ module PEROBS
       end while include?(id)
 
       id
+    end
+
+    # This method must be called to initiate the marking process.
+    def clear_marks
+      @mark_start = Time.now
+      # The filesystem stores access times with second granularity. We need to
+      # wait 1 sec. to ensure that all marks are noticeable.
+      sleep(1)
+    end
+
+    # Permanently delete all objects that have not been marked. Those are
+    # orphaned and are no longer referenced by any actively used object.
+    def delete_unmarked_objects
+      Dir.glob(File.join(@db_dir, '*')) do |dir|
+        next unless Dir.exists?(dir)
+
+        Dir.glob(File.join(dir, '*')) do |file|
+          if File.atime(file) <= @mark_start
+            File.delete(file)
+          end
+        end
+      end
+    end
+
+    def mark(id)
+      File.read(object_file_name(id))
+    end
+
+    def is_marked?(id)
+      File.atime(object_file_name(id)) > @mark_start
     end
 
     private
