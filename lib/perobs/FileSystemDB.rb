@@ -35,7 +35,8 @@ module PEROBS
     # @param id [Fixnum or Bignum] object ID
     # @return [Hash] Object as defined by PersistentObject
     def get_object(id)
-      obj = JSON.parse(File.read(object_file_name(id)))
+      obj = JSON.parse(File.read(object_file_name(id)),
+                       :create_additions => true)
     end
 
     # Write the list of root objects to the filesytem.
@@ -94,10 +95,14 @@ module PEROBS
       end
     end
 
+    # Mark an object.
+    # @params id [Fixnum or Bignum] ID of the object to mark
     def mark(id)
       File.read(object_file_name(id))
     end
 
+    # Check if the object is marked.
+    # @param id [Fixnum or Bignum] ID of the object to check
     def is_marked?(id)
       File.atime(object_file_name(id)) > @mark_start
     end

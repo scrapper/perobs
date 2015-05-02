@@ -10,6 +10,13 @@ module PEROBS
   # benefit of PEROBS is the very Ruby-like representation of the stored
   # objects. With very few restrictions they can be used just like any other
   # instance of ordinary Ruby classes.
+  #
+  # Persistant objects must be created by deriving your class from
+  # PersistentObject. Only instance variables that are declared via po_attr
+  # will be persistent. All objects that are stored in persitant instance
+  # variables must provide a to_json method that generates JSON syntax that
+  # can be parsed into their original object again. It is recommended that
+  # references to other objects are all going to persistent objects again.
   class Store
 
     attr_accessor :max_objects, :flush_count

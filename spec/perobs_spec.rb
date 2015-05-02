@@ -8,12 +8,12 @@ module PEROBS
 
   class Person < PersistentObject
 
-    attribute 'String', :name, ''
-    attribute 'Integer', :zip
-    attribute 'Float', :bmi, 22.2
-    attribute 'Boolean', :married, false
-    attribute 'Time', :birthdate
-    attribute 'Reference', :related
+    po_attr :name, ''
+    po_attr :zip
+    po_attr :bmi, 22.2
+    po_attr :married, false
+    po_attr :related
+    po_attr :relatives
 
     def initialize
       super
@@ -23,7 +23,7 @@ module PEROBS
 
   describe Store do
 
-    before(:each) do
+    before(:all) do
       FileUtils.rm_rf('test_db')
     end
 
@@ -31,32 +31,52 @@ module PEROBS
       #FileUtils.rm_rf('test_db')
     end
 
-    it 'should store and retrieve simple objects' do
+    it 'should store simple objects' do
       store = Store.new('test_db')
       store[:john] = john = Person.new
       john.name = 'John'
-      john.birthdate = Time.parse('2015-04-20')
       john.zip = 4060
       john.bmi = 25.5
       store[:jane] = jane = Person.new
       jane.name = 'Jane'
-      jane.birthdate = Time.parse('2015-04-21')
       jane.related = john
       jane.married = true
+      jane.relatives = 'test'
 
-      store.sync
-
-      store = Store.new('test_db')
-      john = store[:john]
       john.name.should == 'John'
-      john.birthdate.should == Time.parse('2015-04-20')
       john.zip.should == 4060
       john.bmi.should == 25.5
       john.married.should be_false
       john.related.should be_nil
       jane = store[:jane]
       jane.name.should == 'Jane'
-      jane.birthdate.should == Time.parse('2015-04-21')
+      jane.related.should == john
+      jane.married.should be_true
+    end
+
+    it 'should store and retrieve simple objects' do
+      store = Store.new('test_db')
+      store[:john] = john = Person.new
+      john.name = 'John'
+      john.zip = 4060
+      john.bmi = 25.5
+      store[:jane] = jane = Person.new
+      jane.name = 'Jane'
+      jane.related = john
+      jane.married = true
+      jane.relatives = 'test'
+
+      store.sync
+
+      store = Store.new('test_db')
+      john = store[:john]
+      john.name.should == 'John'
+      john.zip.should == 4060
+      john.bmi.should == 25.5
+      john.married.should be_false
+      john.related.should be_nil
+      jane = store[:jane]
+      jane.name.should == 'Jane'
       jane.related.should == john
       jane.married.should be_true
     end
@@ -76,7 +96,6 @@ module PEROBS
         end
         store[":person#{i}".to_sym] = obj = Person.new
         obj.name = "Person #{i}"
-        obj.birthdate = Time.parse("2015-04-#{i+1}")
         obj.related = last_obj if last_obj
         last_obj = obj
       end

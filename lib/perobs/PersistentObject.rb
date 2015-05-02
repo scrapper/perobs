@@ -1,7 +1,12 @@
 require 'json'
+require 'json/add/core'
+require 'json/add/struct'
 require 'time'
 
 module PEROBS
+
+  class POReference < Struct.new(:id)
+  end
 
   # The PersistentObject class is the base class for all objects to be stored
   # in the Store. It provides all the plumbing to define the class attributes
@@ -9,27 +14,20 @@ module PEROBS
   # database.
   class PersistentObject
 
-    # List of attribute types that we support.
-    KNOWN_TYPES = %w( Boolean Integer Float Reference String Time )
-
     # Modify the Metaclass of PersistentObject to add the attribute method and
-    # instance variables to store the types and default values of the
-    # attributes.
+    # instance variables to store the default values of the attributes.
     class << self
 
-      attr_reader :types, :default_values
+      attr_reader :default_values
 
-      def attribute(attr_type, attr_name, value = nil)
+      # This method can be used to define instance variable for
+      # PersistentObject derived classes.
+      # @param attr_name [Symbol] Name of the instance variable
+      # @param value Default value of the attribute
+      def po_attr(attr_name, value = nil)
         unless attr_name.is_a?(Symbol)
           raise ArgumentError, "attr_name must be a symbol but is a " +
             "#{attr_name.class}"
-        end
-
-        # Check that the type is a supported type. These are PROBS specific
-        # types that only loosely map to Ruby data types.
-        unless PersistentObject::KNOWN_TYPES.include?(attr_type.to_s)
-          raise ArgumentError, "attr_type is '#{attr_type}' but must be one " +
-            "of #{PersistentObject::KNOWN_TYPES.join(', ')}"
         end
 
         # Create the attribute reader method with name of attr_name.
@@ -41,8 +39,6 @@ module PEROBS
           set(attr_name, val)
         end
 
-        @types ||= {}
-        @types[attr_name] = attr_type
         @default_values ||= {}
         @default_values[attr_name] = value
       end
@@ -62,8 +58,8 @@ module PEROBS
       # Create a Hash for the class attributes and initialize them with the
       # default values.
       @attributes = {}
-      self.class.types.each do |attr_name, type|
-        @attributes[attr_name] = self.class.default_values[attr_name]
+      self.class.default_values.each do |attr_name, value|
+        @attributes[attr_name] = value
       end
       # This flag will be set to true if the object was modified but not yet
       # written to the Store.
@@ -78,7 +74,6 @@ module PEROBS
 
       db_obj = {
         :class => self.class,
-        :types => self.class.types,
         :data => @attributes
       }
       @store.db.put_object(db_obj, @id)
@@ -100,7 +95,7 @@ module PEROBS
       # TODO: Handle schema changes.
       db_obj['data'].each do |attr_name, value|
         # Call the set method for attr_name
-        obj.send(attr_name + '=', from_json(db_obj['types'][attr_name], value))
+        obj.send(attr_name + '=', value)
       end
       @access_time = @@access_counter
 
@@ -137,7 +132,7 @@ module PEROBS
     def referenced_object_ids
       ids = []
       @attributes.each do |name, value|
-        ids << value if value && self.class.types[name] == 'Reference'
+        ids << value.id if value && value.is_a?(POReference)
       end
 
       ids
@@ -150,23 +145,17 @@ module PEROBS
         raise ArgumentError, 'The PersistentObject is not assigned to ' +
                              'any store yet.'
       end
-      if self.class.types[attr] == 'Reference'
-        if val.nil?
-          # Delete the reference.
-          @attributes[attr] = nil
-        elsif val.is_a?(Bignum) || val.is_a?(Fixnum)
-          # 'val' must be an object ID
-          @attributes[attr] = val
-        else
-          unless val.is_a?(PersistentObject)
-            raise ArgumentError, "val must be a PersistentObject but is a " +
-              "#{val.class}."
-          end
-          # Register the referenced object with the Store of the this object.
-          val.register(@store)
-          @store.add_to_working_set(val)
-          @attributes[attr] = val.id
-        end
+
+      unless val.respond_to?('to_json')
+        raise ArgumentError, "The object of class #{val.class} must have " +
+                             "a to_json() method to be stored persistently."
+      end
+
+      if val.is_a?(PersistentObject)
+        # Register the referenced object with the Store of the this object.
+        val.register(@store)
+        @store.add_to_working_set(val)
+        @attributes[attr] = POReference.new(val.id)
       else
         @attributes[attr] = val
       end
@@ -188,33 +177,14 @@ module PEROBS
       @store.add_to_working_set(self)
       @access_time = (@@access_counter += 1)
 
-      if self.class.types[attr] == 'Reference'
+      if @attributes[attr].is_a?(POReference)
         unless @store
           raise ArgumentError, "Cannot get references. Object is not " +
                                "stored in any store yet"
         end
-        return nil if @attributes[attr].nil?
-
-        @store.object_by_id(@attributes[attr])
+        @store.object_by_id(@attributes[attr].id)
       else
         @attributes[attr]
-      end
-    end
-
-    def PersistentObject::from_json(type, json_value)
-      return nil if json_value.nil?
-
-      unless PersistentObject::KNOWN_TYPES.include?(type)
-        raise ArgumentError, "Unsupported object class '#{type}'"
-      end
-
-      # Deal with types that require special handling when converting them
-      # from JSON format.
-      case type
-      when 'Time'
-        Time.parse(json_value)
-      else
-        json_value
       end
     end
 
