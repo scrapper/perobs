@@ -96,8 +96,10 @@ module PEROBS
                              "is of class #{obj.class}"
       end
 
-      # Register it with the PersistentRubyObjectStore.
-      obj.register(self)
+      unless obj.store == self
+        raise ArgumentError, 'The object does not belong to this store.'
+      end
+
       # Store the name and mark the name list as modified.
       @root_objects[name] = obj.id
       @root_objects_modified = true

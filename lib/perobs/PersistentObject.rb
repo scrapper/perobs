@@ -79,78 +79,53 @@ module PEROBS
     attr_reader :id, :store
 
     # Create a new PersistentObject object.
-    def initialize
+    def initialize(store)
       # The Store that this object is stored in.
-      @store = nil
+      @store = store
       # The store-unique ID. This must be a Fixnum or Bignum.
-      @id = nil
+      @id = @store.db.new_id
       # Create a Hash for the class attributes and initialize them with the
       # default values.
       @attributes = {}
       self.class.default_values.each do |attr_name, value|
         @attributes[attr_name] = value
       end
-      # This flag will be set to true if the object was modified but not yet
-      # written to the Store.
-      @modified = true
-      # A counter snapshot from the last access to this object.
+      # Let the store know that we have a modified object.
+      @store.cache.cache_write(self)
     end
 
     # Write the object into the backing store database.
     def sync
-      return unless @modified
-
       db_obj = {
         :class => self.class,
         :data => @attributes
       }
       @store.db.put_object(db_obj, @id)
-      @modified = false
     end
 
     # Read an raw object with the specified ID from the backing store and
     # instantiate a new object of the specific type.
     def PersistentObject.read(store, id)
-      @store = store
       # Read the object from database.
-      db_obj = @store.db.get_object(id)
+      db_obj = store.db.get_object(id)
 
       # Call the constructor of the specified class.
-      obj = Object.const_get(db_obj['class']).new
-      # Register it with the PersistentRubyObjectStore using the specified ID.
-      obj.register(store, id)
+      obj = Object.const_get(db_obj['class']).new(store)
+      # There is no public setter for ID since it should be immutable. To
+      # restore the ID, we use this workaround.
+      obj.send('instance_variable_set', :@id, id)
       # Initialize all attributes with the provided values.
       # TODO: Handle schema changes.
       db_obj['data'].each do |attr_name, value|
         # Call the set method for attr_name
         obj.send(attr_name + '=', value)
       end
+      # The object restore caused the object to be added to the write cache.
+      # To prevent an unnecessary flush to the back-end storage, we will
+      # unregister it from the write cache.
+      store.cache.unwrite(obj)
 
       obj
-    end
-
-    # Register the object with a Store. An object can only be registered with
-    # one store at a time.
-    # @param store [Store] the store to register with
-    # @param id [Fixnum or Bignum] the ID of the object in the store
-    def register(store, id = nil)
-      if @store.nil?
-        # Object has never been registered with a Store.
-        @store = store
-        @id = id || @store.db.new_id
-      elsif @store == store
-        # The object is already registered with this Store.
-        if id && id != @id
-          raise "Cannot change ID of an already registered object"
-        end
-      else
-        # The object was registered with a different store before.
-        # Unregister the object with the old store.
-        @store.delete(@id) if @store && @store != store
-
-        @store = store
-        @id = id || @store.db.new_id
-      end
     end
 
     # Return a list of all object IDs that the attributes of this instance are
@@ -179,15 +154,19 @@ module PEROBS
       end
 
       if val.is_a?(PersistentObject)
-        # Register the referenced object with the Store of the this object.
-        val.register(@store)
+        # References to other PersistentObjects must be handled somewhat
+        # special.
+        if @store != val.store
+          raise ArgumentError, 'The referenced object is not part of this store'
+        end
+        # To release the object from the Ruby object list later, we store the
+        # PEROBS::Store ID of the referenced object instead of the actual
+        # reference.
         @attributes[attr] = POReference.new(val.id)
-        @store.cache.cache_write(val)
       else
         @attributes[attr] = val
       end
-      @modified = true
-      # Ensure that the modified object is part of the store working set.
+      # Let the store know that we have a modified object.
       @store.cache.cache_write(self)
 
       val

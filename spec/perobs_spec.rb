@@ -15,7 +15,7 @@ module PEROBS
     po_attr :related
     po_attr :relatives
 
-    def initialize
+    def initialize(store)
       super
     end
 
@@ -33,11 +33,11 @@ module PEROBS
 
     it 'should store simple objects' do
       store = Store.new('test_db')
-      store[:john] = john = Person.new
+      store[:john] = john = Person.new(store)
       john.name = 'John'
       john.zip = 4060
       john.bmi = 25.5
-      store[:jane] = jane = Person.new
+      store[:jane] = jane = Person.new(store)
       jane.name = 'Jane'
       jane.related = john
       jane.married = true
@@ -56,11 +56,11 @@ module PEROBS
 
     it 'should store and retrieve simple objects' do
       store = Store.new('test_db')
-      store[:john] = john = Person.new
+      store[:john] = john = Person.new(store)
       john.name = 'John'
       john.zip = 4060
       john.bmi = 25.5
-      store[:jane] = jane = Person.new
+      store[:jane] = jane = Person.new(store)
       jane.name = 'Jane'
       jane.related = john
       jane.married = true
@@ -85,7 +85,7 @@ module PEROBS
       store = Store.new('test_db', :cache_bits => 3)
       last_obj = nil
       0.upto(20) do |i|
-        store[":person#{i}".to_sym] = obj = Person.new
+        store[":person#{i}".to_sym] = obj = Person.new(store)
         obj.name = "Person #{i}"
         obj.related = last_obj if last_obj
         last_obj = obj
@@ -98,7 +98,7 @@ module PEROBS
     it 'should detect modification to non-working objects' do
       store = Store.new('test_db', :cache_bits => 3)
       0.upto(20) do |i|
-        store[":person#{i}".to_sym] = obj = Person.new
+        store[":person#{i}".to_sym] = obj = Person.new(store)
         obj.name = "Person #{i}"
       end
       0.upto(20) do |i|
@@ -113,11 +113,11 @@ module PEROBS
 
     it 'should garbage collect unlinked objects' do
       store = Store.new('test_db')
-      store[:person1] = obj = Person.new
+      store[:person1] = obj = Person.new(store)
       id1 = obj.id
-      store[:person2] = obj = Person.new
+      store[:person2] = obj = Person.new(store)
       id2 = obj.id
-      obj.related = obj = Person.new
+      obj.related = obj = Person.new(store)
       id3 = obj.id
       store.sync
       store[:person1] = nil

@@ -75,6 +75,12 @@ module PEROBS
       @writes[idx] = obj
     end
 
+    # Remove an object from the write cache. This will prevent a modified
+    # object from being written to the back-end store.
+    def unwrite(obj)
+      @writes[index(obj)] = nil
+    end
+
     # Return the PersistentObject with the specified ID or nil if not found.
     # @param id [Fixnum or Bignum] ID of the cached PersistentObject
     def object_by_id(id)
