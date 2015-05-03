@@ -1,3 +1,30 @@
+# encoding: UTF-8
+#
+# = PersistentObject.rb -- Persistent Ruby Object Store
+#
+# Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
+#
+# MIT License
+#
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and associated documentation files (the
+# "Software"), to deal in the Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to
+# the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 require 'json'
 require 'json/add/core'
 require 'json/add/struct'
@@ -5,6 +32,10 @@ require 'time'
 
 module PEROBS
 
+  # This class is used to replace a direct reference to another Ruby object by
+  # the Store ID. This makes object disposable by the Ruby garbage collector
+  # since it's no longer referenced once it has been evicted from the
+  # PEROBS::Store cache.
   class POReference < Struct.new(:id)
   end
 
@@ -45,9 +76,7 @@ module PEROBS
 
     end
 
-    attr_reader :id, :store, :access_time
-
-    @@access_counter = 0
+    attr_reader :id, :store
 
     # Create a new PersistentObject object.
     def initialize
@@ -65,7 +94,6 @@ module PEROBS
       # written to the Store.
       @modified = true
       # A counter snapshot from the last access to this object.
-      @access_time = 0
     end
 
     # Write the object into the backing store database.
@@ -97,7 +125,6 @@ module PEROBS
         # Call the set method for attr_name
         obj.send(attr_name + '=', value)
       end
-      @access_time = @@access_counter
 
       obj
     end
@@ -160,7 +187,6 @@ module PEROBS
         @attributes[attr] = val
       end
       @modified = true
-      @access_time = (@@access_counter += 1)
       # Ensure that the modified object is part of the store working set.
       @store.cache.cache_write(self)
 
@@ -175,7 +201,6 @@ module PEROBS
 
       # Ensure that the object is part of the store working set.
       @store.cache.cache_read(self)
-      @access_time = (@@access_counter += 1)
 
       if @attributes[attr].is_a?(POReference)
         unless @store

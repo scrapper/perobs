@@ -1,3 +1,30 @@
+# encoding: UTF-8
+#
+# = FileSystemDB.rb -- Persistent Ruby Object Store
+#
+# Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
+#
+# MIT License
+#
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and associated documentation files (the
+# "Software"), to deal in the Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to
+# the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+# NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+# LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+# WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 require 'time'
 
 require 'perobs/PersistentObject'
@@ -7,6 +34,7 @@ module PEROBS
   # This class provides a filesytem based database store for objects.
   class FileSystemDB
 
+    # The name of the file used to store the list of root objects.
     @@RootObjectsFile = 'root_objects.json'
 
     # Create a new FileSystemDB object. This will create a DB with the given
@@ -96,7 +124,7 @@ module PEROBS
     end
 
     # Mark an object.
-    # @params id [Fixnum or Bignum] ID of the object to mark
+    # @param id [Fixnum or Bignum] ID of the object to mark
     def mark(id)
       File.read(object_file_name(id))
     end
