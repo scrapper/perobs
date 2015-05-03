@@ -28,7 +28,7 @@ module PEROBS
     end
 
     after(:each) do
-      #FileUtils.rm_rf('test_db')
+      FileUtils.rm_rf('test_db')
     end
 
     it 'should store simple objects' do
@@ -81,41 +81,34 @@ module PEROBS
       jane.married.should be_true
     end
 
-    it 'should flush objects when reaching the threshold' do
-      store = Store.new('test_db')
-      store.max_objects = 10
-      store.flush_count = 5
+    it 'should flush cached objects when necessary' do
+      store = Store.new('test_db', :cache_bits => 3)
       last_obj = nil
       0.upto(20) do |i|
-        if i <= 10
-          store.length.should == i
-        elsif i <= 15
-          store.length.should == i - 5
-        else
-          store.length.should == i - 10
-        end
         store[":person#{i}".to_sym] = obj = Person.new
         obj.name = "Person #{i}"
         obj.related = last_obj if last_obj
         last_obj = obj
       end
+      0.upto(20) do |i|
+        store[":person#{i}".to_sym].name.should == "Person #{i}"
+      end
     end
 
     it 'should detect modification to non-working objects' do
-      store = Store.new('test_db')
-      store.max_objects = 5
-      store.flush_count = 5
-      store[:person] = obj = Person.new
-      obj.name = "John"
-      0.upto(5) do |i|
-        store[":person#{i}".to_sym] = tobj = Person.new
-        tobj.name = "Person #{i}"
+      store = Store.new('test_db', :cache_bits => 3)
+      0.upto(20) do |i|
+        store[":person#{i}".to_sym] = obj = Person.new
+        obj.name = "Person #{i}"
       end
-      obj.name = "Jim"
+      0.upto(20) do |i|
+        store[":person#{i}".to_sym].name = "New Person #{i}"
+      end
       store.sync
       store = Store.new('test_db')
-      obj = store[:person]
-      obj.name.should == 'Jim'
+      0.upto(20) do |i|
+        store[":person#{i}".to_sym].name.should == "New Person #{i}"
+      end
     end
 
     it 'should garbage collect unlinked objects' do

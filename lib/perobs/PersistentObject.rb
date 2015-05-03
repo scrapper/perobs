@@ -154,15 +154,15 @@ module PEROBS
       if val.is_a?(PersistentObject)
         # Register the referenced object with the Store of the this object.
         val.register(@store)
-        @store.add_to_working_set(val)
         @attributes[attr] = POReference.new(val.id)
+        @store.cache.cache_write(val)
       else
         @attributes[attr] = val
       end
       @modified = true
       @access_time = (@@access_counter += 1)
       # Ensure that the modified object is part of the store working set.
-      @store.add_to_working_set(self)
+      @store.cache.cache_write(self)
 
       val
     end
@@ -174,7 +174,7 @@ module PEROBS
       end
 
       # Ensure that the object is part of the store working set.
-      @store.add_to_working_set(self)
+      @store.cache.cache_read(self)
       @access_time = (@@access_counter += 1)
 
       if @attributes[attr].is_a?(POReference)

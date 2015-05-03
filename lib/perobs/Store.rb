@@ -1,3 +1,4 @@
+require 'perobs/Cache'
 require 'perobs/FileSystemDB'
 require 'perobs/PersistentObject'
 
@@ -19,26 +20,20 @@ module PEROBS
   # references to other objects are all going to persistent objects again.
   class Store
 
-    attr_accessor :max_objects, :flush_count
-    attr_reader :db
+    attr_reader :db, :cache
 
-    def initialize(data_base)
+    def initialize(data_base, options = {})
       # Create a backing store handler
       @db = FileSystemDB.new(data_base)
 
-      # The in-memory objects hashed by their ID
-      @working_set = {}
+      @cache = Cache.new(self, options[:cache_bits] || 16)
       # The named (global) objects IDs hashed by their name
       @root_objects = {}
       # Flag that indicates that the root_object list differs from the
       # on-disk version.
       @root_objects_modified = false
-      # The maximum number of objects to store in memory.
-      @max_objects = 10000
-      # The number of objects to remove from memory when the max_objects limit
-      # is reached.
-      @flush_count = @max_objects / 10
 
+      # Load the root object list from the permanent storage.
       @root_objects = @db.get_root_objects
     end
 
@@ -71,7 +66,7 @@ module PEROBS
       @root_objects[name] = obj.id
       @root_objects_modified = true
       # Add the object to the in-memory storage list.
-      add_to_working_set(obj)
+      @cache.cache_write(obj)
 
       obj
     end
@@ -95,12 +90,6 @@ module PEROBS
       object_by_id(id)
     end
 
-    # Return the number of in-memory objects. There is no quick way to
-    # determine the number of total objects.
-    def length
-      @working_set.length
-    end
-
     # Flush out all modified objects to disk and shrink the in-memory list if
     # needed.
     def sync
@@ -110,21 +99,7 @@ module PEROBS
         @root_objects_modified = false
       end
 
-      # Write all modified objects to disk
-      @working_set.each { |id, obj| obj.sync }
-
-      # Check if we've reached the defined threshold of in-memory objects and
-      # delete the @flush_count least recently used ones from memory.
-      if @working_set.length > @max_objects
-        # Create a Array of PersistentObject items sorted by access time.
-        objects_by_atime = @working_set.values.sort do |o1, o2|
-          o1.access_time <=> o2.access_time
-        end
-        # Delete the least recently used objects from @working_set.
-        objects_by_atime[0..@flush_count].each do |o|
-          @working_set.delete(o.id)
-        end
-      end
+      @cache.flush
     end
 
     # Discard all objects that are not somehow connected to the root objects
@@ -139,16 +114,16 @@ module PEROBS
     # public API and should never be called by outside users. It's purely
     # intended for internal use.
     def object_by_id(id)
-      if @working_set.include?(id)
+      if (obj = @cache.object_by_id(id))
         # We have the object in memory so we can just return it.
-        return @working_set[id]
+        return obj
       else
         # We don't have the object in memory. Let's find it in the storage.
         if @db.include?(id)
           # Great, object found. Read it into memory and return it.
           obj = PersistentObject::read(self, id)
           # Add the object to the in-memory storage list.
-          add_to_working_set(obj)
+          @cache.cache_read(obj)
 
           return obj
         end
@@ -158,16 +133,7 @@ module PEROBS
       nil
     end
 
-    # Ensure that a specific object is part of the working set. This method is
-    # only intended for internal use. It should never be used the the users of
-    # this library.
-    # @param obj [PersistentObject] The object to include
-    def add_to_working_set(obj)
-      @working_set[obj.id] = obj
-      # If the in-memory list has reached the upper limit, flush out the
-      # modified objects to disk and shrink the list.
-      sync if @working_set.length > @max_objects
-    end
+    private
 
     def mark
       @db.clear_marks
