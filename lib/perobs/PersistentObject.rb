@@ -30,20 +30,15 @@ require 'json/add/core'
 require 'json/add/struct'
 require 'time'
 
-module PEROBS
+require 'perobs/PersistentObjectBase'
 
-  # This class is used to replace a direct reference to another Ruby object by
-  # the Store ID. This makes object disposable by the Ruby garbage collector
-  # since it's no longer referenced once it has been evicted from the
-  # PEROBS::Store cache.
-  class POReference < Struct.new(:id)
-  end
+module PEROBS
 
   # The PersistentObject class is the base class for all objects to be stored
   # in the Store. It provides all the plumbing to define the class attributes
   # and to transparently load and store the instances of the class in the
   # database.
-  class PersistentObject
+  class PersistentObject < PersistentObjectBase
 
     # Modify the Metaclass of PersistentObject to add the attribute method and
     # instance variables to store the default values of the attributes.
@@ -76,56 +71,15 @@ module PEROBS
 
     end
 
-    attr_reader :id, :store
-
     # Create a new PersistentObject object.
     def initialize(store)
-      # The Store that this object is stored in.
-      @store = store
-      # The store-unique ID. This must be a Fixnum or Bignum.
-      @id = @store.db.new_id
+      super
       # Create a Hash for the class attributes and initialize them with the
       # default values.
       @attributes = {}
       self.class.default_values.each do |attr_name, value|
         @attributes[attr_name] = value
       end
-      # Let the store know that we have a modified object.
-      @store.cache.cache_write(self)
-    end
-
-    # Write the object into the backing store database.
-    def sync
-      db_obj = {
-        :class => self.class,
-        :data => @attributes
-      }
-      @store.db.put_object(db_obj, @id)
-    end
-
-    # Read an raw object with the specified ID from the backing store and
-    # instantiate a new object of the specific type.
-    def PersistentObject.read(store, id)
-      # Read the object from database.
-      db_obj = store.db.get_object(id)
-
-      # Call the constructor of the specified class.
-      obj = Object.const_get(db_obj['class']).new(store)
-      # There is no public setter for ID since it should be immutable. To
-      # restore the ID, we use this workaround.
-      obj.send('instance_variable_set', :@id, id)
-      # Initialize all attributes with the provided values.
-      # TODO: Handle schema changes.
-      db_obj['data'].each do |attr_name, value|
-        # Call the set method for attr_name
-        obj.send(attr_name + '=', value)
-      end
-      # The object restore caused the object to be added to the write cache.
-      # To prevent an unnecessary flush to the back-end storage, we will
-      # unregister it from the write cache.
-      store.cache.unwrite(obj)
-
-      obj
     end
 
     # Return a list of all object IDs that the attributes of this instance are
@@ -140,7 +94,26 @@ module PEROBS
       ids
     end
 
+    # Restore the persistent data from a single data structure.
+    # This is a library internal method. Do not use outside of this library.
+    # @param data [Hash] attribute values hashed by their name
+    # @private
+    def deserialize(data)
+      # Initialize all attributes with the provided values.
+      # TODO: Handle schema changes.
+      data.each do |attr_name, value|
+        # Call the set method for attr_name
+        send(attr_name + '=', value)
+      end
+    end
+
     private
+
+    # Return a single data structure that holds all persistent data for this
+    # class.
+    def serialize
+      @attributes
+    end
 
     def set(attr, val)
       unless @store
