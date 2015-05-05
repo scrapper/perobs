@@ -26,8 +26,11 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 require 'time'
+require 'json'
+require 'json/add/core'
+require 'json/add/struct'
 
-require 'perobs/PersistentObject'
+require 'perobs/PersistentObjectBase'
 
 module PEROBS
 
@@ -63,8 +66,7 @@ module PEROBS
     # @param id [Fixnum or Bignum] object ID
     # @return [Hash] Object as defined by PersistentObject
     def get_object(id)
-      obj = JSON.parse(File.read(object_file_name(id)),
-                       :create_additions => true)
+      JSON.parse(File.read(object_file_name(id)), :create_additions => true)
     end
 
     # Write the list of root objects to the filesytem.

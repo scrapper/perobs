@@ -25,9 +25,6 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-require 'json'
-require 'json/add/core'
-require 'json/add/struct'
 require 'time'
 
 require 'perobs/PersistentObjectBase'
@@ -86,12 +83,9 @@ module PEROBS
     # referencing.
     # @return [Array of Fixnum or Bignum] IDs of referenced objects
     def referenced_object_ids
-      ids = []
-      @attributes.each do |name, value|
-        ids << value.id if value && value.is_a?(POReference)
-      end
-
-      ids
+      @attributes.each_value.select do |value|
+        value && value.is_a?(POReference)
+      end.map { |o| o.id }
     end
 
     # Restore the persistent data from a single data structure.
@@ -126,7 +120,7 @@ module PEROBS
                              "a to_json() method to be stored persistently."
       end
 
-      if val.is_a?(PersistentObject)
+      if val.is_a?(PersistentObjectBase)
         # References to other PersistentObjects must be handled somewhat
         # special.
         if @store != val.store
@@ -146,11 +140,6 @@ module PEROBS
     end
 
     def get(attr)
-      unless @store
-        raise ArgumentError, 'The PersistentObject is not assigned to ' +
-                             'any store yet.'
-      end
-
       # Ensure that the object is part of the store working set.
       @store.cache.cache_read(self)
 

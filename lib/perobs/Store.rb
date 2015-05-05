@@ -28,6 +28,7 @@
 require 'perobs/Cache'
 require 'perobs/FileSystemDB'
 require 'perobs/PersistentObject'
+require 'perobs/PersistentHash'
 
 # PErsistent Ruby OBject Store
 module PEROBS
@@ -91,7 +92,7 @@ module PEROBS
 
       # We only allow derivatives of PersistentObject to be stored in the
       # store.
-      unless obj.is_a?(PersistentObject)
+      unless obj.is_a?(PersistentObjectBase)
         raise ArgumentError, "Object must be of class PersistentObject but "
                              "is of class #{obj.class}"
       end

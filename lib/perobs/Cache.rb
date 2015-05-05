@@ -54,18 +54,18 @@ module PEROBS
     # Add an PersistentObject to the read cache.
     # @param obj [PersistentObject]
     def cache_read(obj)
-      unless obj.is_a?(PersistentObject)
-        raise ArgumentError, "obj must be a PersistentObject"
-      end
+      #unless obj.is_a?(PersistentObjectBase)
+      #  raise ArgumentError, "obj must be a PersistentObject"
+      #end
       @reads[index(obj)] = obj
     end
 
     # Add a PersistentObject to the write cache.
     # @param obj [PersistentObject]
     def cache_write(obj)
-      unless obj.is_a?(PersistentObject)
-        raise ArgumentError, "obj must be a PersistentObject"
-      end
+      #unless obj.is_a?(PersistentObjectBase)
+      #  raise ArgumentError, "obj must be a PersistentObject"
+      #end
       idx = index(obj)
       if (old_obj = @writes[idx]) && old_obj.id != obj.id
         # There is another old object using this cache slot. Before we can
