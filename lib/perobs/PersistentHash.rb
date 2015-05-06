@@ -23,7 +23,6 @@ module PEROBS
       unless key.is_a?(String)
         raise ArgumentError, 'The Hash key must be of type String'
       end
-      @store.cache.cache_read(self)
       value = @data.include?(key) ? @data[key] : @default
       value.is_a?(POReference) ? @store.object_by_id(value.id) : value
     end

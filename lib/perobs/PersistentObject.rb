@@ -140,9 +140,6 @@ module PEROBS
     end
 
     def get(attr)
-      # Ensure that the object is part of the store working set.
-      @store.cache.cache_read(self)
-
       if @attributes[attr].is_a?(POReference)
         unless @store
           raise ArgumentError, "Cannot get references. Object is not " +
