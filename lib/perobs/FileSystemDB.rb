@@ -30,7 +30,7 @@ require 'json'
 require 'json/add/core'
 require 'json/add/struct'
 
-require 'perobs/PersistentObjectBase'
+require 'perobs/ObjectBase'
 
 module PEROBS
 
@@ -57,14 +57,14 @@ module PEROBS
     end
 
     # Store the given object into the filesystem.
-    # @param obj [Hash] Object as defined by PersistentObject
+    # @param obj [Hash] Object as defined by PEROBS::ObjectBase
     def put_object(obj, id)
       File.write(object_file_name(id), obj.to_json)
     end
 
     # Load the given object from the filesystem.
     # @param id [Fixnum or Bignum] object ID
-    # @return [Hash] Object as defined by PersistentObject
+    # @return [Hash] Object as defined by PEROBS::ObjectBase
     def get_object(id)
       JSON.parse(File.read(object_file_name(id)), :create_additions => true)
     end

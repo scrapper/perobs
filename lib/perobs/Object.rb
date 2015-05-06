@@ -1,6 +1,6 @@
 # encoding: UTF-8
 #
-# = PersistentObject.rb -- Persistent Ruby Object Store
+# = Object.rb -- Persistent Ruby Object Store
 #
 # Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
 #
@@ -27,24 +27,24 @@
 
 require 'time'
 
-require 'perobs/PersistentObjectBase'
+require 'perobs/ObjectBase'
 
 module PEROBS
 
-  # The PersistentObject class is the base class for all objects to be stored
+  # The PEROBS::Object class is the base class for all objects to be stored
   # in the Store. It provides all the plumbing to define the class attributes
   # and to transparently load and store the instances of the class in the
   # database.
-  class PersistentObject < PersistentObjectBase
+  class Object < ObjectBase
 
-    # Modify the Metaclass of PersistentObject to add the attribute method and
+    # Modify the Metaclass of PEROBS::Object to add the attribute method and
     # instance variables to store the default values of the attributes.
     class << self
 
       attr_reader :default_values
 
       # This method can be used to define instance variable for
-      # PersistentObject derived classes.
+      # PEROBS::Object derived classes.
       # @param attr_name [Symbol] Name of the instance variable
       # @param value Default value of the attribute
       def po_attr(attr_name, value = nil)
@@ -68,7 +68,7 @@ module PEROBS
 
     end
 
-    # Create a new PersistentObject object.
+    # Create a new PEROBS::Object object.
     def initialize(store)
       super
       # Create a Hash for the class attributes and initialize them with the
@@ -111,7 +111,7 @@ module PEROBS
 
     def set(attr, val)
       unless @store
-        raise ArgumentError, 'The PersistentObject is not assigned to ' +
+        raise ArgumentError, 'The PEROBS::Object is not assigned to ' +
                              'any store yet.'
       end
 
@@ -120,8 +120,8 @@ module PEROBS
                              "a to_json() method to be stored persistently."
       end
 
-      if val.is_a?(PersistentObjectBase)
-        # References to other PersistentObjects must be handled somewhat
+      if val.is_a?(ObjectBase)
+        # References to other PEROBS::Objects must be handled somewhat
         # special.
         if @store != val.store
           raise ArgumentError, 'The referenced object is not part of this store'

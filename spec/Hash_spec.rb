@@ -5,50 +5,46 @@ require 'time'
 
 require 'perobs'
 
-module PEROBS
+DBName = 'test_db'
 
-  @@DBName = 'test_db'
+class PO < PEROBS::Object
 
-  class PO < PersistentObject
+  po_attr :name
 
-    po_attr :name
-
-    def initialize(store)
-      super
-    end
-
+  def initialize(store)
+    super
   end
 
-  describe PersistentHash do
+end
 
-    before(:all) do
-      FileUtils.rm_rf(@@DBName)
-    end
+describe PEROBS::Hash do
 
-    after(:each) do
-      FileUtils.rm_rf(@@DBName)
-    end
+  before(:all) do
+    FileUtils.rm_rf(DBName)
+  end
 
-    it 'should store simple objects' do
-      store = Store.new(@@DBName)
-      store[:h] = h = PersistentHash.new(store)
-      h['a'] = 'A'
-      h['b'] = 'B'
-      h['po'] = po = PO.new(store)
-      po.name = 'foobar'
-      h['b'] = 'B'
+  after(:each) do
+    FileUtils.rm_rf(DBName)
+  end
 
-      h['a'].should == 'A'
-      h['b'].should == 'B'
-      store.sync
+  it 'should store simple objects' do
+    store = PEROBS::Store.new(DBName)
+    store[:h] = h = PEROBS::Hash.new(store)
+    h['a'] = 'A'
+    h['b'] = 'B'
+    h['po'] = po = PO.new(store)
+    po.name = 'foobar'
+    h['b'] = 'B'
 
-      store = Store.new(@@DBName)
-      h = store[:h]
-      h['a'].should == 'A'
-      h['b'].should == 'B'
-      h['po'].name.should == 'foobar'
-    end
+    h['a'].should == 'A'
+    h['b'].should == 'B'
+    store.sync
 
+    store = PEROBS::Store.new(DBName)
+    h = store[:h]
+    h['a'].should == 'A'
+    h['b'].should == 'B'
+    h['po'].name.should == 'foobar'
   end
 
 end

@@ -1,11 +1,11 @@
-require 'perobs/PersistentObjectBase'
+require 'perobs/ObjectBase'
 
 module PEROBS
 
   # A Hash that is transparently persisted in the back-end storage. It is very
   # similar to the Ruby built-in Hash class but has some additional
   # limitations. The hash key must always be a String.
-  class PersistentHash < PersistentObjectBase
+  class Hash < ObjectBase
 
     # Create a new PersistentHash object.
     # @param store [Store] The Store this hash is stored in
@@ -34,7 +34,7 @@ module PEROBS
       unless key.is_a?(String)
         raise ArgumentError, 'The Hash key must be of type String'
       end
-      if value.is_a?(PersistentObjectBase)
+      if value.is_a?(ObjectBase)
         # The value is a reference to another persistent object. Store the ID
         # of that object in a POReference object.
         if @store != value.store

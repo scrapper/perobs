@@ -27,8 +27,8 @@
 
 require 'perobs/Cache'
 require 'perobs/FileSystemDB'
-require 'perobs/PersistentObject'
-require 'perobs/PersistentHash'
+require 'perobs/Object'
+require 'perobs/Hash'
 
 # PErsistent Ruby OBject Store
 module PEROBS
@@ -42,7 +42,7 @@ module PEROBS
   # extended to any key/value database.
   #
   # Persistent objects must be created by deriving your class from
-  # PEROBS::PersistentObject. Only instance variables that are declared via
+  # PEROBS::Object. Only instance variables that are declared via
   # po_attr will be persistent. All objects that are stored in persitant
   # instance variables must provide a to_json method that generates JSON
   # syntax that can be parsed into their original object again. It is
@@ -76,8 +76,8 @@ module PEROBS
     # indirectly reachable via any of the root objects are no longer
     # accessible and will be garbage collected.
     # @param name [Symbol] The name to use.
-    # @param obj [PersistentObject] The object to store
-    # @return [PersistentObject] The stored object.
+    # @param obj [PEROBS::Object] The object to store
+    # @return [PEROBS::Object] The stored object.
     def []=(name, obj)
       unless name.is_a?(Symbol)
         raise ArgumentError, "name '#{name}' must be a Symbol but is a " +
@@ -90,10 +90,10 @@ module PEROBS
         return nil
       end
 
-      # We only allow derivatives of PersistentObject to be stored in the
+      # We only allow derivatives of PEROBS::Object to be stored in the
       # store.
-      unless obj.is_a?(PersistentObjectBase)
-        raise ArgumentError, "Object must be of class PersistentObject but "
+      unless obj.is_a?(ObjectBase)
+        raise ArgumentError, "Object must be of class PEROBS::Object but "
                              "is of class #{obj.class}"
       end
 
@@ -162,7 +162,7 @@ module PEROBS
         # We don't have the object in memory. Let's find it in the storage.
         if @db.include?(id)
           # Great, object found. Read it into memory and return it.
-          obj = PersistentObject::read(self, id)
+          obj = Object::read(self, id)
           # Add the object to the in-memory storage list.
           @cache.cache_read(obj)
 

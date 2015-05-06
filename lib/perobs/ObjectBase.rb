@@ -1,6 +1,6 @@
 # encoding: UTF-8
 #
-# = PersistentObjectBase.rb -- Persistent Ruby Object Store
+# = ObjectBase.rb -- Persistent Ruby Object Store
 #
 # Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
 #
@@ -36,11 +36,11 @@ module PEROBS
 
   # Base class for all persistent objects. It provides the functionality
   # common to all classes of persistent objects.
-  class PersistentObjectBase
+  class ObjectBase
 
     attr_reader :id, :store
 
-    # Create a new PersistentObjectBase object.
+    # Create a new PEROBS::ObjectBase object.
     def initialize(store)
       @store = store
       @id = @store.db.new_id
@@ -60,7 +60,7 @@ module PEROBS
 
     # Read an raw object with the specified ID from the backing store and
     # instantiate a new object of the specific type.
-    def PersistentObjectBase.read(store, id)
+    def ObjectBase.read(store, id)
       # Read the object from database.
       db_obj = store.db.get_object(id)
 

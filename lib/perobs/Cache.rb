@@ -42,7 +42,7 @@ module PEROBS
       @store = store
       @bits = bits
       # The read and write caches are Arrays. We use the _bits_ least
-      # significant bits of the PersistentObject ID to select the index in the
+      # significant bits of the PEROBS::Object ID to select the index in the
       # read or write cache Arrays.
       @reads = Array.new(2 ** bits)
       @writes = Array.new(2 ** bits)
@@ -51,20 +51,20 @@ module PEROBS
       @mask = 2 ** bits - 1
     end
 
-    # Add an PersistentObject to the read cache.
-    # @param obj [PersistentObject]
+    # Add an PEROBS::Object to the read cache.
+    # @param obj [PEROBS::Object]
     def cache_read(obj)
-      #unless obj.is_a?(PersistentObjectBase)
-      #  raise ArgumentError, "obj must be a PersistentObject"
+      #unless obj.is_a?(ObjectBase)
+      #  raise ArgumentError, "obj must be a PEROBS::Object"
       #end
       @reads[index(obj)] = obj
     end
 
-    # Add a PersistentObject to the write cache.
-    # @param obj [PersistentObject]
+    # Add a PEROBS::Object to the write cache.
+    # @param obj [PEROBS::Object]
     def cache_write(obj)
-      #unless obj.is_a?(PersistentObjectBase)
-      #  raise ArgumentError, "obj must be a PersistentObject"
+      #unless obj.is_a?(ObjectBase)
+      #  raise ArgumentError, "obj must be a PEROBS::Object"
       #end
       idx = index(obj)
       if (old_obj = @writes[idx]) && old_obj.id != obj.id
@@ -83,8 +83,8 @@ module PEROBS
       @reads[idx] = obj
     end
 
-    # Return the PersistentObject with the specified ID or nil if not found.
-    # @param id [Fixnum or Bignum] ID of the cached PersistentObject
+    # Return the PEROBS::Object with the specified ID or nil if not found.
+    # @param id [Fixnum or Bignum] ID of the cached PEROBS::Object
     def object_by_id(id)
       idx = id & @mask
       # The index is just a hash. We still need to check if the object IDs are
