@@ -49,6 +49,73 @@ module PEROBS
       value
     end
 
+    # Equivalent to Hash::clear
+    def clear
+      @data.clear
+    end
+
+    # Equivalent to Hash::delete
+    def delete(key)
+      @data.delete(key)
+    end
+
+    # Equivalent to Hash::delete_if
+    def delete_if
+      @data.delete_if do |k, v|
+        yield(k, v.is_a?(POReference) ? @store.object_by_id(v.id) : v)
+      end
+    end
+
+    # Equivalent to Hash::each
+    def each
+      @data.each do |k, v|
+        yield(k, v.is_a?(POReference) ? @store.object_by_id(v.id) : v)
+      end
+    end
+
+    # Equivalent to Hash::each_key
+    def each_key
+      @data.each_key { |k| yield(k) }
+    end
+
+    # Equivalent to Hash::each_value
+    def each_value
+      @data.each_value do |v|
+        yield(v.is_a?(POReference) ? @store.object_by_id(v.id) : v)
+      end
+    end
+
+    # Equivalent to Hash::empty?
+    def emtpy?
+      @data.empty?
+    end
+
+    # Equivalent to Hash::empty?
+    def has_key?(key)
+      @data.has_key?(key)
+    end
+    alias include? has_key?
+    alias key? has_key?
+    alias member? has_key?
+
+    # Equivalent to Hash::keys
+    def keys
+      @data.keys
+    end
+
+    # Equivalent to Hash::length
+    def length
+      @data.length
+    end
+    alias size length
+
+    # Equivalent to Hash::map
+    def map
+      @data.map do |k, v|
+        yield(k, v.is_a?(POReference) ? @store.object_by_id(v.id) : v)
+      end
+    end
+
     # Return a list of all object IDs of all persistend objects that this Hash
     # is referencing.
     # @return [Array of Fixnum or Bignum] IDs of referenced objects
