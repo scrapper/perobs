@@ -29,6 +29,7 @@ require 'perobs/Cache'
 require 'perobs/FileSystemDB'
 require 'perobs/Object'
 require 'perobs/Hash'
+require 'perobs/Array'
 
 # PErsistent Ruby OBject Store
 module PEROBS

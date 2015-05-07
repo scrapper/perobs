@@ -44,8 +44,8 @@ module PEROBS
       # The read and write caches are Arrays. We use the _bits_ least
       # significant bits of the PEROBS::Object ID to select the index in the
       # read or write cache Arrays.
-      @reads = Array.new(2 ** bits)
-      @writes = Array.new(2 ** bits)
+      @reads = ::Array.new(2 ** bits)
+      @writes = ::Array.new(2 ** bits)
       # This mask is used to access the _bits_ least significant bits of the
       # object ID.
       @mask = 2 ** bits - 1
@@ -103,7 +103,7 @@ module PEROBS
     # Flush all pending writes to the persistant storage back-end.
     def flush
       @writes.each { |w| w.sync if w }
-      @writes = Array.new(2 ** @bits)
+      @writes = ::Array.new(2 ** @bits)
     end
 
     private

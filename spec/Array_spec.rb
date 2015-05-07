@@ -30,7 +30,6 @@ require 'time'
 
 require 'perobs'
 
-
 class PO < PEROBS::Object
 
   po_attr :name
@@ -42,7 +41,7 @@ class PO < PEROBS::Object
 
 end
 
-describe PEROBS::Hash do
+describe PEROBS::Array do
 
   before(:all) do
     @db_name = 'test_db'
@@ -55,42 +54,41 @@ describe PEROBS::Hash do
 
   it 'should store simple objects persistently' do
     store = PEROBS::Store.new(@db_name)
-    store[:h] = h = PEROBS::Hash.new(store)
-    h['a'] = 'A'
-    h['b'] = 'B'
-    h['po'] = po = PO.new(store)
+    store[:a] = a = PEROBS::Array.new(store)
+    a[0] = 'A'
+    a[1] = 'B'
+    a[2] = po = PO.new(store)
     po.name = 'foobar'
-    h['b'] = 'B'
 
-    h['a'].should == 'A'
-    h['b'].should == 'B'
+    a[0].should == 'A'
+    a[1].should == 'B'
+    a[2].name.should == 'foobar'
     store.sync
 
     store = PEROBS::Store.new(@db_name)
-    h = store[:h]
-    h['a'].should == 'A'
-    h['b'].should == 'B'
-    h['po'].name.should == 'foobar'
+    a = store[:a]
+    a[0].should == 'A'
+    a[1].should == 'B'
+    a[2].name.should == 'foobar'
   end
 
   it 'should have an each method to iterate' do
     store = PEROBS::Store.new(@db_name)
-    store[:h] = h = PEROBS::Hash.new(store)
-    h['a'] = 'A'
-    h['b'] = 'B'
-    h['c'] = 'C'
-    vs = []
-    h.each { |k, v| vs << k + v }
-    vs.sort.join.should == 'aAbBcC'
+    store[:a] = a = PEROBS::Array.new(store)
+    a[0] = 'A'
+    a[1] = 'B'
+    a[2] = 'C'
+    vs = ''
+    a.each { |v| vs << v }
+    vs.should == 'ABC'
+    store.sync
 
     store = PEROBS::Store.new(@db_name)
-    store[:h] = h = PEROBS::Hash.new(store)
-    h['a'] = PO.new(store, 'A')
-    h['b'] = PO.new(store, 'B')
-    h['c'] = PO.new(store, 'C')
-    vs = []
-    h.each { |k, v| vs << k + v.name }
-    vs.sort.join.should == 'aAbBcC'
+    a = store[:a]
+    vs = ''
+    a[3] = PO.new(store, 'D')
+    a.each { |v| vs << (v.is_a?(String) ? v : v.name) }
+    vs.should == 'ABCD'
   end
 
 end
