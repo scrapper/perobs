@@ -46,59 +46,78 @@ module PEROBS
 
     # Equivalent to Array::[]
     def [](index)
-      value = @data[index]
-      value.is_a?(POReference) ? @store.object_by_id(value.id) : value
+      dereferenced(@data[index])
     end
 
     # Equivalent to Array::[]=
-    def []=(index, value)
-      if value.is_a?(ObjectBase)
-        # The value is a reference to another persistent object. Store the ID
-        # of that object in a POReference object.
-        if @store != value.store
-          raise ArgumentError, 'The referenced object is not part of this store'
-        end
-        @data[index] = POReference.new(value.id)
-      else
-        @data[index] = value
-      end
+    def []=(index, obj)
+      @data[index] = referenced(obj)
       @store.cache.cache_write(self)
 
-      value
+      obj
+    end
+
+    # Equivalent to Array::<<
+    def <<(obj)
+      @store.cache.cache_write(self)
+      @data << referenced(obj)
+    end
+
+    # Equivalent to Array::push
+    def push(obj)
+      @store.cache.cache_write(self)
+      @data.push(referenced(obj))
+    end
+
+    # Equivalent to Array::pop
+    def pop
+      @store.cache.cache_write(self)
+      o = dereferenced(@data.pop)
+      o
     end
 
     # Equivalent to Array::clear
     def clear
+      @store.cache.cache_write(self)
       @data.clear
     end
 
     # Equivalent to Array::delete
-    def delete(obj, &block)
-      @data.delete(obj, &block)
+    def delete(obj)
+      @store.cache.cache_write(self)
+      @data.delete { |v| dereferenced(v) == obj }
     end
 
     # Equivalent to Array::delete_at
     def delete_at(index)
+      @store.cache.cache_write(self)
       @data.delete_at(index)
     end
 
     # Equivalent to Array::delete_if
     def delete_if
       @data.delete_if do |item|
-        yield(item.is_a?(POReference) ? @store.object_by_id(item.id) : item)
+        yield(dereferenced(item))
       end
     end
 
     # Equivalent to Array::each
     def each
       @data.each do |item|
-        yield(item.is_a?(POReference) ? @store.object_by_id(item.id) : item)
+        yield(dereferenced(item))
       end
     end
 
     # Equivalent to Array::empty?
-    def emtpy?
+    def empty?
       @data.empty?
+    end
+
+    # Equivalent to Array::include?
+    def include?(obj)
+      @data.each { |v| return true if dereferenced(v) == obj }
+
+      false
     end
 
     # Equivalent to Array::length
@@ -110,7 +129,7 @@ module PEROBS
     # Equivalent to Array::map
     def map
       @data.map do |item|
-        yield(item.is_a?(POReference) ? @store.object_by_id(item.id) : item)
+        yield(dereferenced(item))
       end
     end
     alias collect map
@@ -118,8 +137,15 @@ module PEROBS
     # Return a list of all object IDs of all persistend objects that this Array
     # is referencing.
     # @return [Array of Fixnum or Bignum] IDs of referenced objects
-    def referenced_objects_ids
+    def referenced_object_ids
       @data.each.select { |v| v && v.is_a?(POReference) }.map { |o| o.id }
+    end
+
+    # This method should only be used during store repair operations. It will
+    # delete all referenced to the given object ID.
+    # @param id [Fixnum/Bignum] targeted object ID
+    def delete_reference_to_id(id)
+      @data.delete_if { |v| v && v.is_a?(POReference) && v.id == id }
     end
 
     # Restore the persistent data from a single data structure.

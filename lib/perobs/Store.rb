@@ -175,6 +175,55 @@ module PEROBS
       nil
     end
 
+    # This method can be used to check the database and optionally repair it.
+    # The repair is a pure structural repair. It cannot ensure that the stored
+    # data is still correct. E. g. if a reference to a non-existing or
+    # unreadable object is found, the reference will simply be deleted.
+    # @param repair [TrueClass/FalseClass] true if a repair attempt should be
+    #        made.
+    def check(repair = true)
+      @db.clear_marks
+      # A buffer to hold a working set of object IDs.
+      stack = []
+      # First we check the top-level objects. They are only added to the
+      # working set if they are OK.
+      @root_objects.each do |name, id|
+        unless @db.check(id, repair)
+          stack << id
+        end
+      end
+      if repair
+        # Delete any top-level object that is defective.
+        stack.each { |id| @root_objects.delete(id) }
+        # The remaining top-level objects are the initial working set.
+        stack = @root_objects.values
+      else
+        # The initial working set must only be OK objects.
+        stack = @root_objects.values - stack
+      end
+      stack.each { |id| @db.mark(id) }
+
+      while !stack.empty?
+        id = stack.pop
+        (obj = object_by_id(id)).referenced_object_ids.each do |id|
+          # Add all found references that have passed the check to the working
+          # list for the next iterations.
+          if @db.check(id, repair)
+            unless @db.is_marked?(id)
+              if stack.include?(id)
+                raise "ID already on stack"
+              end
+              stack << id
+              @db.mark(id)
+            end
+          elsif repair
+            # Remove references to bad objects.
+            obj.delete_reference_to_id(id)
+          end
+        end
+      end
+    end
+
     private
 
     def mark

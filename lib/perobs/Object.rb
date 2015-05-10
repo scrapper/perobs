@@ -68,15 +68,17 @@ module PEROBS
 
     end
 
+    attr_reader :attributes
+
     # Create a new PEROBS::Object object.
     def initialize(store)
       super
       # Create a Hash for the class attributes and initialize them with the
       # default values.
       @attributes = {}
-      self.class.default_values.each do |attr_name, value|
-        @attributes[attr_name] = value
-      end
+      #self.class.default_values.each do |attr_name, value|
+      #  @attributes[attr_name] = value
+      #end
     end
 
     # Return a list of all object IDs that the attributes of this instance are
@@ -86,6 +88,13 @@ module PEROBS
       @attributes.each_value.select do |value|
         value && value.is_a?(POReference)
       end.map { |o| o.id }
+    end
+
+    # This method should only be used during store repair operations. It will
+    # delete all referenced to the given object ID.
+    # @param id [Fixnum/Bignum] targeted object ID
+    def delete_reference_to_id(id)
+      @attribute.delete_if { |k, v| v && v.is_a?(POReference) && v.id == id }
     end
 
     # Restore the persistent data from a single data structure.
@@ -99,6 +108,23 @@ module PEROBS
         # Call the set method for attr_name
         send(attr_name + '=', value)
       end
+    end
+
+    # Initialize the specified attribute _attr_ with the value _val_ unless
+    # the attribute has been initialized already. Use this method in the class
+    # constructor to avoid overwriting values that have been set when the
+    # object was reconstructed from the store.
+    # @param attr [Symbol] Name of the attribute
+    # @param val [Any] Value to be set
+    # @return [true|false] True if the value was initialized, otherwise false.
+    def init_attr(attr, val)
+      unless @attributes.include?(attr)
+        set(attr, val)
+        return true
+      end
+      puts "#{attr} already set: #{@attributes.inspect}"
+
+      false
     end
 
     private

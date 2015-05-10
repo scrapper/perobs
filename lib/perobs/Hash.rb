@@ -50,8 +50,7 @@ module PEROBS
       unless key.is_a?(String)
         raise ArgumentError, 'The Hash key must be of type String'
       end
-      value = @data.include?(key) ? @data[key] : @default
-      value.is_a?(POReference) ? @store.object_by_id(value.id) : value
+      dereferenced(@data.include?(key) ? @data[key] : @default)
     end
 
     # Associates the value given by value with the key given by key.
@@ -61,16 +60,7 @@ module PEROBS
       unless key.is_a?(String)
         raise ArgumentError, 'The Hash key must be of type String'
       end
-      if value.is_a?(ObjectBase)
-        # The value is a reference to another persistent object. Store the ID
-        # of that object in a POReference object.
-        if @store != value.store
-          raise ArgumentError, 'The referenced object is not part of this store'
-        end
-        @data[key] = POReference.new(value.id)
-      else
-        @data[key] = value
-      end
+      @data[key] = referenced(value)
       @store.cache.cache_write(self)
 
       value
@@ -78,25 +68,28 @@ module PEROBS
 
     # Equivalent to Hash::clear
     def clear
+      @store.cache.cache_write(self)
       @data.clear
     end
 
     # Equivalent to Hash::delete
     def delete(key)
+      @store.cache.cache_write(self)
       @data.delete(key)
     end
 
     # Equivalent to Hash::delete_if
     def delete_if
+      @store.cache.cache_write(self)
       @data.delete_if do |k, v|
-        yield(k, v.is_a?(POReference) ? @store.object_by_id(v.id) : v)
+        yield(k, dereferenced(v))
       end
     end
 
     # Equivalent to Hash::each
     def each
       @data.each do |k, v|
-        yield(k, v.is_a?(POReference) ? @store.object_by_id(v.id) : v)
+        yield(k, dereferenced(v))
       end
     end
 
@@ -108,7 +101,7 @@ module PEROBS
     # Equivalent to Hash::each_value
     def each_value
       @data.each_value do |v|
-        yield(v.is_a?(POReference) ? @store.object_by_id(v.id) : v)
+        yield(dereferenced(v))
       end
     end
 
@@ -139,15 +132,22 @@ module PEROBS
     # Equivalent to Hash::map
     def map
       @data.map do |k, v|
-        yield(k, v.is_a?(POReference) ? @store.object_by_id(v.id) : v)
+        yield(k, dereferenced(v))
       end
     end
 
     # Return a list of all object IDs of all persistend objects that this Hash
     # is referencing.
     # @return [Array of Fixnum or Bignum] IDs of referenced objects
-    def referenced_objects_ids
+    def referenced_object_ids
       @data.each_value.select { |v| v && v.is_a?(POReference) }.map { |o| o.id }
+    end
+
+    # This method should only be used during store repair operations. It will
+    # delete all referenced to the given object ID.
+    # @param id [Fixnum/Bignum] targeted object ID
+    def delete_reference_to_id(id)
+      @data.delete_if { |k, v| v && v.is_a?(POReference) && v.id == id }
     end
 
     # Restore the persistent data from a single data structure.

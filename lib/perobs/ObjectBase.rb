@@ -78,6 +78,25 @@ module PEROBS
       obj
     end
 
+    private
+
+    def dereferenced(v)
+      v.is_a?(POReference) ? @store.object_by_id(v.id) : v
+    end
+
+    def referenced(obj)
+      if obj.is_a?(ObjectBase)
+        # The obj is a reference to another persistent object. Store the ID
+        # of that object in a POReference object.
+        if @store != obj.store
+          raise ArgumentError, 'The referenced object is not part of this store'
+        end
+        POReference.new(obj.id)
+      else
+        obj
+      end
+    end
+
   end
 
 end

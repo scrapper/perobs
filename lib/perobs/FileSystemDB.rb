@@ -29,6 +29,7 @@ require 'time'
 require 'json'
 require 'json/add/core'
 require 'json/add/struct'
+require 'fileutils'
 
 require 'perobs/ObjectBase'
 
@@ -128,13 +129,36 @@ module PEROBS
     # Mark an object.
     # @param id [Fixnum or Bignum] ID of the object to mark
     def mark(id)
-      File.read(object_file_name(id))
+      FileUtils.touch(object_file_name(id))
     end
 
     # Check if the object is marked.
     # @param id [Fixnum or Bignum] ID of the object to check
     def is_marked?(id)
       File.atime(object_file_name(id)) > @mark_start
+    end
+
+    # Check if the stored object is syntactically correct.
+    # @param id [Fixnum/Bignum] Object ID
+    # @param repair [TrueClass/FalseClass] True if an repair attempt should be
+    #        made.
+    # @return [TrueClass/FalseClass] True if the object is OK, otherwise
+    #         false.
+    def check(id, repair)
+      file_name = object_file_name(id)
+      unless File.exists?(file_name)
+        $stderr.puts "Object file for ID #{id} does not exist"
+        return false
+      end
+
+      begin
+        JSON.parse(File.read(object_file_name(id)), :create_additions => true)
+      rescue
+        $stderr.puts "Cannot read object file #{file_name}: #{$!}"
+        return false
+      end
+
+      true
     end
 
     private
