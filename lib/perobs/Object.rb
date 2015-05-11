@@ -31,10 +31,14 @@ require 'perobs/ObjectBase'
 
 module PEROBS
 
-  # The PEROBS::Object class is the base class for all objects to be stored
-  # in the Store. It provides all the plumbing to define the class attributes
-  # and to transparently load and store the instances of the class in the
-  # database.
+  # The PEROBS::Object class is the base class for user-defined objects to be
+  # stored in the Store. It provides all the plumbing to define the class
+  # attributes and to transparently load and store the instances of the class
+  # in the database. You can use instance variables like normal instance
+  # variables unless they refer to other PEROBS objects. In these cases you
+  # must use the accessor methods for these instance variables. You must use
+  # accessor methods for any read and write operation to instance variables
+  # that hold or should hold PEROBS objects.
   class Object < ObjectBase
 
     # Modify the Metaclass of PEROBS::Object to add the attribute method and
@@ -75,25 +79,31 @@ module PEROBS
     # Create a new PEROBS::Object object.
     def initialize(store)
       super
-      # Create a Hash for the class attributes and initialize them with the
-      # default values.
-      @attributes = {}
     end
 
     # Return a list of all object IDs that the attributes of this instance are
     # referencing.
     # @return [Array of Fixnum or Bignum] IDs of referenced objects
     def referenced_object_ids
-      @attributes.each_value.select do |value|
-        value && value.is_a?(POReference)
-      end.map { |o| o.id }
+      ids = []
+      self.class.attributes.each do |attr|
+        value = instance_variable_get(('@' + attr.to_s).to_sym)
+        ids << value.id if value && value.is_a?(POReference)
+      end
+      ids
     end
 
     # This method should only be used during store repair operations. It will
     # delete all referenced to the given object ID.
     # @param id [Fixnum/Bignum] targeted object ID
     def delete_reference_to_id(id)
-      @attribute.delete_if { |k, v| v && v.is_a?(POReference) && v.id == id }
+      self.class.attributes.each do |attr|
+        ivar = ('@' + attr.to_s).to_sym
+        value = instance_variable_get(ivar)
+        if value && value.is_a?(POReference)  && value.id == id
+          instance_variable_set(ivar, nil)
+        end
+      end
     end
 
     # Restore the persistent data from a single data structure.
@@ -128,7 +138,19 @@ module PEROBS
     # Return a single data structure that holds all persistent data for this
     # class.
     def serialize
-      @attributes
+      attributes = {}
+      self.class.attributes.each do |attr|
+        ivar = ('@' + attr.to_s).to_sym
+        if (value = instance_variable_get(ivar)).is_a?(ObjectBase)
+          raise ArgumentError, "The instance variable #{ivar} contains a " +
+                               "reference to a PEROBS::ObjectBase object! " +
+                               "This is not allowed. You must use the " +
+                               "accessor method to assign a reference to " +
+                               "another PEROBS object."
+        end
+        attributes[attr] = value
+      end
+      attributes
     end
 
     def set(attr, val)
@@ -142,6 +164,7 @@ module PEROBS
                              "a to_json() method to be stored persistently."
       end
 
+      ivar = ('@' + attr.to_s).to_sym
       if val.is_a?(ObjectBase)
         # References to other PEROBS::Objects must be handled somewhat
         # special.
@@ -151,9 +174,9 @@ module PEROBS
         # To release the object from the Ruby object list later, we store the
         # PEROBS::Store ID of the referenced object instead of the actual
         # reference.
-        @attributes[attr] = POReference.new(val.id)
+        instance_variable_set(ivar, POReference.new(val.id))
       else
-        @attributes[attr] = val
+        instance_variable_set(ivar, val)
       end
       # Let the store know that we have a modified object.
       @store.cache.cache_write(self)
@@ -162,7 +185,7 @@ module PEROBS
     end
 
     def get(attr)
-      value = @attributes[attr]
+      value = instance_variable_get(('@' + attr.to_s).to_sym)
       if value.is_a?(POReference)
         unless @store
           raise ArgumentError, "Cannot get references. Object is not " +
