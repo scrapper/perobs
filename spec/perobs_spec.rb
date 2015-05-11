@@ -31,15 +31,13 @@ require 'perobs'
 
 class Person < PEROBS::Object
 
-  po_attr :name, ''
-  po_attr :zip
-  po_attr :bmi, 22.2
-  po_attr :married, false
-  po_attr :related
-  po_attr :relatives
+  po_attr :name, :zip, :bmi, :married, :related, :relatives
 
   def initialize(store)
     super
+    init_attr(:name, '')
+    init_attr(:bmi, 22.2)
+    init_attr(:married, false)
   end
 
 end

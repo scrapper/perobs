@@ -41,29 +41,31 @@ module PEROBS
     # instance variables to store the default values of the attributes.
     class << self
 
-      attr_reader :default_values
+      attr_reader :attributes
 
       # This method can be used to define instance variable for
       # PEROBS::Object derived classes.
-      # @param attr_name [Symbol] Name of the instance variable
-      # @param value Default value of the attribute
-      def po_attr(attr_name, value = nil)
-        unless attr_name.is_a?(Symbol)
-          raise ArgumentError, "attr_name must be a symbol but is a " +
-            "#{attr_name.class}"
-        end
+      # @param attributes [Symbol] Name of the instance variable
+      def po_attr(*attributes)
+        attributes.each do |attr_name|
+          unless attr_name.is_a?(Symbol)
+            raise ArgumentError, "attr_name must be a symbol but is a " +
+              "#{attr_name.class}"
+          end
 
-        # Create the attribute reader method with name of attr_name.
-        define_method(attr_name.to_s) do
-          get(attr_name)
-        end
-        # Create the attribute writer method with name of attr_name.
-        define_method(attr_name.to_s + '=') do |val|
-          set(attr_name, val)
-        end
+          # Create the attribute reader method with name of attr_name.
+          define_method(attr_name.to_s) do
+            get(attr_name)
+          end
+          # Create the attribute writer method with name of attr_name.
+          define_method(attr_name.to_s + '=') do |val|
+            set(attr_name, val)
+          end
 
-        @default_values ||= {}
-        @default_values[attr_name] = value
+          # Store a list of the attribute names
+          @attributes ||= []
+          @attributes << attr_name unless @attributes.include?(attr_name)
+        end
       end
 
     end
@@ -76,9 +78,6 @@ module PEROBS
       # Create a Hash for the class attributes and initialize them with the
       # default values.
       @attributes = {}
-      #self.class.default_values.each do |attr_name, value|
-      #  @attributes[attr_name] = value
-      #end
     end
 
     # Return a list of all object IDs that the attributes of this instance are
@@ -103,10 +102,8 @@ module PEROBS
     # @private
     def deserialize(data)
       # Initialize all attributes with the provided values.
-      # TODO: Handle schema changes.
       data.each do |attr_name, value|
-        # Call the set method for attr_name
-        send(attr_name + '=', value)
+        set(attr_name.to_sym, value)
       end
     end
 
@@ -118,11 +115,10 @@ module PEROBS
     # @param val [Any] Value to be set
     # @return [true|false] True if the value was initialized, otherwise false.
     def init_attr(attr, val)
-      unless @attributes.include?(attr)
+      unless self.class.attributes.include?(attr)
         set(attr, val)
         return true
       end
-      puts "#{attr} already set: #{@attributes.inspect}"
 
       false
     end
@@ -166,14 +162,15 @@ module PEROBS
     end
 
     def get(attr)
-      if @attributes[attr].is_a?(POReference)
+      value = @attributes[attr]
+      if value.is_a?(POReference)
         unless @store
           raise ArgumentError, "Cannot get references. Object is not " +
                                "stored in any store yet"
         end
-        @store.object_by_id(@attributes[attr].id)
+        @store.object_by_id(value.id)
       else
-        @attributes[attr]
+        value
       end
     end
 
