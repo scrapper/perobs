@@ -25,6 +25,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+require 'perobs/Store'
+
 module PEROBS
 
   # The Cache provides two functions for the PEROBS Store. It keeps some
@@ -63,14 +65,11 @@ module PEROBS
     # Add a PEROBS::Object to the write cache.
     # @param obj [PEROBS::Object]
     def cache_write(obj)
-      #unless obj.is_a?(ObjectBase)
-      #  raise ArgumentError, "obj must be a PEROBS::Object"
-      #end
       idx = index(obj)
-      if (old_obj = @writes[idx]) && old_obj.id != obj.id
+      if (old_obj = @writes[idx]) && old_obj._id != obj._id
         # There is another old object using this cache slot. Before we can
         # re-use the slot, we need to sync it to the permanent storage.
-        old_obj.sync
+        old_obj._sync
       end
       @writes[idx] = obj
     end
@@ -79,8 +78,10 @@ module PEROBS
     # object from being written to the back-end store.
     def unwrite(obj)
       idx = index(obj)
+      if (old_obj = @writes[idx]).nil? || old_obj._id != obj._id
+        raise StandardError, "Object to unwrite is not in cache"
+      end
       @writes[idx] = nil
-      @reads[idx] = obj
     end
 
     # Return the PEROBS::Object with the specified ID or nil if not found.
@@ -89,10 +90,10 @@ module PEROBS
       idx = id & @mask
       # The index is just a hash. We still need to check if the object IDs are
       # actually the same before we can return the object.
-      if (obj = @writes[idx]) && obj.id == id
+      if (obj = @writes[idx]) && obj._id == id
         # The object was in the write cache.
         return obj
-      elsif (obj = @reads[idx]) && obj.id == id
+      elsif (obj = @reads[idx]) && obj._id == id
         # The object was in the read cache.
         return obj
       end
@@ -102,14 +103,17 @@ module PEROBS
 
     # Flush all pending writes to the persistant storage back-end.
     def flush
-      @writes.each { |w| w.sync if w }
+      @writes.each { |w| w._sync if w }
       @writes = ::Array.new(2 ** @bits)
+    end
+
+    def inspect
     end
 
     private
 
     def index(obj)
-      obj.id & @mask
+      obj._id & @mask
     end
 
   end

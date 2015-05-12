@@ -107,8 +107,11 @@ describe PEROBS::Store do
     last_obj = nil
     0.upto(20) do |i|
       store[":person#{i}".to_sym] = obj = Person.new(store)
+      store[":person#{i}".to_sym].should == obj
       obj.name = "Person #{i}"
-      obj.related = last_obj if last_obj
+      obj.name.should == "Person #{i}"
+      obj.related = last_obj
+      obj.related.should == last_obj
       last_obj = obj
     end
     0.upto(20) do |i|
@@ -135,18 +138,18 @@ describe PEROBS::Store do
   it 'should garbage collect unlinked objects' do
     store = PEROBS::Store.new('test_db')
     store[:person1] = obj = Person.new(store)
-    id1 = obj.id
+    id1 = obj._id
     store[:person2] = obj = Person.new(store)
-    id2 = obj.id
+    id2 = obj._id
     obj.related = obj = Person.new(store)
-    id3 = obj.id
+    id3 = obj._id
     store.sync
     store[:person1] = nil
     store.gc
     store = PEROBS::Store.new('test_db')
     store.object_by_id(id1).should be_nil
-    store[:person2].id.should == id2
-    store[:person2].related.id.should == id3
+    store[:person2]._id.should == id2
+    store[:person2].related._id.should == id3
   end
 
 end

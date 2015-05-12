@@ -103,7 +103,7 @@ module PEROBS
       end
 
       # Store the name and mark the name list as modified.
-      @root_objects[name] = obj.id
+      @root_objects[name] = obj._id
       @root_objects_modified = true
       # Add the object to the in-memory storage list.
       @cache.cache_write(obj)
@@ -163,7 +163,7 @@ module PEROBS
         # We don't have the object in memory. Let's find it in the storage.
         if @db.include?(id)
           # Great, object found. Read it into memory and return it.
-          obj = Object::read(self, id)
+          obj = ObjectBase::read(self, id)
           # Add the object to the in-memory storage list.
           @cache.cache_read(obj)
 
@@ -205,7 +205,7 @@ module PEROBS
 
       while !stack.empty?
         id = stack.pop
-        (obj = object_by_id(id)).referenced_object_ids.each do |id|
+        (obj = object_by_id(id))._referenced_object_ids.each do |id|
           # Add all found references that have passed the check to the working
           # list for the next iterations.
           if @db.check(id, repair)
@@ -218,7 +218,7 @@ module PEROBS
             end
           elsif repair
             # Remove references to bad objects.
-            obj.delete_reference_to_id(id)
+            obj._delete_reference_to_id(id)
           end
         end
       end
@@ -234,7 +234,7 @@ module PEROBS
         unless @db.is_marked?(id)
           @db.mark(id)
           obj = object_by_id(id)
-          stack += obj.referenced_object_ids
+          stack += obj._referenced_object_ids
         end
       end
     end

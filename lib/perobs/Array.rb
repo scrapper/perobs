@@ -46,12 +46,12 @@ module PEROBS
 
     # Equivalent to Array::[]
     def [](index)
-      dereferenced(@data[index])
+      _dereferenced(@data[index])
     end
 
     # Equivalent to Array::[]=
     def []=(index, obj)
-      @data[index] = referenced(obj)
+      @data[index] = _referenced(obj)
       @store.cache.cache_write(self)
 
       obj
@@ -60,19 +60,19 @@ module PEROBS
     # Equivalent to Array::<<
     def <<(obj)
       @store.cache.cache_write(self)
-      @data << referenced(obj)
+      @data << _referenced(obj)
     end
 
     # Equivalent to Array::push
     def push(obj)
       @store.cache.cache_write(self)
-      @data.push(referenced(obj))
+      @data.push(_referenced(obj))
     end
 
     # Equivalent to Array::pop
     def pop
       @store.cache.cache_write(self)
-      o = dereferenced(@data.pop)
+      o = _dereferenced(@data.pop)
       o
     end
 
@@ -85,7 +85,7 @@ module PEROBS
     # Equivalent to Array::delete
     def delete(obj)
       @store.cache.cache_write(self)
-      @data.delete { |v| dereferenced(v) == obj }
+      @data.delete { |v| _dereferenced(v) == obj }
     end
 
     # Equivalent to Array::delete_at
@@ -97,14 +97,14 @@ module PEROBS
     # Equivalent to Array::delete_if
     def delete_if
       @data.delete_if do |item|
-        yield(dereferenced(item))
+        yield(_dereferenced(item))
       end
     end
 
     # Equivalent to Array::each
     def each
       @data.each do |item|
-        yield(dereferenced(item))
+        yield(_dereferenced(item))
       end
     end
 
@@ -115,7 +115,7 @@ module PEROBS
 
     # Equivalent to Array::include?
     def include?(obj)
-      @data.each { |v| return true if dereferenced(v) == obj }
+      @data.each { |v| return true if _dereferenced(v) == obj }
 
       false
     end
@@ -129,7 +129,7 @@ module PEROBS
     # Equivalent to Array::map
     def map
       @data.map do |item|
-        yield(dereferenced(item))
+        yield(_dereferenced(item))
       end
     end
     alias collect map
@@ -137,8 +137,8 @@ module PEROBS
     # Return a list of all object IDs of all persistend objects that this Array
     # is referencing.
     # @return [Array of Fixnum or Bignum] IDs of referenced objects
-    def referenced_object_ids
-      @data.each.select { |v| v && v.is_a?(POReference) }.map { |o| o.id }
+    def _referenced_object_ids
+      @data.each.select { |v| v && v.is_a?(POReference) }.map { |o| o._id }
     end
 
     # This method should only be used during store repair operations. It will
@@ -152,13 +152,13 @@ module PEROBS
     # This is a library internal method. Do not use outside of this library.
     # @param data [Array] the actual Array object
     # @private
-    def deserialize(data)
+    def _deserialize(data)
       @data = data
     end
 
     private
 
-    def serialize
+    def _serialize
       @data
     end
 

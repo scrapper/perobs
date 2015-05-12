@@ -50,7 +50,7 @@ module PEROBS
       unless key.is_a?(String)
         raise ArgumentError, 'The Hash key must be of type String'
       end
-      dereferenced(@data.include?(key) ? @data[key] : @default)
+      _dereferenced(@data.include?(key) ? @data[key] : @default)
     end
 
     # Associates the value given by value with the key given by key.
@@ -60,7 +60,7 @@ module PEROBS
       unless key.is_a?(String)
         raise ArgumentError, 'The Hash key must be of type String'
       end
-      @data[key] = referenced(value)
+      @data[key] = _referenced(value)
       @store.cache.cache_write(self)
 
       value
@@ -82,14 +82,14 @@ module PEROBS
     def delete_if
       @store.cache.cache_write(self)
       @data.delete_if do |k, v|
-        yield(k, dereferenced(v))
+        yield(k, _dereferenced(v))
       end
     end
 
     # Equivalent to Hash::each
     def each
       @data.each do |k, v|
-        yield(k, dereferenced(v))
+        yield(k, _dereferenced(v))
       end
     end
 
@@ -101,7 +101,7 @@ module PEROBS
     # Equivalent to Hash::each_value
     def each_value
       @data.each_value do |v|
-        yield(dereferenced(v))
+        yield(_dereferenced(v))
       end
     end
 
@@ -132,21 +132,23 @@ module PEROBS
     # Equivalent to Hash::map
     def map
       @data.map do |k, v|
-        yield(k, dereferenced(v))
+        yield(k, _dereferenced(v))
       end
     end
 
     # Return a list of all object IDs of all persistend objects that this Hash
     # is referencing.
     # @return [Array of Fixnum or Bignum] IDs of referenced objects
-    def referenced_object_ids
-      @data.each_value.select { |v| v && v.is_a?(POReference) }.map { |o| o.id }
+    def _referenced_object_ids
+      @data.each_value.select { |v| v && v.is_a?(POReference) }.map do |o|
+        o._id
+      end
     end
 
     # This method should only be used during store repair operations. It will
     # delete all referenced to the given object ID.
     # @param id [Fixnum/Bignum] targeted object ID
-    def delete_reference_to_id(id)
+    def _delete_reference_to_id(id)
       @data.delete_if { |k, v| v && v.is_a?(POReference) && v.id == id }
     end
 
@@ -154,13 +156,13 @@ module PEROBS
     # This is a library internal method. Do not use outside of this library.
     # @param data [Hash] the actual Hash object
     # @private
-    def deserialize(data)
+    def _deserialize(data)
       @data = data
     end
 
     private
 
-    def serialize
+    def _serialize
       @data
     end
 

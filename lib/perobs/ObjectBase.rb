@@ -38,24 +38,29 @@ module PEROBS
   # common to all classes of persistent objects.
   class ObjectBase
 
-    attr_reader :id, :store
+    attr_reader :_id, :store
 
     # Create a new PEROBS::ObjectBase object.
     def initialize(store)
       @store = store
-      @id = @store.db.new_id
+      @_id = @store.db.new_id
 
       # Let the store know that we have a modified object.
       @store.cache.cache_write(self)
     end
 
+    # Two objects are considered equal if their object ID is the same.
+    def ==(obj)
+      obj && @_id == obj._id
+    end
+
     # Write the object into the backing store database.
-    def sync
+    def _sync
       db_obj = {
         :class => self.class,
-        :data => serialize
+        :data => _serialize
       }
-      @store.db.put_object(db_obj, @id)
+      @store.db.put_object(db_obj, @_id)
     end
 
     # Read an raw object with the specified ID from the backing store and
@@ -66,32 +71,32 @@ module PEROBS
 
       # Call the constructor of the specified class.
       obj = Object.const_get(db_obj['class']).new(store)
-      # There is no public setter for ID since it should be immutable. To
-      # restore the ID, we use this workaround.
-      obj.send('instance_variable_set', :@id, id)
-      obj.deserialize(db_obj['data'])
       # The object restore caused the object to be added to the write cache.
       # To prevent an unnecessary flush to the back-end storage, we will
       # unregister it from the write cache.
       store.cache.unwrite(obj)
+      # There is no public setter for ID since it should be immutable. To
+      # restore the ID, we use this workaround.
+      obj.send('instance_variable_set', :@_id, id)
+      obj._deserialize(db_obj['data'])
 
       obj
     end
 
     private
 
-    def dereferenced(v)
+    def _dereferenced(v)
       v.is_a?(POReference) ? @store.object_by_id(v.id) : v
     end
 
-    def referenced(obj)
+    def _referenced(obj)
       if obj.is_a?(ObjectBase)
         # The obj is a reference to another persistent object. Store the ID
         # of that object in a POReference object.
         if @store != obj.store
           raise ArgumentError, 'The referenced object is not part of this store'
         end
-        POReference.new(obj.id)
+        POReference.new(obj._id)
       else
         obj
       end

@@ -59,11 +59,11 @@ module PEROBS
 
           # Create the attribute reader method with name of attr_name.
           define_method(attr_name.to_s) do
-            get(attr_name)
+            _get(attr_name)
           end
           # Create the attribute writer method with name of attr_name.
           define_method(attr_name.to_s + '=') do |val|
-            set(attr_name, val)
+            _set(attr_name, val)
           end
 
           # Store a list of the attribute names
@@ -81,10 +81,26 @@ module PEROBS
       super
     end
 
+    # Initialize the specified attribute _attr_ with the value _val_ unless
+    # the attribute has been initialized already. Use this method in the class
+    # constructor to avoid overwriting values that have been set when the
+    # object was reconstructed from the store.
+    # @param attr [Symbol] Name of the attribute
+    # @param val [Any] Value to be set
+    # @return [true|false] True if the value was initialized, otherwise false.
+    def init_attr(attr, val)
+      if self.class.attributes.include?(attr)
+        _set(attr, val)
+        return true
+      end
+
+      false
+    end
+
     # Return a list of all object IDs that the attributes of this instance are
     # referencing.
     # @return [Array of Fixnum or Bignum] IDs of referenced objects
-    def referenced_object_ids
+    def _referenced_object_ids
       ids = []
       self.class.attributes.each do |attr|
         value = instance_variable_get(('@' + attr.to_s).to_sym)
@@ -96,7 +112,7 @@ module PEROBS
     # This method should only be used during store repair operations. It will
     # delete all referenced to the given object ID.
     # @param id [Fixnum/Bignum] targeted object ID
-    def delete_reference_to_id(id)
+    def _delete_reference_to_id(id)
       self.class.attributes.each do |attr|
         ivar = ('@' + attr.to_s).to_sym
         value = instance_variable_get(ivar)
@@ -110,34 +126,18 @@ module PEROBS
     # This is a library internal method. Do not use outside of this library.
     # @param data [Hash] attribute values hashed by their name
     # @private
-    def deserialize(data)
+    def _deserialize(data)
       # Initialize all attributes with the provided values.
       data.each do |attr_name, value|
-        set(attr_name.to_sym, value)
+        instance_variable_set(('@' + attr_name).to_sym, value)
       end
-    end
-
-    # Initialize the specified attribute _attr_ with the value _val_ unless
-    # the attribute has been initialized already. Use this method in the class
-    # constructor to avoid overwriting values that have been set when the
-    # object was reconstructed from the store.
-    # @param attr [Symbol] Name of the attribute
-    # @param val [Any] Value to be set
-    # @return [true|false] True if the value was initialized, otherwise false.
-    def init_attr(attr, val)
-      unless self.class.attributes.include?(attr)
-        set(attr, val)
-        return true
-      end
-
-      false
     end
 
     private
 
     # Return a single data structure that holds all persistent data for this
     # class.
-    def serialize
+    def _serialize
       attributes = {}
       self.class.attributes.each do |attr|
         ivar = ('@' + attr.to_s).to_sym
@@ -153,7 +153,7 @@ module PEROBS
       attributes
     end
 
-    def set(attr, val)
+    def _set(attr, val)
       unless @store
         raise ArgumentError, 'The PEROBS::Object is not assigned to ' +
                              'any store yet.'
@@ -174,7 +174,7 @@ module PEROBS
         # To release the object from the Ruby object list later, we store the
         # PEROBS::Store ID of the referenced object instead of the actual
         # reference.
-        instance_variable_set(ivar, POReference.new(val.id))
+        instance_variable_set(ivar, POReference.new(val._id))
       else
         instance_variable_set(ivar, val)
       end
@@ -184,7 +184,7 @@ module PEROBS
       val
     end
 
-    def get(attr)
+    def _get(attr)
       value = instance_variable_get(('@' + attr.to_s).to_sym)
       if value.is_a?(POReference)
         unless @store
