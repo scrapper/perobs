@@ -49,7 +49,7 @@ module PEROBS
       @store.cache.cache_write(self)
     end
 
-    # Two objects are considered equal if their object ID is the same.
+    # Two objects are considered equal if their object IDs are the same.
     def ==(obj)
       obj && @_id == obj._id
     end

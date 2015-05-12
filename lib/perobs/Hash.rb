@@ -140,9 +140,7 @@ module PEROBS
     # is referencing.
     # @return [Array of Fixnum or Bignum] IDs of referenced objects
     def _referenced_object_ids
-      @data.each_value.select { |v| v && v.is_a?(POReference) }.map do |o|
-        o._id
-      end
+      @data.each_value.select { |v| v && v.is_a?(POReference) }.map { |o| o.id }
     end
 
     # This method should only be used during store repair operations. It will
