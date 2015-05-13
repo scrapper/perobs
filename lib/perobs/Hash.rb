@@ -136,6 +136,11 @@ module PEROBS
       end
     end
 
+    # Equivalent to Hash::values
+    def values
+      @data.values.map { |v| _dereferenced(v) }
+    end
+
     # Return a list of all object IDs of all persistend objects that this Hash
     # is referencing.
     # @return [Array of Fixnum or Bignum] IDs of referenced objects

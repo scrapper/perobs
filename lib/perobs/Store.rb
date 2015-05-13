@@ -53,6 +53,15 @@ module PEROBS
 
     attr_reader :db, :cache
 
+    # Create a new Store.
+    # @param data_base [String] the name of the database
+    # @param options [Hash] various options to affect the operation of the
+    #        database. Currently the following options are supported:
+    #        :cache_bits : the number of bits used for cache indexing. The
+    #                      cache will hold 2 to the power of bits number of
+    #                      objects. We have separate caches for reading and
+    #                      writing. The default value is 16. It probably makes
+    #                      little sense to use much larger numbers than that.
     def initialize(data_base, options = {})
       # Create a backing store handler
       @db = FileSystemDB.new(data_base)
@@ -62,13 +71,10 @@ module PEROBS
       @cache = Cache.new(self, options[:cache_bits] || 16)
 
       # The named (global) objects IDs hashed by their name
-      @root_objects = {}
-      # Flag that indicates that the root_object list differs from the
-      # on-disk version.
-      @root_objects_modified = false
-
-      # Load the root object list from the back-end storage.
-      @root_objects = @db.get_root_objects
+      unless (@root_objects = object_by_id(0))
+        @root_objects = Hash.new(self)
+        @root_objects._change_id(0)
+      end
     end
 
     # Store the provided object under the given name. Use this to make the
@@ -80,11 +86,6 @@ module PEROBS
     # @param obj [PEROBS::Object] The object to store
     # @return [PEROBS::Object] The stored object.
     def []=(name, obj)
-      unless name.is_a?(Symbol)
-        raise ArgumentError, "name '#{name}' must be a Symbol but is a " +
-                             "#{name.class}"
-      end
-
       # If the passed object is nil, we delete the entry if it exists.
       if obj.nil?
         @root_objects.delete(name)
@@ -104,7 +105,6 @@ module PEROBS
 
       # Store the name and mark the name list as modified.
       @root_objects[name] = obj._id
-      @root_objects_modified = true
       # Add the object to the in-memory storage list.
       @cache.cache_write(obj)
 
@@ -116,16 +116,11 @@ module PEROBS
     #        returned.
     # @return The requested object or nil if it doesn't exist.
     def [](name)
-      if name.is_a?(Symbol)
-        # Return nil if there is no object with that name.
-        return nil unless @root_objects.include?(name)
+      # Return nil if there is no object with that name.
+      return nil unless @root_objects.include?(name)
 
-        # Find the object ID.
-        id = @root_objects[name]
-      else
-        raise ArgumentError, "name '#{name_or_id}' must be a Symbol but is a " +
-                             "#{name_or_id.class}"
-      end
+      # Find the object ID.
+      id = @root_objects[name]
 
       object_by_id(id)
     end
@@ -133,12 +128,6 @@ module PEROBS
     # Flush out all modified objects to disk and shrink the in-memory list if
     # needed.
     def sync
-      # If we have modified the named objects list, write it to disk.
-      if @root_objects_modified
-        @db.put_root_objects(@root_objects)
-        @root_objects_modified = false
-      end
-
       @cache.flush
     end
 
@@ -226,19 +215,28 @@ module PEROBS
 
     private
 
+    # Mark phase of a mark-and-sweep garbage collector. It will mark all
+    # objects that are reachable from the root objects.
     def mark
       @db.clear_marks
-      stack = @root_objects.values
+      # Start with the object 0 and the indexes of the root objects. Push them
+      # onto the work stack.
+      stack = [ 0 ] + @root_objects.values
       while !stack.empty?
-        id = stack.pop
-        unless @db.is_marked?(id)
+        # Get an object index from the stack and check if it's marked already.
+        unless @db.is_marked?(id = stack.pop)
+          # It's not. So let's mark it.
           @db.mark(id)
+          # Find all the objects that this object references and push them
+          # onto the stack as well.
           obj = object_by_id(id)
           stack += obj._referenced_object_ids
         end
       end
     end
 
+    # Sweep phase of a mark-and-sweep garbage collector. It will remove all
+    # unmarked objects from the store.
     def sweep
       @db.delete_unmarked_objects
     end

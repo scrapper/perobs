@@ -54,7 +54,7 @@ describe PEROBS::Array do
 
   it 'should store simple objects persistently' do
     store = PEROBS::Store.new(@db_name)
-    store[:a] = a = PEROBS::Array.new(store)
+    store['a'] = a = PEROBS::Array.new(store)
     a[0] = 'A'
     a[1] = 'B'
     a[2] = po = PO.new(store)
@@ -66,7 +66,7 @@ describe PEROBS::Array do
     store.sync
 
     store = PEROBS::Store.new(@db_name)
-    a = store[:a]
+    a = store['a']
     a[0].should == 'A'
     a[1].should == 'B'
     a[2].name.should == 'foobar'
@@ -74,7 +74,7 @@ describe PEROBS::Array do
 
   it 'should have an each method to iterate' do
     store = PEROBS::Store.new(@db_name)
-    store[:a] = a = PEROBS::Array.new(store)
+    store['a'] = a = PEROBS::Array.new(store)
     a[0] = 'A'
     a[1] = 'B'
     a[2] = 'C'
@@ -84,7 +84,7 @@ describe PEROBS::Array do
     store.sync
 
     store = PEROBS::Store.new(@db_name)
-    a = store[:a]
+    a = store['a']
     vs = ''
     a[3] = PO.new(store, 'D')
     a.each { |v| vs << (v.is_a?(String) ? v : v.name) }

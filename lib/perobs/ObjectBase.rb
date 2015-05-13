@@ -71,16 +71,21 @@ module PEROBS
 
       # Call the constructor of the specified class.
       obj = Object.const_get(db_obj['class']).new(store)
-      # The object restore caused the object to be added to the write cache.
-      # To prevent an unnecessary flush to the back-end storage, we will
-      # unregister it from the write cache.
-      store.cache.unwrite(obj)
-      # There is no public setter for ID since it should be immutable. To
-      # restore the ID, we use this workaround.
-      obj.send('instance_variable_set', :@_id, id)
+      # The object gets created with a new ID by default. We need to restore
+      # the old one.
+      obj._change_id(id)
       obj._deserialize(db_obj['data'])
 
       obj
+    end
+
+    # Library internal method. Do not use outside of this library.
+    # @private
+    def _change_id(id)
+      # Unregister the object with the old ID from the write cache to prevent
+      # cache corruption. The objects are index by ID in the cache.
+      store.cache.unwrite(self)
+      @_id = id
     end
 
     private

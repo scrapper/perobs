@@ -64,8 +64,8 @@ describe PEROBS::Store do
 
   it 'should initialize attributes with default values' do
     store = PEROBS::Store.new('test_db')
-    store[:o1] = o1 = O1.new(store)
-    store[:o2] = o2 = O2.new(store)
+    store['o1'] = o1 = O1.new(store)
+    store['o2'] = o2 = O2.new(store)
     o2.a1.should == 'a1'
     o2.a2.should be_nil
     o2.a3.should be_nil
@@ -74,8 +74,8 @@ describe PEROBS::Store do
 
   it 'should assign values to attributes' do
     store = PEROBS::Store.new('test_db')
-    store[:o1] = o1 = O1.new(store)
-    store[:o2] = o2 = O2.new(store)
+    store['o1'] = o1 = O1.new(store)
+    store['o2'] = o2 = O2.new(store)
     o1.a1 = 'a1'
     o2.a1 = nil
     o2.a3 = o1
@@ -88,16 +88,16 @@ describe PEROBS::Store do
 
   it 'should persist assigned values' do
     store = PEROBS::Store.new('test_db')
-    store[:o1] = o1 = O1.new(store)
-    store[:o2] = o2 = O2.new(store)
+    store['o1'] = o1 = O1.new(store)
+    store['o2'] = o2 = O2.new(store)
     o1.a1 = 'a1'
     o2.a1 = nil
     o2.a3 = o1
     store.sync
 
     store = PEROBS::Store.new('test_db')
-    o1 = store[:o1]
-    o2 = store[:o2]
+    o1 = store['o1']
+    o2 = store['o2']
     o1.a1.should == 'a1'
     o2.a1.should be_nil
     o2.a3.should == o1
