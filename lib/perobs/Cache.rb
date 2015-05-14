@@ -43,14 +43,11 @@ module PEROBS
     def initialize(store, bits = 16)
       @store = store
       @bits = bits
-      # The read and write caches are Arrays. We use the _bits_ least
-      # significant bits of the PEROBS::Object ID to select the index in the
-      # read or write cache Arrays.
-      @reads = ::Array.new(2 ** bits)
-      @writes = ::Array.new(2 ** bits)
       # This mask is used to access the _bits_ least significant bits of the
       # object ID.
       @mask = 2 ** bits - 1
+      # Initialize the read and write cache
+      reset
     end
 
     # Add an PEROBS::Object to the read cache.
@@ -104,6 +101,16 @@ module PEROBS
     # Flush all pending writes to the persistant storage back-end.
     def flush
       @writes.each { |w| w._sync if w }
+      @writes = ::Array.new(2 ** @bits)
+    end
+
+    # Clear all cached entries. You must call flush before calling this
+    # method. Otherwise unwritten objects will be lost.
+    def reset
+      # The read and write caches are Arrays. We use the _bits_ least
+      # significant bits of the PEROBS::Object ID to select the index in the
+      # read or write cache Arrays.
+      @reads = ::Array.new(2 ** @bits)
       @writes = ::Array.new(2 ** @bits)
     end
 

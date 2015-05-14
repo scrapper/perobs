@@ -116,7 +116,7 @@ module PEROBS
       self.class.attributes.each do |attr|
         ivar = ('@' + attr.to_s).to_sym
         value = instance_variable_get(ivar)
-        if value && value.is_a?(POReference)  && value.id == id
+        if value && value.is_a?(POReference) && value.id == id
           instance_variable_set(ivar, nil)
         end
       end
@@ -148,7 +148,7 @@ module PEROBS
                                "accessor method to assign a reference to " +
                                "another PEROBS object."
         end
-        attributes[attr] = value
+        attributes[attr.to_s] = value
       end
       attributes
     end
@@ -157,11 +157,6 @@ module PEROBS
       unless @store
         raise ArgumentError, 'The PEROBS::Object is not assigned to ' +
                              'any store yet.'
-      end
-
-      unless val.respond_to?('to_json')
-        raise ArgumentError, "The object of class #{val.class} must have " +
-                             "a to_json() method to be stored persistently."
       end
 
       ivar = ('@' + attr.to_s).to_sym

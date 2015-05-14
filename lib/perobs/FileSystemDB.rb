@@ -29,6 +29,7 @@ require 'time'
 require 'json'
 require 'json/add/core'
 require 'json/add/struct'
+require 'yaml'
 require 'fileutils'
 
 require 'perobs/ObjectBase'
@@ -38,14 +39,18 @@ module PEROBS
   # This class provides a filesytem based database store for objects.
   class FileSystemDB
 
-    # The name of the file used to store the list of root objects.
-    @@RootObjectsFile = 'root_objects.json'
+    @@Extensions = {
+      :marshal => '.mshl',
+      :json => '.json',
+      :yaml => '.yml'
+    }
 
     # Create a new FileSystemDB object. This will create a DB with the given
     # name. A database will live in a directory of that name.
     # @param db_name [String] name of the DB directory
-    def initialize(db_name)
+    def initialize(db_name, serializer = :json)
       @db_dir = db_name
+      @serializer = serializer
 
       # Create the database directory if it doesn't exist yet.
       ensure_dir_exists(@db_dir)
@@ -60,35 +65,30 @@ module PEROBS
     # Store the given object into the filesystem.
     # @param obj [Hash] Object as defined by PEROBS::ObjectBase
     def put_object(obj, id)
-      File.write(object_file_name(id), obj.to_json)
+      raw = case @serializer
+            when :marshal
+              Marshal.dump(obj)
+            when :json
+              obj.to_json
+            when :yaml
+              YAML.dump(obj)
+            end
+      File.write(object_file_name(id), raw)
     end
 
     # Load the given object from the filesystem.
     # @param id [Fixnum or Bignum] object ID
     # @return [Hash] Object as defined by PEROBS::ObjectBase
     def get_object(id)
-      JSON.parse(File.read(object_file_name(id)), :create_additions => true)
-    end
-
-    # Write the list of root objects to the filesytem.
-    # @param objects [Hash] Objects IDs hashed by their name [Symbol]
-    def put_root_objects(objects)
-      File.write(File.join(@db_dir, @@RootObjectsFile), objects.to_json)
-    end
-
-    # Read the list of named objects from the filesystem if it exists.
-    # @return [Hash] Objects IDs hashed by their name [Symbol]
-    def get_root_objects
-      root_objects = {}
-
-      root_objects_file = File.join(@db_dir, @@RootObjectsFile)
-      if File.exists?(root_objects_file)
-        JSON::parse(File.read(root_objects_file)).each do |name, id|
-          root_objects[name.to_sym] = id
-        end
+      raw = File.read(object_file_name(id))
+      case @serializer
+      when :marshal
+        Marshal.load(raw)
+      when :json
+        JSON.parse(raw, :create_additions => true)
+      when :yaml
+        YAML.load(raw)
       end
-
-      root_objects
     end
 
     # Generate a new unique ID.
@@ -152,7 +152,7 @@ module PEROBS
       end
 
       begin
-        JSON.parse(File.read(object_file_name(id)), :create_additions => true)
+        get_object(id)
       rescue
         $stderr.puts "Cannot read object file #{file_name}: #{$!}"
         return false
@@ -182,7 +182,7 @@ module PEROBS
       dir = hex_id[0..1]
       ensure_dir_exists(File.join(@db_dir, dir))
 
-      File.join(@db_dir, dir, hex_id + '.json')
+      File.join(@db_dir, dir, hex_id + @@Extensions[@serializer])
     end
 
   end

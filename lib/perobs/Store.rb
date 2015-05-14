@@ -62,9 +62,24 @@ module PEROBS
     #                      objects. We have separate caches for reading and
     #                      writing. The default value is 16. It probably makes
     #                      little sense to use much larger numbers than that.
+    #        :serializer : select the format used to serialize the data. There
+    #                      are 3 different options:
+    #                      :marshal : Native Ruby serializer. Fastest option
+    #                      that can handle most Ruby data types. Big
+    #                      disadvantate is the stability of the format. Data
+    #                      written with one Ruby version may not be readable
+    #                      with another version.
+    #                      :json : About half as fast as marshal, but the
+    #                      format is rock solid and portable between
+    #                      languages. It only supports basic Ruby data types
+    #                      like String, Fixnum, Float, Array, Hash. This is
+    #                      the default option.
+    #                      :yaml : Can also handle most Ruby data types and is
+    #                      portable between Ruby versions (1.9 and later).
+    #                      Unfortunately, it is 10x slower than marshal.
     def initialize(data_base, options = {})
       # Create a backing store handler
-      @db = FileSystemDB.new(data_base)
+      @db = FileSystemDB.new(data_base, options[:serializer] || :json)
 
       # The Cache reduces read and write latencies by keeping a subset of the
       # objects in memory.
@@ -213,32 +228,40 @@ module PEROBS
       end
     end
 
+    # Calls the given block once for each object, passing that object as a
+    # parameter.
+    def each
+      @db.clear_marks
+      # Start with the object 0 and the indexes of the root objects. Push them
+      # onto the work stack.
+      stack = [ 0 ] + @root_objects.values
+      stack.each { |id| @db.mark(id) }
+      while !stack.empty?
+        # Get an object index from the stack.
+        obj = object_by_id(id = stack.pop)
+        yield(obj) if block_given?
+        obj._referenced_object_ids.each do |id|
+          unless @db.is_marked?(id)
+            @db.mark(id)
+            stack << id
+          end
+        end
+      end
+    end
+
     private
 
     # Mark phase of a mark-and-sweep garbage collector. It will mark all
     # objects that are reachable from the root objects.
     def mark
-      @db.clear_marks
-      # Start with the object 0 and the indexes of the root objects. Push them
-      # onto the work stack.
-      stack = [ 0 ] + @root_objects.values
-      while !stack.empty?
-        # Get an object index from the stack and check if it's marked already.
-        unless @db.is_marked?(id = stack.pop)
-          # It's not. So let's mark it.
-          @db.mark(id)
-          # Find all the objects that this object references and push them
-          # onto the stack as well.
-          obj = object_by_id(id)
-          stack += obj._referenced_object_ids
-        end
-      end
+      each
     end
 
     # Sweep phase of a mark-and-sweep garbage collector. It will remove all
     # unmarked objects from the store.
     def sweep
       @db.delete_unmarked_objects
+      @cache.reset
     end
 
   end

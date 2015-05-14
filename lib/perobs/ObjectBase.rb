@@ -57,8 +57,8 @@ module PEROBS
     # Write the object into the backing store database.
     def _sync
       db_obj = {
-        :class => self.class,
-        :data => _serialize
+        'class' => self.class.to_s,
+        'data' => _serialize
       }
       @store.db.put_object(db_obj, @_id)
     end
