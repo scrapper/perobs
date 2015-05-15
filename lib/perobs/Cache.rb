@@ -51,16 +51,13 @@ module PEROBS
     end
 
     # Add an PEROBS::Object to the read cache.
-    # @param obj [PEROBS::Object]
+    # @param obj [PEROBS::ObjectBase]
     def cache_read(obj)
-      #unless obj.is_a?(ObjectBase)
-      #  raise ArgumentError, "obj must be a PEROBS::Object"
-      #end
       @reads[index(obj)] = obj
     end
 
     # Add a PEROBS::Object to the write cache.
-    # @param obj [PEROBS::Object]
+    # @param obj [PEROBS::ObjectBase]
     def cache_write(obj)
       idx = index(obj)
       if (old_obj = @writes[idx]) && old_obj._id != obj._id
@@ -82,7 +79,7 @@ module PEROBS
     end
 
     # Return the PEROBS::Object with the specified ID or nil if not found.
-    # @param id [Fixnum or Bignum] ID of the cached PEROBS::Object
+    # @param id [Fixnum or Bignum] ID of the cached PEROBS::ObjectBase
     def object_by_id(id)
       idx = id & @mask
       # The index is just a hash. We still need to check if the object IDs are
@@ -108,8 +105,8 @@ module PEROBS
     # method. Otherwise unwritten objects will be lost.
     def reset
       # The read and write caches are Arrays. We use the _bits_ least
-      # significant bits of the PEROBS::Object ID to select the index in the
-      # read or write cache Arrays.
+      # significant bits of the PEROBS::ObjectBase ID to select the index in
+      # the read or write cache Arrays.
       @reads = ::Array.new(2 ** @bits)
       @writes = ::Array.new(2 ** @bits)
     end

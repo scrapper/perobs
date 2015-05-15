@@ -63,6 +63,12 @@ module PEROBS
       @data << _referenced(obj)
     end
 
+    # Equivalent to Array::+
+    def +(ary)
+      @store.cache.cache_write(self)
+      @data + ary
+    end
+
     # Equivalent to Array::push
     def push(obj)
       @store.cache.cache_write(self)
@@ -72,8 +78,7 @@ module PEROBS
     # Equivalent to Array::pop
     def pop
       @store.cache.cache_write(self)
-      o = _dereferenced(@data.pop)
-      o
+      _dereferenced(@data.pop)
     end
 
     # Equivalent to Array::clear

@@ -39,7 +39,10 @@ There are currently 3 kinds of persistent objects available:
 
 In addition to these classes, you also need to create a PEROBS::Store
 object that owns your persistent objects. The store provides the
-persistent database.
+persistent database. If you are using the default serializer (JSON),
+you can only use the subset of Ruby types that JSON supports.
+Alternatively, you can use Marshal or YAML which support almost every
+Ruby data type.
 
 Here is an example how to use PEROBS. Let's define a class that models
 a person with their family relations.
@@ -49,18 +52,35 @@ require 'perobs'
 
 class Person < PEROBS::Object
 
-  po_attr :name
-  po_attr :mother
-  po_attr :father
-  po_attr :kids
+  po_attr :name, :mother, :father, :kids
 
   def initialize(store, name)
     super
-    @name = name
+    attr_init(:name, name)
+    attr_init(:kids, PEROBS::Array.new)
+  end
+
+  def to_s
+    "#{@name} is the child of #{self.mother ? self.mother.name : 'unknown'} " +
+    "and #{self.father ? self.father.name : 'unknown'}.
   end
 
 end
+
+store = PEROBS::Store.new('family')
+store['grandpa'] = joe = Person.new('Joe')
+store['grandma'] = jane = Person.new('Jane')
+jim = Person.new('Jim')
+jim.father = joe
+joe.kids << jim
+jim.mother = jane
+jane.kids << jim
+store.sync
 ```
+
+When you run this script, a folder named 'family' will be created. It
+contains the 3 Person objects.
+
 
 ## Installation
 

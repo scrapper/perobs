@@ -132,10 +132,7 @@ module PEROBS
     # @return The requested object or nil if it doesn't exist.
     def [](name)
       # Return nil if there is no object with that name.
-      return nil unless @root_objects.include?(name)
-
-      # Find the object ID.
-      id = @root_objects[name]
+      return nil unless (id = @root_objects[name])
 
       object_by_id(id)
     end
