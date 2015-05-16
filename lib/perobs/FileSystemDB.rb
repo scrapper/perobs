@@ -153,8 +153,8 @@ module PEROBS
 
       begin
         get_object(id)
-      rescue
-        $stderr.puts "Cannot read object file #{file_name}: #{$!}"
+      rescue => e
+        $stderr.puts "Cannot read object file #{file_name}: #{e.message}"
         return false
       end
 
@@ -168,8 +168,8 @@ module PEROBS
       unless Dir.exists?(dir)
         begin
           Dir.mkdir(dir)
-        rescue IOError
-          raise IOError, "Cannote create DB directory '#{dir}': #{$!}"
+        rescue IOError => e
+          raise IOError, "Cannote create DB directory '#{dir}': #{e.message}"
         end
       end
     end

@@ -73,7 +73,7 @@ module PEROBS
     def unwrite(obj)
       idx = index(obj)
       if (old_obj = @writes[idx]).nil? || old_obj._id != obj._id
-        raise StandardError, "Object to unwrite is not in cache"
+        raise RuntimeError, "Object to unwrite is not in cache"
       end
       @writes[idx] = nil
     end

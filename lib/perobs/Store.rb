@@ -211,9 +211,6 @@ module PEROBS
           # list for the next iterations.
           if @db.check(id, repair)
             unless @db.is_marked?(id)
-              if stack.include?(id)
-                raise "ID already on stack"
-              end
               stack << id
               @db.mark(id)
             end

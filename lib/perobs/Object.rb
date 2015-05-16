@@ -53,7 +53,7 @@ module PEROBS
       def po_attr(*attributes)
         attributes.each do |attr_name|
           unless attr_name.is_a?(Symbol)
-            raise ArgumentError, "attr_name must be a symbol but is a " +
+            raise ArgumentError, "name must be a symbol but is a " +
               "#{attr_name.class}"
           end
 
@@ -154,11 +154,6 @@ module PEROBS
     end
 
     def _set(attr, val)
-      unless @store
-        raise ArgumentError, 'The PEROBS::Object is not assigned to ' +
-                             'any store yet.'
-      end
-
       ivar = ('@' + attr.to_s).to_sym
       if val.is_a?(ObjectBase)
         # References to other PEROBS::Objects must be handled somewhat
@@ -182,10 +177,6 @@ module PEROBS
     def _get(attr)
       value = instance_variable_get(('@' + attr.to_s).to_sym)
       if value.is_a?(POReference)
-        unless @store
-          raise ArgumentError, "Cannot get references. Object is not " +
-                               "stored in any store yet"
-        end
         @store.object_by_id(value.id)
       else
         value
