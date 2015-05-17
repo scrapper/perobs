@@ -9,7 +9,10 @@ databases can be easily added.
 
 This library is ideal for Ruby applications that work on huge, mostly
 constant data sets and usually handle a small subset of the data at a
-time.
+time. To ensure data consistency of a larger data set, you can use
+transactions to make modifications of multiple objects atomic.
+Transactions can be nested and are aborted when an exception is
+raised.
 
 ## Usage
 
@@ -80,7 +83,6 @@ store.sync
 
 When you run this script, a folder named 'family' will be created. It
 contains the 3 Person objects.
-
 
 ## Installation
 

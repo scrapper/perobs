@@ -29,6 +29,9 @@ require 'fileutils'
 require 'time'
 require 'perobs'
 
+class POSError < RuntimeError
+end
+
 class Person < PEROBS::Object
 
   po_attr :name, :zip, :bmi, :married, :related, :relatives
@@ -180,6 +183,163 @@ describe PEROBS::Store do
     store = PEROBS::Store.new('test_db')
     store.object_by_id(id1).should be_nil
     store.object_by_id(id2).should be_nil
+  end
+
+  it 'should support a successful transaction' do
+    store = PEROBS::Store.new('test_db')
+    store.transaction do
+      store['person0'] = p0 = Person.new(store)
+      p0.name = 'Jimmy'
+    end
+    store['person0'].name.should == 'Jimmy'
+  end
+
+  it 'should handle a failed transaction 1' do
+    store = PEROBS::Store.new('test_db')
+    begin
+      store.transaction do
+        store['person0'] = p0 = Person.new(store)
+        p0.name = 'Jimmy'
+        raise POSError
+      end
+    rescue POSError
+    end
+    store['person0'].should be_nil
+  end
+
+  it 'should handle a failed transaction 2' do
+    store = PEROBS::Store.new('test_db')
+    store['person1'] = p1 = Person.new(store)
+    p1.name = 'Joe'
+    begin
+      store.transaction do
+        store['person0'] = p0 = Person.new(store)
+        p0.name = 'Jimmy'
+        raise POSError
+      end
+    rescue POSError
+    end
+    store['person1'].name.should == 'Joe'
+    store['person0'].should be_nil
+  end
+
+  it 'should support a successful nested transaction' do
+    store = PEROBS::Store.new('test_db')
+    store.transaction do
+      store['person0'] = p0 = Person.new(store)
+      p0.name = 'Jimmy'
+      store.transaction do
+        store['person1'] = p1 = Person.new(store)
+        p1.name = 'Joe'
+      end
+    end
+    store['person0'].name.should == 'Jimmy'
+    store['person1'].name.should == 'Joe'
+  end
+
+  it 'should handle a failed nested transaction 1' do
+    store = PEROBS::Store.new('test_db')
+    begin
+      store.transaction do
+        store['person0'] = p0 = Person.new(store)
+        p0.name = 'Jimmy'
+        begin
+          store.transaction do
+            store['person1'] = p1 = Person.new(store)
+            p1.name = 'Joe'
+            raise POSError
+          end
+        rescue POSError
+        end
+      end
+    rescue POSError
+    end
+    store['person0'].name.should == 'Jimmy'
+    store['person1'].should be_nil
+  end
+
+  it 'should handle a failed nested transaction 2' do
+    store = PEROBS::Store.new('test_db')
+    begin
+      store.transaction do
+        store['person0'] = p0 = Person.new(store)
+        p0.name = 'Jimmy'
+        store.transaction do
+          store['person1'] = p1 = Person.new(store)
+          p1.name = 'Joe'
+        end
+        raise POSError
+      end
+    rescue POSError
+    end
+    store['person0'].should be_nil
+    store['person1'].should be_nil
+  end
+
+  it 'should support a successful 2-level nested transaction' do
+    store = PEROBS::Store.new('test_db')
+    store.transaction do
+      store['person0'] = p0 = Person.new(store)
+      p0.name = 'Jimmy'
+      store.transaction do
+        store['person1'] = p1 = Person.new(store)
+        p1.name = 'Joe'
+        store.transaction do
+          store['person2'] = p2 = Person.new(store)
+          p2.name = 'Jane'
+        end
+      end
+    end
+    store['person0'].name.should == 'Jimmy'
+    store['person1'].name.should == 'Joe'
+    store['person2'].name.should == 'Jane'
+  end
+
+  it 'should handle a failed 2-level nested transaction 1' do
+    store = PEROBS::Store.new('test_db')
+    store.transaction do
+      store['person0'] = p0 = Person.new(store)
+      p0.name = 'Jimmy'
+      store.transaction do
+        store['person1'] = p1 = Person.new(store)
+        p1.name = 'Joe'
+        begin
+          store.transaction do
+            store['person2'] = p2 = Person.new(store)
+            p2.name = 'Jane'
+            raise POSError
+          end
+        rescue POSError
+        end
+      end
+    end
+    store['person0'].name.should == 'Jimmy'
+    store['person1'].name.should == 'Joe'
+    store['person2'].should be_nil
+  end
+
+  it 'should handle a failed 2-level nested transaction 2' do
+    store = PEROBS::Store.new('test_db')
+    store.transaction do
+      store['person0'] = p0 = Person.new(store)
+      p0.name = 'Jimmy'
+      store.transaction do
+        store['person1'] = p1 = Person.new(store)
+        p1.name = 'Joe'
+        begin
+          store.transaction do
+            store['person2'] = p2 = Person.new(store)
+            p2.name = 'Jane'
+            raise POSError
+          end
+        rescue POSError
+        end
+        p1.name = 'Jane'
+      end
+    end
+    store['person0'].name.should == 'Jimmy'
+    store['person1'].name.should == 'Jane'
+    store['person2'].should be_nil
   end
 
 end

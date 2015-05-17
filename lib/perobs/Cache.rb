@@ -59,23 +59,40 @@ module PEROBS
     # Add a PEROBS::Object to the write cache.
     # @param obj [PEROBS::ObjectBase]
     def cache_write(obj)
-      idx = index(obj)
-      if (old_obj = @writes[idx]) && old_obj._id != obj._id
-        # There is another old object using this cache slot. Before we can
-        # re-use the slot, we need to sync it to the permanent storage.
-        old_obj._sync
+      if @transaction_stack.empty?
+        idx = index(obj)
+        if (old_obj = @writes[idx]) && old_obj._id != obj._id
+          # There is another old object using this cache slot. Before we can
+          # re-use the slot, we need to sync it to the permanent storage.
+          old_obj._sync
+        end
+        @writes[idx] = obj
+      else
+        # When a transaction is active, we don't have a write cache. The read
+        # cache is used to speed up access to recently used objects.
+        cache_read(obj)
+        # Push the reference of the modified object into the write buffer for
+        # this transaction level.
+        unless @transaction_stack.last.include?(obj)
+          @transaction_stack.last << obj
+        end
       end
-      @writes[idx] = obj
     end
 
     # Remove an object from the write cache. This will prevent a modified
     # object from being written to the back-end store.
     def unwrite(obj)
-      idx = index(obj)
-      if (old_obj = @writes[idx]).nil? || old_obj._id != obj._id
-        raise RuntimeError, "Object to unwrite is not in cache"
+      if @transaction_stack.empty?
+        idx = index(obj)
+        if (old_obj = @writes[idx]).nil? || old_obj._id != obj._id
+          raise RuntimeError, "Object to unwrite is not in cache"
+        end
+        @writes[idx] = nil
+      else
+        unless @transaction_stack.last.pop == obj
+          raise RuntimeError, 'unwrite failed'
+        end
       end
-      @writes[idx] = nil
     end
 
     # Return the PEROBS::Object with the specified ID or nil if not found.
@@ -101,6 +118,62 @@ module PEROBS
       @writes = ::Array.new(2 ** @bits)
     end
 
+    # Returns true if the Cache is currently handling a transaction, false
+    # otherwise.
+    # @return [true/false]
+    def in_transaction?
+      !@transaction_stack.empty?
+    end
+
+    # Tell the cache to start a new transaction. If no other transaction is
+    # active, the write cached is flushed before the transaction is started.
+    def begin_transaction
+      if @transaction_stack.empty?
+        # This is the top-level transaction. Flush the write buffer to save
+        # the current state of all objects.
+        flush
+      else
+        @transaction_stack.last.each do |o|
+          o._stash(@transaction_stack.length - 1)
+        end
+      end
+      # Push a transaction buffer onto the transaction stack. This buffer will
+      # hold a reference to all objects modified during this transaction.
+      @transaction_stack.push(::Array.new)
+    end
+
+    # Tell the cache to end the currently active transaction. All write
+    # operations of the current transaction will be synced to the storage
+    # back-end.
+    def end_transaction
+      case @transaction_stack.length
+      when 0
+        raise RuntimeError, 'No ongoing transaction to end'
+      when 1
+        # All transactions completed successfully. Write all modified objects
+        # into the backend storage.
+        @transaction_stack.pop.each { |o| o._sync }
+      else
+        # A nested transaction completed successfully. We add the list of
+        # modified objects to the list of the enclosing transaction.
+        transactions = @transaction_stack.pop
+        # Merge the two lists
+        @transaction_stack.push(@transaction_stack.pop + transactions)
+        # Ensure that each object is only included once in the list.
+        @transaction_stack.last.uniq!
+      end
+    end
+
+    # Tell the cache to abort the currently active transaction. All modified
+    # objects will be restored from the storage back-end to their state before
+    # the transaction started.
+    def abort_transaction
+      if @transaction_stack.empty?
+        raise RuntimeError, 'No ongoing transaction to abort'
+      end
+      @transaction_stack.pop.each { |o| o._restore(@transaction_stack.length) }
+    end
+
     # Clear all cached entries. You must call flush before calling this
     # method. Otherwise unwritten objects will be lost.
     def reset
@@ -109,6 +182,7 @@ module PEROBS
       # the read or write cache Arrays.
       @reads = ::Array.new(2 ** @bits)
       @writes = ::Array.new(2 ** @bits)
+      @transaction_stack = []
     end
 
     def inspect

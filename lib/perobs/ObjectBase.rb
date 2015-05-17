@@ -44,6 +44,7 @@ module PEROBS
     def initialize(store)
       @store = store
       @_id = @store.db.new_id
+      @_stash_map = nil
 
       # Let the store know that we have a modified object.
       @store.cache.cache_write(self)
@@ -56,6 +57,10 @@ module PEROBS
 
     # Write the object into the backing store database.
     def _sync
+      # Reset the stash map to ensure that it's reset before the next
+      # transaction is being started.
+      @_stash_map = nil
+
       db_obj = {
         'class' => self.class.to_s,
         'data' => _serialize
@@ -77,6 +82,47 @@ module PEROBS
       obj._deserialize(db_obj['data'])
 
       obj
+    end
+
+    # Restore the object state from the storage back-end.
+    # @param level [Fixnum] the transaction nesting level
+    def _restore(level)
+      # Find the most recently stored state of this object. This could be on
+      # any previous stash level or in the regular object DB. If the object
+      # was created during the transaction, there is not previous state to
+      # restore to.
+      id = nil
+      if @_stash_map
+        (level - 1).downto(0) do |lvl|
+          if @_stash_map[lvl]
+            id = @_stash_map[lvl]
+            break
+          end
+        end
+      end
+      unless id
+        if @store.db.include?(@_id)
+          id = @_id
+        end
+      end
+      if id
+        db_obj = store.db.get_object(id)
+        _deserialize(db_obj['data'])
+      end
+    end
+
+    # Save the object state for this transaction level to the storage
+    # back-end. The object gets a new ID that is stored in @_stash_map to map
+    # the stash ID back to the original data.
+    def _stash(level)
+      db_obj = {
+        'class' => self.class.to_s,
+        'data' => _serialize
+      }
+      @_stash_map = [] unless @_stash_map
+      # Get a new ID to store this version of the object.
+      @_stash_map[level] = stash_id = @store.db.new_id
+      @store.db.put_object(db_obj, stash_id)
     end
 
     # Library internal method. Do not use outside of this library.

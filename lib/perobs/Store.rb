@@ -88,7 +88,11 @@ module PEROBS
       # The named (global) objects IDs hashed by their name
       unless (@root_objects = object_by_id(0))
         @root_objects = Hash.new(self)
+        # The root object hash always has the object ID 0.
         @root_objects._change_id(0)
+        # The ID change removes it from the write cache. We need to add it
+        # again.
+        @cache.cache_write(@root_objects)
       end
     end
 
@@ -140,6 +144,9 @@ module PEROBS
     # Flush out all modified objects to disk and shrink the in-memory list if
     # needed.
     def sync
+      if @cache.in_transaction?
+        raise RuntimeError, 'You cannot call sync during a transaction'
+      end
       @cache.flush
     end
 
@@ -220,6 +227,23 @@ module PEROBS
           end
         end
       end
+    end
+
+    # This method will execute the provided block as an atomic transaction
+    # regarding the manipulation of all objects associated with this Store. In
+    # case the execution of the block generates an exception, the transaction
+    # is aborted and all PEROBS objects are restored to the state at the
+    # beginning of the transaction. The exception is passed on to the
+    # enclosing scope, so you probably want to handle it accordingly.
+    def transaction
+      @cache.begin_transaction
+      begin
+        yield if block_given?
+      rescue => e
+        @cache.abort_transaction
+        raise e
+      end
+      @cache.end_transaction
     end
 
     # Calls the given block once for each object, passing that object as a
