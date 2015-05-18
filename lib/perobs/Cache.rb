@@ -89,9 +89,10 @@ module PEROBS
         end
         @writes[idx] = nil
       else
-        unless @transaction_stack.last.pop == obj
+        unless @transaction_stack.last.include?(obj)
           raise RuntimeError, 'unwrite failed'
         end
+        @transaction_stack.last.delete(obj)
       end
     end
 
@@ -185,6 +186,8 @@ module PEROBS
       @transaction_stack = []
     end
 
+    # Don't include the cache buffers in output of other objects that
+    # reference Cache.
     def inspect
     end
 
