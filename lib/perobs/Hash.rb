@@ -47,9 +47,9 @@ module PEROBS
     # Retrieves the value object corresponding to the
     # key object. If not found, returns the default value.
     def [](key)
-      unless key.is_a?(String)
-        raise ArgumentError, 'The Hash key must be of type String'
-      end
+      #unless key.is_a?(String)
+      #  raise ArgumentError, 'The Hash key must be of type String'
+      #end
       _dereferenced(@data.include?(key) ? @data[key] : @default)
     end
 
@@ -57,9 +57,9 @@ module PEROBS
     # @param key [String] The key
     # @param value [Any] The value to store
     def []=(key, value)
-      unless key.is_a?(String)
-        raise ArgumentError, 'The Hash key must be of type String'
-      end
+      #unless key.is_a?(String)
+      #  raise ArgumentError, 'The Hash key must be of type String'
+      #end
       @data[key] = _referenced(value)
       @store.cache.cache_write(self)
 

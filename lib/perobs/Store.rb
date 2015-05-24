@@ -44,11 +44,8 @@ module PEROBS
   #
   # Persistent objects must be created by deriving your class from
   # PEROBS::Object. Only instance variables that are declared via
-  # po_attr will be persistent. All objects that are stored in persitant
-  # instance variables must provide a to_json method that generates JSON
-  # syntax that can be parsed into their original object again. It is
-  # recommended that references to other objects are all going to persistent
-  # objects again.
+  # po_attr will be persistent. It is recommended that references to other
+  # objects are all going to persistent objects again.
   class Store
 
     attr_reader :db, :cache

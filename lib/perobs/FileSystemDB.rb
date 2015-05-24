@@ -80,14 +80,18 @@ module PEROBS
     # @param id [Fixnum or Bignum] object ID
     # @return [Hash] Object as defined by PEROBS::ObjectBase
     def get_object(id)
-      raw = File.read(object_file_name(id))
-      case @serializer
-      when :marshal
-        Marshal.load(raw)
-      when :json
-        JSON.parse(raw, :create_additions => true)
-      when :yaml
-        YAML.load(raw)
+      begin
+        raw = File.read(file_name = object_file_name(id))
+        case @serializer
+        when :marshal
+          Marshal.load(raw)
+        when :json
+          JSON.parse(raw, :create_additions => true)
+        when :yaml
+          YAML.load(raw)
+        end
+      rescue => e
+        raise RuntimeError, "Error in #{file_name}: #{e.message}"
       end
     end
 
