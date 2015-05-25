@@ -182,7 +182,7 @@ module PEROBS
     # the directory and file name inside the store.
     # @param id [Fixnum or Bignum] ID of the object
     def object_file_name(id)
-      hex_id = "%08X" % id
+      hex_id = "%016X" % id
       dir = hex_id[0..1]
       ensure_dir_exists(File.join(@db_dir, dir))
 
