@@ -149,7 +149,7 @@ module PEROBS
     # This method should only be used during store repair operations. It will
     # delete all referenced to the given object ID.
     # @param id [Fixnum/Bignum] targeted object ID
-    def delete_reference_to_id(id)
+    def _delete_reference_to_id(id)
       @data.delete_if { |v| v && v.is_a?(POReference) && v.id == id }
     end
 

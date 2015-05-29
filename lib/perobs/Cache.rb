@@ -36,12 +36,10 @@ module PEROBS
   class Cache
 
     # Create a new Cache object.
-    # @param store [Store] Reference to the PEROBS Store
     # @param bits [Fixnum] Number of bits for the cache index. This parameter
     #        heavilty affects the performance and memory consumption of the
     #        cache.
-    def initialize(store, bits = 16)
-      @store = store
+    def initialize(bits = 16)
       @bits = bits
       # This mask is used to access the _bits_ least significant bits of the
       # object ID.

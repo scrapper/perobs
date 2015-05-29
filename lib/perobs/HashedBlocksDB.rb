@@ -1,6 +1,6 @@
 # encoding: UTF-8
 #
-# = FileSystemDB.rb -- Persistent Ruby Object Store
+# = HashedBlocksDB.rb -- Persistent Ruby Object Store
 #
 # Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
 #
@@ -33,12 +33,12 @@ require 'yaml'
 require 'fileutils'
 
 require 'perobs/DataBase'
-require 'perobs/ObjectBase'
+require 'perobs/BlockDB'
 
 module PEROBS
 
   # This class provides a filesytem based database store for objects.
-  class FileSystemDB < DataBase
+  class HashedBlocksDB < DataBase
 
     @@Extensions = {
       :marshal => '.mshl',
@@ -50,11 +50,22 @@ module PEROBS
     # name. A database will live in a directory of that name.
     # @param db_name [String] name of the DB directory
     # @param options [Hash] options to customize the behavior. Currently only
-    #        the following option is supported:
-    #        :serializer : Can be :marshal, :json, :yaml
+    #        the following options are supported:
+    #        :serializer  : Can be :marshal, :json, :yaml
+    #        :dir_nibbles : The number of nibbles to use for directory names.
+    #                       Meaningful values are 1, 2, and 3. The larger the
+    #                       number the more back-end files are used. Each
+    #                       nibble provides 16 times more directories.
+    #        :block_size  : The size of the blocks inside the storage files in
+    #                       bytes. This should roughly correspond to the size
+    #                       of the smallest serialized objects you want to
+    #                       store in quantities. It also should be an fraction
+    #                       of 4096, the native storage system block size.
     def initialize(db_name, options = {})
       super(options[:serializer] || :json)
       @db_dir = db_name
+      @dir_nibbles = options[:dir_nibbles] || 2
+      @block_size = options[:block_size] || 256
 
       # Create the database directory if it doesn't exist yet.
       ensure_dir_exists(@db_dir)
@@ -63,59 +74,47 @@ module PEROBS
     # Return true if the object with given ID exists
     # @param id [Fixnum or Bignum]
     def include?(id)
-      File.exists?(object_file_name(id))
+      !BlockDB.new(directory(id), @block_size).find(id).nil?
     end
 
-    # Store the given object into the filesystem.
+    # Store the given object into the cluster files.
     # @param obj [Hash] Object as defined by PEROBS::ObjectBase
     def put_object(obj, id)
-      File.write(object_file_name(id), serialize(obj))
+      BlockDB.new(directory(id), @block_size).write_object(id, serialize(obj))
     end
 
     # Load the given object from the filesystem.
     # @param id [Fixnum or Bignum] object ID
     # @return [Hash] Object as defined by PEROBS::ObjectBase
     def get_object(id)
-      begin
-        raw = File.read(file_name = object_file_name(id))
-      rescue => e
-        raise RuntimeError, "Error in #{file_name}: #{e.message}"
-      end
-      deserialize(raw)
+      deserialize(BlockDB.new(directory(id), @block_size).read_object(id))
     end
 
     # This method must be called to initiate the marking process.
     def clear_marks
-      @mark_start = Time.now
-      # The filesystem stores access times with second granularity. We need to
-      # wait 1 sec. to ensure that all marks are noticeable.
-      sleep(1)
+      Dir.glob(File.join(@db_dir, '*')) do |dir|
+        BlockDB.new(dir, @block_size).clear_marks
+      end
     end
 
     # Permanently delete all objects that have not been marked. Those are
     # orphaned and are no longer referenced by any actively used object.
     def delete_unmarked_objects
       Dir.glob(File.join(@db_dir, '*')) do |dir|
-        next unless Dir.exists?(dir)
-
-        Dir.glob(File.join(dir, '*')) do |file|
-          if File.atime(file) <= @mark_start
-            File.delete(file)
-          end
-        end
+        BlockDB.new(dir, @block_size).delete_unmarked_entries
       end
     end
 
     # Mark an object.
     # @param id [Fixnum or Bignum] ID of the object to mark
     def mark(id)
-      FileUtils.touch(object_file_name(id))
+      BlockDB.new(directory(id), @block_size).mark(id)
     end
 
     # Check if the object is marked.
     # @param id [Fixnum or Bignum] ID of the object to check
     def is_marked?(id)
-      File.atime(object_file_name(id)) > @mark_start
+      BlockDB.new(directory(id), @block_size).is_marked?(id)
     end
 
     # Check if the stored object is syntactically correct.
@@ -125,16 +124,10 @@ module PEROBS
     # @return [TrueClass/FalseClass] True if the object is OK, otherwise
     #         false.
     def check(id, repair)
-      file_name = object_file_name(id)
-      unless File.exists?(file_name)
-        $stderr.puts "Object file for ID #{id} does not exist"
-        return false
-      end
-
       begin
         get_object(id)
       rescue => e
-        $stderr.puts "Cannot read object file #{file_name}: #{e.message}"
+        $stderr.puts "Cannot read object with ID #{id}: #{e.message}"
         return false
       end
 
@@ -143,26 +136,15 @@ module PEROBS
 
     private
 
-    # Ensure that we have a directory to store the DB items.
-    def ensure_dir_exists(dir)
-      unless Dir.exists?(dir)
-        begin
-          Dir.mkdir(dir)
-        rescue IOError => e
-          raise IOError, "Cannote create DB directory '#{dir}': #{e.message}"
-        end
-      end
-    end
-
     # Determine the file name to store the object. The object ID determines
     # the directory and file name inside the store.
     # @param id [Fixnum or Bignum] ID of the object
-    def object_file_name(id)
+    def directory(id)
       hex_id = "%016X" % id
-      dir = hex_id[0..1]
-      ensure_dir_exists(File.join(@db_dir, dir))
+      dir = hex_id[0..(@dir_nibbles - 1)]
+      ensure_dir_exists(dir_name = File.join(@db_dir, dir))
 
-      File.join(@db_dir, dir, hex_id + @@Extensions[@serializer])
+      dir_name
     end
 
   end

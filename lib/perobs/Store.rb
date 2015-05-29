@@ -27,6 +27,7 @@
 
 require 'perobs/Cache'
 require 'perobs/FileSystemDB'
+require 'perobs/HashedBlocksDB'
 require 'perobs/Object'
 require 'perobs/Hash'
 require 'perobs/Array'
@@ -54,6 +55,10 @@ module PEROBS
     # @param data_base [String] the name of the database
     # @param options [Hash] various options to affect the operation of the
     #        database. Currently the following options are supported:
+    #        :engine     : The class that provides the back-end storage
+    #                      engine. By default HashedBlocksDB is used. A user
+    #                      can provide it's own storage engine that must
+    #                      conform to the same API exposed by HashedBlocksDB.
     #        :cache_bits : the number of bits used for cache indexing. The
     #                      cache will hold 2 to the power of bits number of
     #                      objects. We have separate caches for reading and
@@ -76,11 +81,11 @@ module PEROBS
     #                      Unfortunately, it is 10x slower than marshal.
     def initialize(data_base, options = {})
       # Create a backing store handler
-      @db = FileSystemDB.new(data_base, options[:serializer] || :json)
+      @db = (options[:engine] || HashedBlocksDB).new(data_base, options)
 
       # The Cache reduces read and write latencies by keeping a subset of the
       # objects in memory.
-      @cache = Cache.new(self, options[:cache_bits] || 16)
+      @cache = Cache.new(options[:cache_bits] || 16)
 
       # The named (global) objects IDs hashed by their name
       unless (@root_objects = object_by_id(0))

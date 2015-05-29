@@ -82,6 +82,7 @@ describe PEROBS::Store do
 
   it 'should @store and retrieve simple objects' do
     [ :marshal, :json, :yaml ].each do |serializer|
+      FileUtils.rm_rf('test_db')
       @store = PEROBS::Store.new('test_db', { :serializer => serializer })
       @store['john'] = john = Person.new(@store)
       john.name = 'John'
@@ -342,6 +343,70 @@ describe PEROBS::Store do
     @store['person0'].name.should == 'Jimmy'
     @store['person1'].name.should == 'Jane'
     @store['person2'].should be_nil
+  end
+
+  it 'should survive a real world usage test' do
+    options = { :engine => PEROBS::HashedBlocksDB, :dir_nibbles => 1 }
+    @store = PEROBS::Store.new('test_db', options)
+    ref = {}
+
+    0.upto(2000) do |i|
+      key = "o#{i}"
+      case i % 8
+      when 0
+        value = 'A' * rand(512)
+        @store[key] = p = Person.new(@store)
+        p.name = value
+        ref[key] = value
+        @store.sync
+      when 1
+        value = 'B' * rand(128)
+        @store[key] = p = Person.new(@store)
+        p.name = value
+        ref[key] = value
+      when 2
+        index = i - rand(20)
+        if index >= 0
+          key = "o#{i - rand(20)}"
+          @store[key] = nil
+          ref.delete(key)
+        end
+      when 3
+        @store.gc if rand(30) == 0
+      when 4
+        if rand(15) == 0
+          @store.sync
+          @store = PEROBS::Store.new('test_db', options)
+        end
+      when 5
+        index = i - rand(10)
+        if rand(3) == 0 && index >= 0
+          key = "o#{i - rand(10)}"
+          value = 'C' * rand(1024)
+          @store[key] = p = Person.new(@store)
+          p.name = value
+          ref[key] = value
+        end
+      when 6
+        if rand(50) == 0
+          @store.sync
+          @store.check(false)
+        end
+      when 7
+        index = rand(i)
+        if ref[key]
+          @store[key].name.should == ref[key]
+        end
+      end
+
+      if ref[key]
+        @store[key].name.should == ref[key]
+      end
+    end
+
+    ref.each do |k, v|
+      @store[k].name.should == v
+    end
   end
 
 end

@@ -30,7 +30,7 @@ require 'time'
 
 require 'perobs/FileSystemDB'
 
-class TStruct < Struct.new(:first, :second, :third)
+class TempStruct < Struct.new(:first, :second, :third)
 end
 
 describe PEROBS::FileSystemDB do
@@ -68,7 +68,7 @@ describe PEROBS::FileSystemDB do
 
   it 'should support most Ruby objects types' do
     [ :marshal, :yaml ].each do |serializer|
-      @db = PEROBS::FileSystemDB.new('fs_test', serializer)
+      @db = PEROBS::FileSystemDB.new('fs_test', { :serializer => serializer })
       @db.include?(0).should be_false
       h = {
         'String' => 'What god has wrought',
@@ -79,7 +79,7 @@ describe PEROBS::FileSystemDB do
         'nil' => nil,
         'Array' => [ 0, 1, 2, 3 ],
         'Time' => Time.parse('2015-05-14-13:52:17'),
-        'Struct' => TStruct.new("Where's", 'your', 'towel?')
+        'Struct' => TempStruct.new("Where's", 'your', 'towel?')
       }
       @db.put_object(h, 0)
       @db.include?(0).should be_true
