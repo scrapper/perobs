@@ -50,11 +50,6 @@ module PEROBS
     #                       Meaningful values are 1, 2, and 3. The larger the
     #                       number the more back-end files are used. Each
     #                       nibble provides 16 times more directories.
-    #        :block_size  : The size of the blocks inside the storage files in
-    #                       bytes. This should roughly correspond to the size
-    #                       of the smallest serialized objects you want to
-    #                       store in quantities. It also should be an fraction
-    #                       of 4096, the native storage system block size.
     def initialize(db_name, options = {})
       super(options[:serializer] || :json)
       @db_dir = db_name

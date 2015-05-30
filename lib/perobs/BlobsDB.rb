@@ -1,6 +1,6 @@
 # encoding: UTF-8
 #
-# = BlockDB.rb -- Persistent Ruby Object Store
+# = BlobsDB.rb -- Persistent Ruby Object Store
 #
 # Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
 #
@@ -31,16 +31,16 @@ require 'json/add/struct'
 
 module PEROBS
 
-  # This class manages the usage of the data blocks in the corresponding
+  # This class manages the usage of the data blobs in the corresponding
   # HashedBlobsDB object.
   class BlobsDB
 
-    # Create a new BlockDB object.
+    # Create a new BlobsDB object.
     def initialize(dir)
       @dir = dir
 
       @index_file_name = File.join(dir, 'index.json')
-      @block_file_name = File.join(dir, 'data')
+      @blobs_file_name = File.join(dir, 'data')
       read_index
     end
 
@@ -50,7 +50,7 @@ module PEROBS
     def write_object(id, raw)
       bytes = raw.bytesize
       start_address = reserve_bytes(id, bytes)
-      if write_to_block_file(raw, start_address) != bytes
+      if write_to_blobs_file(raw, start_address) != bytes
         raise RuntimeError, 'Object length does not match written bytes'
       end
       write_index
@@ -60,7 +60,7 @@ module PEROBS
     # @param id [Fixnum or Bignum] ID
     # @return [String] sequence of bytes
     def read_object(id)
-      read_from_block_file(*find(id))
+      read_from_blobs_file(*find(id))
     end
 
 
@@ -68,7 +68,7 @@ module PEROBS
     # @param id [Fixnum or Bignum] Object ID
     # @return [Array] Returns an Array with two Fixnum entries. The first is
     #         the number of bytes and the second is the starting offset in the
-    #         block storage file.
+    #         blob storage file.
     def find(id)
       @entries.each do |entry|
         if entry['id'] == id
@@ -83,24 +83,24 @@ module PEROBS
     # @param raw [String] bytes to write
     # @param address [Fixnum] offset in the file
     # @return [Fixnum] number of bytes written
-    def write_to_block_file(raw, address)
+    def write_to_blobs_file(raw, address)
       begin
-        File.write(@block_file_name, raw, address)
+        File.write(@blobs_file_name, raw, address)
       rescue => e
         raise IOError,
-              "Cannot write block file #{@block_file_name}: #{e.message}"
+              "Cannot write blobs file #{@blobs_file_name}: #{e.message}"
       end
     end
 
     # Read _bytes_ bytes from the file starting at offset _address_.
     # @param bytes [Fixnum] number of bytes to read
     # @param address [Fixnum] offset in the file
-    def read_from_block_file(bytes, address)
+    def read_from_blobs_file(bytes, address)
       begin
-        File.read(@block_file_name, bytes, address)
+        File.read(@blobs_file_name, bytes, address)
       rescue => e
         raise IOError,
-              "Cannot read block file #{@block_file_name}: #{e.message}"
+              "Cannot read blobs file #{@blobs_file_name}: #{e.message}"
       end
     end
 
@@ -152,13 +152,13 @@ module PEROBS
     # given ID.
     # @param id [Fixnum or Bignum] ID of the entry
     # @param bytes [Fixnum] number of bytes for this entry
-    # @return [Fixnum] the start address of the reserved block
+    # @return [Fixnum] the start address of the reserved blob
     def reserve_bytes(id, bytes)
-      # index of first block after the last seen entry
+      # index of first blob after the last seen entry
       end_of_last_entry = 0
-      # block index of best fit segment
+      # blob index of best fit segment
       best_fit_start = nil
-      # best fir segment size in blocks
+      # best fir segment size in bytes
       best_fit_bytes = nil
       # If there is already an entry for an object with the _id_, we mark it
       # for deletion.
@@ -199,12 +199,24 @@ module PEROBS
     end
 
     def read_index
+      @entries = []
       if File.exists?(@index_file_name)
         begin
+          #File.open(@index_file_name, 'rb') do |f|
+          #  while !f.eof?
+          #    ea = f.read(8 + 8 + 8 + 1).unpack('QQQC')
+          #    @entries << {
+          #      'id' => ea[0],
+          #      'bytes' => ea[1],
+          #      'start' => ea[2],
+          #      'marked' => ea[3] == 1
+          #    }
+          #  end
+          #end
           @entries = JSON.parse(File.read(@index_file_name))
         rescue => e
           raise RuntimeError,
-                "BlockDB file #{@index_file_name} corrupted: #{e.message}"
+                "BlobsDB file #{@index_file_name} corrupted: #{e.message}"
         end
       else
         @entries = []
@@ -213,10 +225,16 @@ module PEROBS
 
     def write_index
       begin
+        #File.open(@index_file_name, 'wb') do |f|
+        #  @entries.each do |e|
+        #    ea = [ e['id'], e['bytes'], e['start'], e['marked'] ? 1 : 0 ]
+        #    f.write(ea.pack('QQQC'))
+        #  end
+        #end
         File.write(@index_file_name, @entries.to_json)
       rescue => e
         raise RuntimeError,
-              "Cannot write BlockDB index file #{@index_file_name}: " +
+              "Cannot write BlobsDB index file #{@index_file_name}: " +
               e.message
       end
     end
