@@ -346,7 +346,7 @@ describe PEROBS::Store do
   end
 
   it 'should survive a real world usage test' do
-    options = { :engine => PEROBS::HashedBlocksDB, :dir_nibbles => 1 }
+    options = { :engine => PEROBS::HashedBlobsDB, :dir_nibbles => 1 }
     @store = PEROBS::Store.new('test_db', options)
     ref = {}
 

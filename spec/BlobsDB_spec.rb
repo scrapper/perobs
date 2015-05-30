@@ -27,9 +27,9 @@ $:.unshift File.join(File.dirname(__FILE__), '..', 'lib')
 
 require 'fileutils'
 
-require 'perobs/BlockDB'
+require 'perobs/BlobsDB'
 
-describe PEROBS::BlockDB do
+describe PEROBS::BlobsDB do
 
   before(:each) do
     FileUtils.rm_rf('test_dir')
@@ -41,53 +41,45 @@ describe PEROBS::BlockDB do
   end
 
   it 'reserve blocks and find them again' do
-    cfi = PEROBS::BlockDB.new('test_dir', 8)
-    cfi.send('reserve_blocks', 0, 8)
+    cfi = PEROBS::BlobsDB.new('test_dir')
+    cfi.send('reserve_bytes', 0, 8)
     cfi.find(0).should == [ 8, 0 ]
-    cfi.send('reserve_blocks', 1, 7)
+    cfi.send('reserve_bytes', 1, 7)
     cfi.find(1).should == [ 7, 8 ]
-    cfi.send('reserve_blocks', 2, 9)
-    cfi.find(2).should == [ 9, 16 ]
-    cfi.send('reserve_blocks', 3, 23)
-    cfi.find(3).should == [ 23, 32 ]
+    cfi.send('reserve_bytes', 2, 9)
+    cfi.find(2).should == [ 9, 15 ]
+    cfi.send('reserve_bytes', 3, 23)
+    cfi.find(3).should == [ 23, 24 ]
 
     cfi.find(0).should == [ 8, 0 ]
     cfi.find(1).should == [ 7, 8 ]
-    cfi.find(2).should == [ 9, 16 ]
-  end
-
-  it 'should reuse entries for known IDs' do
-    cfi = PEROBS::BlockDB.new('test_dir', 8)
-    cfi.send('reserve_blocks', 0, 8).should == 0
-    cfi.send('reserve_blocks', 1, 7).should == 8
-    cfi.send('reserve_blocks', 2, 9).should == 16
-    cfi.send('reserve_blocks', 1, 8).should == 8
+    cfi.find(2).should == [ 9, 15 ]
   end
 
   it 'should persist the entries' do
-    cfi = PEROBS::BlockDB.new('test_dir', 8)
-    cfi.send('reserve_blocks', 0, 8)
-    cfi.send('reserve_blocks', 1, 7)
-    cfi.send('reserve_blocks', 2, 9)
-    cfi.send('reserve_blocks', 3, 23)
+    cfi = PEROBS::BlobsDB.new('test_dir')
+    cfi.send('reserve_bytes', 0, 8)
+    cfi.send('reserve_bytes', 1, 7)
+    cfi.send('reserve_bytes', 2, 9)
+    cfi.send('reserve_bytes', 3, 23)
     cfi.send('write_index')
 
-    cfi = PEROBS::BlockDB.new('test_dir', 8)
+    cfi = PEROBS::BlobsDB.new('test_dir')
     cfi.find(0).should == [ 8, 0 ]
     cfi.find(1).should == [ 7, 8 ]
-    cfi.find(2).should == [ 9, 16 ]
-    cfi.find(3).should == [ 23, 32 ]
+    cfi.find(2).should == [ 9, 15 ]
+    cfi.find(3).should == [ 23, 24 ]
   end
 
   it 'should remove unmarked entries' do
-    cfi = PEROBS::BlockDB.new('test_dir', 8)
-    cfi.send('reserve_blocks', 0, 8)
-    cfi.send('reserve_blocks', 1, 7)
-    cfi.send('reserve_blocks', 2, 9)
-    cfi.send('reserve_blocks', 3, 23)
+    cfi = PEROBS::BlobsDB.new('test_dir')
+    cfi.send('reserve_bytes', 0, 8)
+    cfi.send('reserve_bytes', 1, 7)
+    cfi.send('reserve_bytes', 2, 9)
+    cfi.send('reserve_bytes', 3, 23)
     cfi.send('write_index')
 
-    cfi = PEROBS::BlockDB.new('test_dir', 8)
+    cfi = PEROBS::BlobsDB.new('test_dir')
     cfi.is_marked?(0).should be_false
     cfi.is_marked?(1).should be_false
     cfi.mark(1)
@@ -103,30 +95,30 @@ describe PEROBS::BlockDB do
     cfi.is_marked?(1).should be_false
     cfi.is_marked?(2).should be_false
 
-    cfi = PEROBS::BlockDB.new('test_dir', 8)
+    cfi = PEROBS::BlobsDB.new('test_dir')
     cfi.find(0).should be_nil
     cfi.find(1).should == [ 7, 8 ]
-    cfi.find(2).should == [ 9, 16 ]
+    cfi.find(2).should == [ 9, 15 ]
     cfi.find(3).should be_nil
   end
 
   it 'should fill gaps with best-fit strategy' do
-    cfi = PEROBS::BlockDB.new('test_dir', 8)
-    cfi.send('reserve_blocks', 0, 17).should == 0
-    cfi.send('reserve_blocks', 1, 7).should == 24
-    cfi.send('reserve_blocks', 2, 9).should == 32
-    cfi.send('reserve_blocks', 3, 23).should == 48
-    cfi.send('reserve_blocks', 4, 1).should == 72
+    cfi = PEROBS::BlobsDB.new('test_dir')
+    cfi.send('reserve_bytes', 0, 17).should == 0
+    cfi.send('reserve_bytes', 1, 7).should == 17
+    cfi.send('reserve_bytes', 2, 9).should == 24
+    cfi.send('reserve_bytes', 3, 23).should == 33
+    cfi.send('reserve_bytes', 4, 1).should == 56
     cfi.send('write_index')
 
     cfi.mark(1)
     cfi.mark(3)
     cfi.delete_unmarked_entries
 
-    cfi.send('reserve_blocks', 5, 10).should == 32
-    cfi.send('reserve_blocks', 6, 25).should == 72
-    cfi.send('reserve_blocks', 7, 8).should == 0
-    cfi.send('reserve_blocks', 8, 8).should == 8
+    cfi.send('reserve_bytes', 5, 8).should == 24
+    cfi.send('reserve_bytes', 6, 25).should == 56
+    cfi.send('reserve_bytes', 7, 8).should == 0
+    cfi.send('reserve_bytes', 8, 8).should == 8
   end
 
 end

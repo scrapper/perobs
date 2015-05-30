@@ -1,6 +1,6 @@
 # encoding: UTF-8
 #
-# = HashedBlocksDB.rb -- Persistent Ruby Object Store
+# = HashedBlobsDB.rb -- Persistent Ruby Object Store
 #
 # Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
 #
@@ -33,14 +33,14 @@ require 'yaml'
 require 'fileutils'
 
 require 'perobs/DataBase'
-require 'perobs/BlockDB'
+require 'perobs/BlobsDB'
 
 module PEROBS
 
   # This class provides a filesytem based database store for objects.
-  class HashedBlocksDB < DataBase
+  class HashedBlobsDB < DataBase
 
-    # Create a new HashedBlocksDB object. This will create a database with the
+    # Create a new HashedBlobsDB object. This will create a database with the
     # given name. The database will live in a directory of that given name.
     # @param db_name [String] name of the DB directory
     # @param options [Hash] options to customize the behavior. Currently only
@@ -59,7 +59,6 @@ module PEROBS
       super(options[:serializer] || :json)
       @db_dir = db_name
       @dir_nibbles = options[:dir_nibbles] || 2
-      @block_size = options[:block_size] || 256
 
       # Create the database directory if it doesn't exist yet.
       ensure_dir_exists(@db_dir)
@@ -68,26 +67,26 @@ module PEROBS
     # Return true if the object with given ID exists
     # @param id [Fixnum or Bignum]
     def include?(id)
-      !BlockDB.new(directory(id), @block_size).find(id).nil?
+      !BlobsDB.new(directory(id)).find(id).nil?
     end
 
     # Store the given object into the cluster files.
     # @param obj [Hash] Object as defined by PEROBS::ObjectBase
     def put_object(obj, id)
-      BlockDB.new(directory(id), @block_size).write_object(id, serialize(obj))
+      BlobsDB.new(directory(id)).write_object(id, serialize(obj))
     end
 
     # Load the given object from the filesystem.
     # @param id [Fixnum or Bignum] object ID
     # @return [Hash] Object as defined by PEROBS::ObjectBase
     def get_object(id)
-      deserialize(BlockDB.new(directory(id), @block_size).read_object(id))
+      deserialize(BlobsDB.new(directory(id)).read_object(id))
     end
 
     # This method must be called to initiate the marking process.
     def clear_marks
       Dir.glob(File.join(@db_dir, '*')) do |dir|
-        BlockDB.new(dir, @block_size).clear_marks
+        BlobsDB.new(dir).clear_marks
       end
     end
 
@@ -95,20 +94,20 @@ module PEROBS
     # orphaned and are no longer referenced by any actively used object.
     def delete_unmarked_objects
       Dir.glob(File.join(@db_dir, '*')) do |dir|
-        BlockDB.new(dir, @block_size).delete_unmarked_entries
+        BlobsDB.new(dir).delete_unmarked_entries
       end
     end
 
     # Mark an object.
     # @param id [Fixnum or Bignum] ID of the object to mark
     def mark(id)
-      BlockDB.new(directory(id), @block_size).mark(id)
+      BlobsDB.new(directory(id)).mark(id)
     end
 
     # Check if the object is marked.
     # @param id [Fixnum or Bignum] ID of the object to check
     def is_marked?(id)
-      BlockDB.new(directory(id), @block_size).is_marked?(id)
+      BlobsDB.new(directory(id)).is_marked?(id)
     end
 
     # Check if the stored object is syntactically correct.

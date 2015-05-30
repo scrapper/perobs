@@ -32,13 +32,12 @@ require 'json/add/struct'
 module PEROBS
 
   # This class manages the usage of the data blocks in the corresponding
-  # HashedBlocks object.
-  class BlockDB
+  # HashedBlobsDB object.
+  class BlobsDB
 
     # Create a new BlockDB object.
-    def initialize(dir, block_size)
+    def initialize(dir)
       @dir = dir
-      @block_size = block_size
 
       @index_file_name = File.join(dir, 'index.json')
       @block_file_name = File.join(dir, 'data')
@@ -50,7 +49,7 @@ module PEROBS
     # @param raw [String] sequence of bytes
     def write_object(id, raw)
       bytes = raw.bytesize
-      start_address = reserve_blocks(id, bytes)
+      start_address = reserve_bytes(id, bytes)
       if write_to_block_file(raw, start_address) != bytes
         raise RuntimeError, 'Object length does not match written bytes'
       end
@@ -73,7 +72,7 @@ module PEROBS
     def find(id)
       @entries.each do |entry|
         if entry['id'] == id
-          return [ entry['bytes'], entry['first_block'] * @block_size ]
+          return [ entry['bytes'], entry['start'] ]
         end
       end
 
@@ -149,47 +148,38 @@ module PEROBS
 
     private
 
-    # Reserve the blocks needed for the specified number of bytes with the
+    # Reserve the bytes needed for the specified number of bytes with the
     # given ID.
     # @param id [Fixnum or Bignum] ID of the entry
     # @param bytes [Fixnum] number of bytes for this entry
     # @return [Fixnum] the start address of the reserved block
-    def reserve_blocks(id, bytes)
-      # size of the entry in blocks
-      blocks = size_in_blocks(bytes)
+    def reserve_bytes(id, bytes)
       # index of first block after the last seen entry
       end_of_last_entry = 0
       # block index of best fit segment
       best_fit_start = nil
       # best fir segment size in blocks
-      best_fit_blocks = nil
+      best_fit_bytes = nil
       # If there is already an entry for an object with the _id_, we mark it
       # for deletion.
       entry_to_delete = nil
 
       @entries.each do |entry|
         if entry['id'] == id
-          # We've found an old entry for this ID.
-          if entry['blocks'] >= blocks
-            # The old entry still fits. Let's just reuse it.
-            entry['bytes'] = bytes
-            entry['blocks'] = blocks
-            return entry['first_block'] * @block_size
-          end
-          # It does not fit. Ignore the entry and mark it for deletion.
+          # We've found an old entry for this ID. Mark it for deletion.
           entry_to_delete = entry
           next
         end
 
-        gap = entry['first_block'] - end_of_last_entry
-        if gap >= blocks &&
-          (best_fit_blocks.nil? || gap < best_fit_blocks)
+        gap = entry['start'] - end_of_last_entry
+        if gap >= bytes &&
+          (best_fit_bytes.nil? || gap < best_fit_bytes)
           # We've found a segment that fits the requested bytes and fits
           # better than any previous find.
           best_fit_start = end_of_last_entry
-          best_fit_blocks = gap
+          best_fit_bytes = gap
         end
-        end_of_last_entry = entry['first_block'] + entry['blocks']
+        end_of_last_entry = entry['start'] + entry['bytes']
       end
 
       # Delete the old entry if requested.
@@ -199,14 +189,13 @@ module PEROBS
       entry = {
         'id' => id,
         'bytes' => bytes,
-        'first_block' => best_fit_start || end_of_last_entry,
-        'blocks' => blocks,
+        'start' => best_fit_start || end_of_last_entry,
         'marked' => false
       }
       @entries << entry
-      @entries.sort! { |e1, e2| e1['first_block'] <=> e2['first_block'] }
+      @entries.sort! { |e1, e2| e1['start'] <=> e2['start'] }
 
-      entry['first_block'] * @block_size
+      entry['start']
     end
 
     def read_index
@@ -230,10 +219,6 @@ module PEROBS
               "Cannot write BlockDB index file #{@index_file_name}: " +
               e.message
       end
-    end
-
-    def size_in_blocks(bytes)
-      bytes / @block_size + (bytes % @block_size != 0 ? 1 : 0)
     end
 
   end
