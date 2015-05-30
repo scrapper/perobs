@@ -163,6 +163,14 @@ module PEROBS
       @data = data
     end
 
+    # Textual dump for debugging purposes
+    # @return [String]
+    def inspect
+      "{\n" +
+      @data.map { |k, v| "  #{k.inspect}=>#{v.inspect}" }.join(",\n") +
+      "\n}\n"
+    end
+
     private
 
     def _serialize

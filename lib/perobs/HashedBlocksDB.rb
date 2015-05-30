@@ -40,14 +40,8 @@ module PEROBS
   # This class provides a filesytem based database store for objects.
   class HashedBlocksDB < DataBase
 
-    @@Extensions = {
-      :marshal => '.mshl',
-      :json => '.json',
-      :yaml => '.yml'
-    }
-
-    # Create a new FileSystemDB object. This will create a DB with the given
-    # name. A database will live in a directory of that name.
+    # Create a new HashedBlocksDB object. This will create a database with the
+    # given name. The database will live in a directory of that given name.
     # @param db_name [String] name of the DB directory
     # @param options [Hash] options to customize the behavior. Currently only
     #        the following options are supported:

@@ -32,6 +32,13 @@ module PEROBS
   # since it's no longer referenced once it has been evicted from the
   # PEROBS::Store cache.
   class POReference < Struct.new(:id)
+
+    # Textual dump for debugging purposes
+    # @return [String]
+    def inspect
+      "@#{id}"
+    end
+
   end
 
   # Base class for all persistent objects. It provides the functionality

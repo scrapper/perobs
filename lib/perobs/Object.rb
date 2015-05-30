@@ -133,6 +133,17 @@ module PEROBS
       end
     end
 
+    # Textual dump for debugging purposes
+    # @return [String]
+    def inspect
+      "{\n" +
+      self.class.attributes.map do |attr|
+        ivar = ('@' + attr.to_s).to_sym
+        "  #{attr.inspect}=>#{instance_variable_get(ivar).inspect}"
+      end.join(",\n") +
+      "\n}\n"
+    end
+
     private
 
     # Return a single data structure that holds all persistent data for this
