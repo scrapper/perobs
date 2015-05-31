@@ -25,9 +25,6 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-require 'json'
-require 'json/add/core'
-require 'json/add/struct'
 
 module PEROBS
 
@@ -35,11 +32,16 @@ module PEROBS
   # HashedBlobsDB object.
   class BlobsDB
 
+    ID = 0
+    BYTES = 1
+    START = 2
+    MARKED = 3
+
     # Create a new BlobsDB object.
     def initialize(dir)
       @dir = dir
 
-      @index_file_name = File.join(dir, 'index.json')
+      @index_file_name = File.join(dir, 'index')
       @blobs_file_name = File.join(dir, 'data')
       read_index
     end
@@ -58,9 +60,10 @@ module PEROBS
 
     # Read the entry for the given ID and return it as bytes.
     # @param id [Fixnum or Bignum] ID
-    # @return [String] sequence of bytes
+    # @return [String] sequence of bytes or nil if ID is unknown
     def read_object(id)
-      read_from_blobs_file(*find(id))
+      return nil unless (bytes_and_start = find(id))
+      read_from_blobs_file(*bytes_and_start)
     end
 
 
@@ -71,8 +74,8 @@ module PEROBS
     #         blob storage file.
     def find(id)
       @entries.each do |entry|
-        if entry['id'] == id
-          return [ entry['bytes'], entry['start'] ]
+        if entry[ID] == id
+          return [ entry[BYTES], entry[START] ]
         end
       end
 
@@ -106,7 +109,7 @@ module PEROBS
 
     # Clear the mark on all entries in the index.
     def clear_marks
-      @entries.each { |e| e['marked'] = false}
+      @entries.each { |e| e[MARKED] = 0 }
       write_index
     end
 
@@ -115,8 +118,8 @@ module PEROBS
     def mark(id)
       found = false
       @entries.each do |entry|
-        if entry['id'] == id
-          entry['marked'] = true
+        if entry[ID] == id
+          entry[MARKED] = 1
           found = true
           break
         end
@@ -134,7 +137,7 @@ module PEROBS
     # @return [TrueClass or FalseClass] true if marked, false otherwise
     def is_marked?(id)
       @entries.each do |entry|
-        return entry['marked'] if entry['id'] == id
+        return entry[MARKED] == 1 if entry[ID] == id
       end
 
       raise ArgumentError, "Cannot find an entry for ID #{id} to check"
@@ -142,7 +145,7 @@ module PEROBS
 
     # Remove all entries from the index that have not been marked.
     def delete_unmarked_entries
-      @entries.delete_if { |e| e['marked'] == false }
+      @entries.delete_if { |e| e[MARKED] == 0 }
       write_index
     end
 
@@ -160,78 +163,65 @@ module PEROBS
       best_fit_start = nil
       # best fir segment size in bytes
       best_fit_bytes = nil
+      # Index where to insert the new entry. Append by default.
+      best_fit_index = -1
       # If there is already an entry for an object with the _id_, we mark it
       # for deletion.
       entry_to_delete = nil
 
-      @entries.each do |entry|
-        if entry['id'] == id
+      @entries.each.with_index do |entry, i|
+        if entry[ID] == id
           # We've found an old entry for this ID. Mark it for deletion.
           entry_to_delete = entry
           next
         end
 
-        gap = entry['start'] - end_of_last_entry
+        gap = entry[START] - end_of_last_entry
         if gap >= bytes &&
           (best_fit_bytes.nil? || gap < best_fit_bytes)
           # We've found a segment that fits the requested bytes and fits
           # better than any previous find.
           best_fit_start = end_of_last_entry
           best_fit_bytes = gap
+          best_fit_index = i
         end
-        end_of_last_entry = entry['start'] + entry['bytes']
+        end_of_last_entry = entry[START] + entry[BYTES]
       end
 
       # Delete the old entry if requested.
       @entries.delete(entry_to_delete) if entry_to_delete
 
-      # Create a new entry and insert it.
-      entry = {
-        'id' => id,
-        'bytes' => bytes,
-        'start' => best_fit_start || end_of_last_entry,
-        'marked' => false
-      }
-      @entries << entry
-      @entries.sort! { |e1, e2| e1['start'] <=> e2['start'] }
+      # Create a new entry and insert it. The order must match the above
+      # defined constants!
+      entry = [ id, bytes, best_fit_start || end_of_last_entry, 0 ]
+      @entries.insert(best_fit_index, entry)
 
-      entry['start']
+      entry[START]
     end
 
     def read_index
       @entries = []
       if File.exists?(@index_file_name)
         begin
-          #File.open(@index_file_name, 'rb') do |f|
-          #  while !f.eof?
-          #    ea = f.read(8 + 8 + 8 + 1).unpack('QQQC')
-          #    @entries << {
-          #      'id' => ea[0],
-          #      'bytes' => ea[1],
-          #      'start' => ea[2],
-          #      'marked' => ea[3] == 1
-          #    }
-          #  end
-          #end
-          @entries = JSON.parse(File.read(@index_file_name))
+          File.open(@index_file_name, 'rb') do |f|
+            while (bytes = f.read(25))
+              @entries << bytes.unpack('QQQC')
+            end
+          end
         rescue => e
           raise RuntimeError,
                 "BlobsDB file #{@index_file_name} corrupted: #{e.message}"
         end
-      else
-        @entries = []
       end
     end
 
     def write_index
       begin
-        #File.open(@index_file_name, 'wb') do |f|
-        #  @entries.each do |e|
-        #    ea = [ e['id'], e['bytes'], e['start'], e['marked'] ? 1 : 0 ]
-        #    f.write(ea.pack('QQQC'))
-        #  end
-        #end
-        File.write(@index_file_name, @entries.to_json)
+        File.open(@index_file_name, 'wb') do |f|
+          @entries.each do |entry|
+            f.write(entry.pack('QQQC'))
+          end
+        end
       rescue => e
         raise RuntimeError,
               "Cannot write BlobsDB index file #{@index_file_name}: " +

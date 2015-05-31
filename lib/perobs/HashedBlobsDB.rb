@@ -53,29 +53,31 @@ module PEROBS
     def initialize(db_name, options = {})
       super(options[:serializer] || :json)
       @db_dir = db_name
-      @dir_nibbles = options[:dir_nibbles] || 2
+      @dir_nibbles = options[:dir_nibbles] || 3
 
       # Create the database directory if it doesn't exist yet.
       ensure_dir_exists(@db_dir)
+      @cache_bits = 16
+      clear_cache
     end
 
     # Return true if the object with given ID exists
     # @param id [Fixnum or Bignum]
     def include?(id)
-      !BlobsDB.new(directory(id)).find(id).nil?
+      !blobs(id).find(id).nil?
     end
 
     # Store the given object into the cluster files.
     # @param obj [Hash] Object as defined by PEROBS::ObjectBase
     def put_object(obj, id)
-      BlobsDB.new(directory(id)).write_object(id, serialize(obj))
+      blobs(id).write_object(id, serialize(obj))
     end
 
     # Load the given object from the filesystem.
     # @param id [Fixnum or Bignum] object ID
     # @return [Hash] Object as defined by PEROBS::ObjectBase
     def get_object(id)
-      deserialize(BlobsDB.new(directory(id)).read_object(id))
+      deserialize(blobs(id).read_object(id))
     end
 
     # This method must be called to initiate the marking process.
@@ -83,6 +85,7 @@ module PEROBS
       Dir.glob(File.join(@db_dir, '*')) do |dir|
         BlobsDB.new(dir).clear_marks
       end
+      clear_cache
     end
 
     # Permanently delete all objects that have not been marked. Those are
@@ -91,18 +94,19 @@ module PEROBS
       Dir.glob(File.join(@db_dir, '*')) do |dir|
         BlobsDB.new(dir).delete_unmarked_entries
       end
+      clear_cache
     end
 
     # Mark an object.
     # @param id [Fixnum or Bignum] ID of the object to mark
     def mark(id)
-      BlobsDB.new(directory(id)).mark(id)
+      blobs(id).mark(id)
     end
 
     # Check if the object is marked.
     # @param id [Fixnum or Bignum] ID of the object to check
     def is_marked?(id)
-      BlobsDB.new(directory(id)).is_marked?(id)
+      blobs(id).is_marked?(id)
     end
 
     # Check if the stored object is syntactically correct.
@@ -123,6 +127,30 @@ module PEROBS
     end
 
     private
+
+    # Empty the cache.
+    def clear_cache
+      @blobs_cache = ::Array.new(2**@cache_bits, nil)
+    end
+
+    # This method returns a BlobsDB object that can be used to access the data
+    # for the object with the given ID. If the BlobsDB object is already in
+    # the cache, we use that one. Otherwise we generate a new one.
+    # @param [Fixnum or Bignum] ID of the object
+    # @return [BlobsDB] The corresponding BlobsDB for the ID
+    def blobs(id)
+      # The @cache_bits least significant bits are the hash key to access the
+      # cache.
+      idx = id & (2**@cache_bits - 1)
+      if (b = @blobs_cache[idx]) && b[0] == id
+        # Cache hit. Return the BlobsDB object.
+        b[1]
+      else
+        # Cache miss. Create a new BlobsDB object and store it in the cache.
+        @blobs_cache[idx] = [ id, bdb = BlobsDB.new(directory(id)) ]
+        bdb
+      end
+    end
 
     # Determine the file name to store the object. The object ID determines
     # the directory and file name inside the store.
