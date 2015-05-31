@@ -45,20 +45,25 @@ module PEROBS
     # @param db_name [String] name of the DB directory
     # @param options [Hash] options to customize the behavior. Currently only
     #        the following options are supported:
-    #        :serializer  : Can be :marshal, :json, :yaml
-    #        :dir_nibbles : The number of nibbles to use for directory names.
-    #                       Meaningful values are 1, 2, and 3. The larger the
-    #                       number the more back-end files are used. Each
-    #                       nibble provides 16 times more directories.
+    #        :serializer : Can be :marshal, :json, :yaml
+    #        :dir_bits   : The number of bits to use for directory names. The
+    #                      value must be between 4 and 16. The larger the
+    #                      number the more back-end files are being used. The
+    #                      more files there are, the fewer entries they have
+    #                      and hence the linear search for IDs, free space
+    #                      etc. is faster. The default is 12.
     def initialize(db_name, options = {})
       super(options[:serializer] || :json)
       @db_dir = db_name
-      @dir_nibbles = options[:dir_nibbles] || 3
+      @dir_bits = options[:dir_bits] || 12
+      if @dir_bits < 4 || @dir_bits > 16
+        raise ArgumentError,
+              "dir_bits option (#{@dir_bits}) must be between 4 and 16"
+      end
 
       # Create the database directory if it doesn't exist yet.
       ensure_dir_exists(@db_dir)
-      @cache_bits = 16
-      clear_cache
+      @blobs_dbs = []
     end
 
     # Return true if the object with given ID exists
@@ -82,19 +87,13 @@ module PEROBS
 
     # This method must be called to initiate the marking process.
     def clear_marks
-      Dir.glob(File.join(@db_dir, '*')) do |dir|
-        BlobsDB.new(dir).clear_marks
-      end
-      clear_cache
+      @blobs_dbs.each { |bdb| bdb.clear_marks if bdb }
     end
 
     # Permanently delete all objects that have not been marked. Those are
     # orphaned and are no longer referenced by any actively used object.
     def delete_unmarked_objects
-      Dir.glob(File.join(@db_dir, '*')) do |dir|
-        BlobsDB.new(dir).delete_unmarked_entries
-      end
-      clear_cache
+      @blobs_dbs.each { |bdb| bdb.delete_unmarked_entries if bdb }
     end
 
     # Mark an object.
@@ -130,7 +129,7 @@ module PEROBS
 
     # Empty the cache.
     def clear_cache
-      @blobs_cache = ::Array.new(2**@cache_bits, nil)
+      @blobs_cache = ::Array.new(2**@cache_bits)
     end
 
     # This method returns a BlobsDB object that can be used to access the data
@@ -139,28 +138,14 @@ module PEROBS
     # @param [Fixnum or Bignum] ID of the object
     # @return [BlobsDB] The corresponding BlobsDB for the ID
     def blobs(id)
-      # The @cache_bits least significant bits are the hash key to access the
-      # cache.
-      idx = id & (2**@cache_bits - 1)
-      if (b = @blobs_cache[idx]) && b[0] == id
-        # Cache hit. Return the BlobsDB object.
-        b[1]
-      else
-        # Cache miss. Create a new BlobsDB object and store it in the cache.
-        @blobs_cache[idx] = [ id, bdb = BlobsDB.new(directory(id)) ]
-        bdb
+      dir_id = id >> (64 - @dir_bits)
+      unless (bdb = @blobs_dbs[dir_id])
+        dir_name = File.join(@db_dir, "%X" % dir_id)
+        ensure_dir_exists(dir_name)
+        @blobs_dbs[dir_id] = bdb = BlobsDB.new(dir_name)
       end
-    end
 
-    # Determine the file name to store the object. The object ID determines
-    # the directory and file name inside the store.
-    # @param id [Fixnum or Bignum] ID of the object
-    def directory(id)
-      hex_id = "%016X" % id
-      dir = hex_id[0..(@dir_nibbles - 1)]
-      ensure_dir_exists(dir_name = File.join(@db_dir, dir))
-
-      dir_name
+      bdb
     end
 
   end

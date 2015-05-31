@@ -74,37 +74,10 @@ module PEROBS
     #         blob storage file.
     def find(id)
       @entries.each do |entry|
-        if entry[ID] == id
-          return [ entry[BYTES], entry[START] ]
-        end
+        return [ entry[BYTES], entry[START] ] if entry[ID] == id
       end
 
       nil
-    end
-
-    # Write a string of bytes into the file at the given address.
-    # @param raw [String] bytes to write
-    # @param address [Fixnum] offset in the file
-    # @return [Fixnum] number of bytes written
-    def write_to_blobs_file(raw, address)
-      begin
-        File.write(@blobs_file_name, raw, address)
-      rescue => e
-        raise IOError,
-              "Cannot write blobs file #{@blobs_file_name}: #{e.message}"
-      end
-    end
-
-    # Read _bytes_ bytes from the file starting at offset _address_.
-    # @param bytes [Fixnum] number of bytes to read
-    # @param address [Fixnum] offset in the file
-    def read_from_blobs_file(bytes, address)
-      begin
-        File.read(@blobs_file_name, bytes, address)
-      rescue => e
-        raise IOError,
-              "Cannot read blobs file #{@blobs_file_name}: #{e.message}"
-      end
     end
 
     # Clear the mark on all entries in the index.
@@ -137,7 +110,7 @@ module PEROBS
     # @return [TrueClass or FalseClass] true if marked, false otherwise
     def is_marked?(id)
       @entries.each do |entry|
-        return entry[MARKED] == 1 if entry[ID] == id
+        return entry[MARKED] != 0 if entry[ID] == id
       end
 
       raise ArgumentError, "Cannot find an entry for ID #{id} to check"
@@ -150,6 +123,31 @@ module PEROBS
     end
 
     private
+
+    # Write a string of bytes into the file at the given address.
+    # @param raw [String] bytes to write
+    # @param address [Fixnum] offset in the file
+    # @return [Fixnum] number of bytes written
+    def write_to_blobs_file(raw, address)
+      begin
+        File.write(@blobs_file_name, raw, address)
+      rescue => e
+        raise IOError,
+              "Cannot write blobs file #{@blobs_file_name}: #{e.message}"
+      end
+    end
+
+    # Read _bytes_ bytes from the file starting at offset _address_.
+    # @param bytes [Fixnum] number of bytes to read
+    # @param address [Fixnum] offset in the file
+    def read_from_blobs_file(bytes, address)
+      begin
+        File.read(@blobs_file_name, bytes, address)
+      rescue => e
+        raise IOError,
+              "Cannot read blobs file #{@blobs_file_name}: #{e.message}"
+      end
+    end
 
     # Reserve the bytes needed for the specified number of bytes with the
     # given ID.
