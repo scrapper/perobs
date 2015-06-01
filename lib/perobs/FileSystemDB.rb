@@ -118,6 +118,10 @@ module PEROBS
       File.atime(object_file_name(id)) > @mark_start
     end
 
+    # Not needed for this DB.
+    def check_db(repair = false)
+    end
+
     # Check if the stored object is syntactically correct.
     # @param id [Fixnum/Bignum] Object ID
     # @param repair [TrueClass/FalseClass] True if an repair attempt should be

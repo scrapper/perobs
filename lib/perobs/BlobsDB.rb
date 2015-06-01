@@ -32,9 +32,15 @@ module PEROBS
   # HashedBlobsDB object.
   class BlobsDB
 
+    # For performance reasons we use an Array for the entries instead of a
+    # Hash. These constants specify the Array index for the corresponding
+    # value.
     ID = 0
+    # Number of bytes
     BYTES = 1
+    # Start Address
     START = 2
+    # Mark/Unmarked flag
     MARKED = 3
 
     # Create a new BlobsDB object.
@@ -122,6 +128,43 @@ module PEROBS
       write_index
     end
 
+    # Run a basic consistency check.
+    # @param repair [TrueClass/FalseClass] Not used right now
+    # @return [TrueClass/FalseClass] Always true right now
+    def check(repair = false)
+      # Determine size of the data blobs file.
+      data_file_size = File.exists?(@blobs_file_name) ?
+        File.size(@blobs_file_name) : 0
+
+      next_start = 0
+      prev_entry = nil
+      @entries.each do |entry|
+        # Entries should never overlap
+        if prev_entry && next_start > entry[START]
+          raise RuntimeError,
+                "#{@dir}: Index entries are overlapping\n" +
+                "ID: #{prev_entry[ID]}  Start: #{prev_entry[START]}  " +
+                "Bytes: #{prev_entry[BYTES]}\n" +
+                "ID: #{entry[ID]}  Start: #{entry[START]}  " +
+                "Bytes: #{entry[BYTES]}"
+        end
+        next_start = entry[START] + entry[BYTES]
+
+        # Entries must fit within the data file
+        if next_start > data_file_size
+          raise RuntimeError,
+                "#{@dir}: Entry for ID #{entry[ID]} goes beyond 'data' file " +
+                "size (#{data_file_size})\n" +
+                "ID: #{entry[ID]}  Start: #{entry[START]}  " +
+                "Bytes: #{entry[BYTES]}"
+        end
+
+        prev_entry = entry
+      end
+
+      true
+    end
+
     private
 
     # Write a string of bytes into the file at the given address.
@@ -181,7 +224,9 @@ module PEROBS
           # better than any previous find.
           best_fit_start = end_of_last_entry
           best_fit_bytes = gap
-          best_fit_index = i
+          # The old entry gets deleted before the new one gets inserted. We
+          # need to correct the index appropriately.
+          best_fit_index = i - (entry_to_delete ? 1 : 0)
         end
         end_of_last_entry = entry[START] + entry[BYTES]
       end

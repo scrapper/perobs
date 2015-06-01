@@ -108,6 +108,13 @@ module PEROBS
       blobs(id).is_marked?(id)
     end
 
+    # Basic consistency check.
+    # @param repair [TrueClass/FalseClass] True if found errors should be
+    #        repaired.
+    def check_db(repair = false)
+      @blobs_dbs.each { |bdb| bdb.check(repair) if bdb }
+    end
+
     # Check if the stored object is syntactically correct.
     # @param id [Fixnum/Bignum] Object ID
     # @param repair [TrueClass/FalseClass] True if an repair attempt should be
@@ -135,7 +142,7 @@ module PEROBS
     # This method returns a BlobsDB object that can be used to access the data
     # for the object with the given ID. If the BlobsDB object is already in
     # the cache, we use that one. Otherwise we generate a new one.
-    # @param [Fixnum or Bignum] ID of the object
+    # @param id [Fixnum or Bignum] ID of the object
     # @return [BlobsDB] The corresponding BlobsDB for the ID
     def blobs(id)
       dir_id = id >> (64 - @dir_bits)

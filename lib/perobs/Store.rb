@@ -192,6 +192,9 @@ module PEROBS
     # @param repair [TrueClass/FalseClass] true if a repair attempt should be
     #        made.
     def check(repair = true)
+      # Run basic consistency checks first.
+      @db.check_db(repair)
+
       @db.clear_marks
       # A buffer to hold a working set of object IDs.
       stack = []
