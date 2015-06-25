@@ -28,11 +28,11 @@ $:.unshift File.join(File.dirname(__FILE__), '..', 'lib')
 require 'fileutils'
 require 'time'
 
-require 'perobs/HashedBlobsDB'
+require 'perobs/BTreeDB'
 
-describe PEROBS::HashedBlobsDB do
+describe PEROBS::BTreeDB do
 
-  class TStruct < Struct.new(:first, :second, :third)
+  class UStruct < Struct.new(:first, :second, :third)
   end
 
   before(:all) do
@@ -44,12 +44,12 @@ describe PEROBS::HashedBlobsDB do
   end
 
   it 'should create database' do
-    @db = PEROBS::HashedBlobsDB.new('fs_test')
+    @db = PEROBS::BTreeDB.new('fs_test')
     Dir.exists?('fs_test').should be_true
   end
 
   it 'should support object insertion and retrieval' do
-    @db = PEROBS::HashedBlobsDB.new('fs_test')
+    @db = PEROBS::BTreeDB.new('fs_test')
     @db.include?(0).should be_false
     h = {
           'String' => 'What god has wrought',
@@ -68,7 +68,7 @@ describe PEROBS::HashedBlobsDB do
 
   it 'should support most Ruby objects types' do
     [ :marshal, :yaml ].each do |serializer|
-      @db = PEROBS::HashedBlobsDB.new('fs_test', { :serializer => serializer })
+      @db = PEROBS::BTreeDB.new('fs_test', { :serializer => serializer })
       @db.include?(0).should be_false
       h = {
         'String' => 'What god has wrought',
@@ -79,7 +79,7 @@ describe PEROBS::HashedBlobsDB do
         'nil' => nil,
         'Array' => [ 0, 1, 2, 3 ],
         'Time' => Time.parse('2015-05-14-13:52:17'),
-        'Struct' => TStruct.new("Where's", 'your', 'towel?')
+        'Struct' => UStruct.new("Where's", 'your', 'towel?')
       }
       @db.put_object(h, 0)
       @db.include?(0).should be_true
@@ -90,7 +90,7 @@ describe PEROBS::HashedBlobsDB do
   end
 
   it 'should put and get multiple objects in same dir' do
-    @db = PEROBS::HashedBlobsDB.new('fs_test')
+    @db = PEROBS::BTreeDB.new('fs_test')
     0.upto(10) do |i|
       @db.put_object({ "foo #{i}" => i }, i)
     end
@@ -100,7 +100,7 @@ describe PEROBS::HashedBlobsDB do
   end
 
   it 'should handle deleted objects propery' do
-    @db = PEROBS::HashedBlobsDB.new('fs_test')
+    @db = PEROBS::BTreeDB.new('fs_test')
     @db.put_object({ 'a' => 'a' * 257 }, 0)
     @db.put_object({ 'b' => 'b' * 513 }, 1)
     @db.put_object({ 'c' => 'c' * 129 }, 2)
@@ -125,7 +125,7 @@ describe PEROBS::HashedBlobsDB do
   end
 
   it 'should mark objects and detect markings' do
-    @db = PEROBS::HashedBlobsDB.new('fs_test')
+    @db = PEROBS::BTreeDB.new('fs_test')
     h = { 'a' => 'z' }
     @db.put_object(h, 1)
     @db.put_object(h, 2)

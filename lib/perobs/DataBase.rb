@@ -83,8 +83,7 @@ module PEROBS
     end
 
     # Generate a new unique ID. It uses random numbers between 0 and 2**64 -
-    # 1. Deriving classes can overwrite this method. They must implement a
-    # include? method.
+    # 1.
     # @return [Fixnum or Bignum]
     def new_id
       begin

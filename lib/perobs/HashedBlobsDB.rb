@@ -25,13 +25,6 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-require 'time'
-require 'json'
-require 'json/add/core'
-require 'json/add/struct'
-require 'yaml'
-require 'fileutils'
-
 require 'perobs/DataBase'
 require 'perobs/BlobsDB'
 
@@ -40,6 +33,10 @@ module PEROBS
   # This class provides a filesytem based database store for objects.
   class HashedBlobsDB < DataBase
 
+    # Number of bits used to generate a directory name. A setting of 12 will
+    # create 4096 directories per level.
+    BITS_PER_DIR = 12
+
     # Create a new HashedBlobsDB object. This will create a database with the
     # given name. The database will live in a directory of that given name.
     # @param db_name [String] name of the DB directory
@@ -47,7 +44,7 @@ module PEROBS
     #        the following options are supported:
     #        :serializer : Can be :marshal, :json, :yaml
     #        :dir_bits   : The number of bits to use for directory names. The
-    #                      value must be between 4 and 16. The larger the
+    #                      value must be between 4 and 60. The larger the
     #                      number the more back-end files are being used. The
     #                      more files there are, the fewer entries they have
     #                      and hence the linear search for IDs, free space
@@ -56,14 +53,14 @@ module PEROBS
       super(options[:serializer] || :json)
       @db_dir = db_name
       @dir_bits = options[:dir_bits] || 12
-      if @dir_bits < 4 || @dir_bits > 16
+      if @dir_bits < 4 || @dir_bits > 60
         raise ArgumentError,
-              "dir_bits option (#{@dir_bits}) must be between 4 and 16"
+              "dir_bits option (#{@dir_bits}) must be between 4 and 60"
       end
 
       # Create the database directory if it doesn't exist yet.
       ensure_dir_exists(@db_dir)
-      @blobs_dbs = []
+      @blobs_dbs = {}
     end
 
     # Return true if the object with given ID exists
@@ -87,13 +84,13 @@ module PEROBS
 
     # This method must be called to initiate the marking process.
     def clear_marks
-      @blobs_dbs.each { |bdb| bdb.clear_marks if bdb }
+      @blobs_dbs.each_value { |bdb| bdb.clear_marks if bdb }
     end
 
     # Permanently delete all objects that have not been marked. Those are
     # orphaned and are no longer referenced by any actively used object.
     def delete_unmarked_objects
-      @blobs_dbs.each { |bdb| bdb.delete_unmarked_entries if bdb }
+      @blobs_dbs.each_value { |bdb| bdb.delete_unmarked_entries if bdb }
     end
 
     # Mark an object.
@@ -112,7 +109,7 @@ module PEROBS
     # @param repair [TrueClass/FalseClass] True if found errors should be
     #        repaired.
     def check_db(repair = false)
-      @blobs_dbs.each { |bdb| bdb.check(repair) if bdb }
+      @blobs_dbs.each_value { |bdb| bdb.check(repair) }
     end
 
     # Check if the stored object is syntactically correct.
@@ -134,25 +131,56 @@ module PEROBS
 
     private
 
-    # Empty the cache.
-    def clear_cache
-      @blobs_cache = ::Array.new(2**@cache_bits)
-    end
-
     # This method returns a BlobsDB object that can be used to access the data
     # for the object with the given ID. If the BlobsDB object is already in
     # the cache, we use that one. Otherwise we generate a new one.
     # @param id [Fixnum or Bignum] ID of the object
     # @return [BlobsDB] The corresponding BlobsDB for the ID
     def blobs(id)
-      dir_id = id >> (64 - @dir_bits)
-      unless (bdb = @blobs_dbs[dir_id])
-        dir_name = File.join(@db_dir, "%X" % dir_id)
-        ensure_dir_exists(dir_name)
-        @blobs_dbs[dir_id] = bdb = BlobsDB.new(dir_name)
+      hash_bits = id >> (64 - @dir_bits)
+
+      unless (bdb = @blobs_dbs[hash_bits])
+        # To limit the number of stored BlobsDB objects, we try to age-out the
+        # less frequently used ones. Every 1024 newly created BlobsDB objects
+        # we will increase the age of all objects by 1. If we have more then
+        # 4096 objects, older ones are deleted again.
+        if @blobs_dbs.length % 1024 == 0
+          age_blobs
+          purge_blobs if @blobs_dbs.length > 4096
+        end
+
+        @blobs_dbs[hash_bits] = bdb = BlobsDB.new(path_name(hash_bits))
+      else
+        bdb.age = 0
       end
 
       bdb
+    end
+
+    # Convert the bits into a sequence of directories that use hex number as
+    # file names that are BITS_PER_DIR bits long.
+    # @param bits [Fixnum] The sequence of bits to convert
+    def path_name(bits)
+      path = @db_dir
+      ((@dir_bits / BITS_PER_DIR) +
+       (@dir_bits % BITS_PER_DIR == 0 ? 0 : 1)).times do
+        cur_dir_bits = bits & (2**BITS_PER_DIR - 1)
+        path = File.join(path, "%0#{BITS_PER_DIR / 4}X" % cur_dir_bits)
+        ensure_dir_exists(path)
+        bits = bits >> BITS_PER_DIR
+      end while bits != 0
+
+      path
+    end
+
+    # Increase the age of BlobsDB objects.
+    def age_blobs
+      @blobs_dbs.each_value { |bdb| bdb.age += 1 }
+    end
+
+    # Expire all objects with an age higher than 7.
+    def purge_blobs
+      @blobs_dbs.delete_if { |id, bdb| bdb.age > 7 }
     end
 
   end

@@ -1,6 +1,6 @@
 # encoding: UTF-8
 #
-# = BlobsDB.rb -- Persistent Ruby Object Store
+# = BTreeBlob.rb -- Persistent Ruby Object Store
 #
 # Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
 #
@@ -30,7 +30,7 @@ module PEROBS
 
   # This class manages the usage of the data blobs in the corresponding
   # HashedBlobsDB object.
-  class BlobsDB
+  class BTreeBlob
 
     # For performance reasons we use an Array for the entries instead of a
     # Hash. These constants specify the Array index for the corresponding
@@ -45,9 +45,12 @@ module PEROBS
 
     attr_accessor :age
 
-    # Create a new BlobsDB object.
-    def initialize(dir)
+    # Create a new BTreeBlob object.
+    # @param dir [String] Fully qualified directory name
+    # @param btreedb [BTreeDB] Reference to the DB that owns this blob
+    def initialize(dir, btreedb)
       @dir = dir
+      @btreedb = btreedb
       @age = 0
 
       @index_file_name = File.join(dir, 'index')
@@ -59,12 +62,17 @@ module PEROBS
     # @param id [Fixnum or Bignum] ID
     # @param raw [String] sequence of bytes
     def write_object(id, raw)
-      bytes = raw.bytesize
-      start_address = reserve_bytes(id, bytes)
-      if write_to_blobs_file(raw, start_address) != bytes
-        raise RuntimeError, 'Object length does not match written bytes'
+      if @entries.length > 32
+        split_blob
+        @btreedb.put_raw_object(raw, id)
+      else
+        bytes = raw.bytesize
+        start_address = reserve_bytes(id, bytes)
+        if write_to_blobs_file(raw, start_address) != bytes
+          raise RuntimeError, 'Object length does not match written bytes'
+        end
+        write_index
       end
-      write_index
     end
 
     # Read the entry for the given ID and return it as bytes.
@@ -262,7 +270,7 @@ module PEROBS
           end
         rescue => e
           raise RuntimeError,
-                "BlobsDB file #{@index_file_name} corrupted: #{e.message}"
+                "BTreeBlob file #{@index_file_name} corrupted: #{e.message}"
         end
       end
     end
@@ -276,9 +284,19 @@ module PEROBS
         end
       rescue => e
         raise RuntimeError,
-              "Cannot write BlobsDB index file #{@index_file_name}: " +
+              "Cannot write BTreeBlob index file #{@index_file_name}: " +
               e.message
       end
+    end
+
+    def split_blob
+      File.rename(@index_file_name, @index_file_name + '.bak')
+      @entries.each do |entry|
+        raw = read_from_blobs_file(entry[BYTES], entry[START])
+        @btreedb.put_raw_object(raw, entry[ID])
+      end
+      File.delete(@index_file_name + '.bak')
+      File.delete(@blobs_file_name)
     end
 
   end
