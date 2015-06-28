@@ -43,15 +43,12 @@ module PEROBS
     # Mark/Unmarked flag
     MARKED = 3
 
-    attr_accessor :age
-
     # Create a new BTreeBlob object.
     # @param dir [String] Fully qualified directory name
     # @param btreedb [BTreeDB] Reference to the DB that owns this blob
     def initialize(dir, btreedb)
       @dir = dir
       @btreedb = btreedb
-      @age = 0
 
       @index_file_name = File.join(dir, 'index')
       @blobs_file_name = File.join(dir, 'data')
@@ -62,8 +59,12 @@ module PEROBS
     # @param id [Fixnum or Bignum] ID
     # @param raw [String] sequence of bytes
     def write_object(id, raw)
-      if @entries.length > 32
+      if @entries.length > @btreedb.max_blob_size
+        # The blob has reached the maximum size. Replace the blob with a BTree
+        # node directory and distribute the blob entires into the sub-blobs of
+        # the new BTree node.
         split_blob
+        # Insert the passed object into the newly created BTree node.
         @btreedb.put_raw_object(raw, id)
       else
         bytes = raw.bytesize

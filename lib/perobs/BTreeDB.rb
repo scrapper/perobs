@@ -1,6 +1,6 @@
 # encoding: UTF-8
 #
-# = HashedBlobsDB.rb -- Persistent Ruby Object Store
+# = BTreeBlob.rb -- Persistent Ruby Object Store
 #
 # Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
 #
@@ -32,17 +32,39 @@ module PEROBS
 
   class BTreeDB < DataBase
 
+    attr_reader :max_blob_size
+
+    # Create a new BTreeDB object.
+    # @param db_name [String] name of the DB directory
+    # @param options [Hash] options to customize the behavior. Currently only
+    #        the following options are supported:
+    #        :serializer    : Can be :marshal, :json, :yaml
+    #        :dir_bits      : The number of bits to use for the BTree nodes.
+    #                         The value must be between 4 and 14. The larger
+    #                         the number the more back-end directories are
+    #                         being used. The default is 12 which results in
+    #                         4096 directories per node.
+    #        :max_blob_size : The maximum number of entries in the BTree leaf
+    #                         nodes. The insert/find/delete time grows
+    #                         linearly with the size.
     def initialize(db_name, options = {})
       super(options[:serializer] || :json)
 
       @db_dir = db_name
-      @dir_bits = options[:dir_bits] || 10
-      if @dir_bits < 4 || @dir_bits > 12
+      @dir_bits = options[:dir_bits] || 12
+      if @dir_bits < 4 || @dir_bits > 14
         raise ArgumentError,
               "dir_bits option (#{@dir_bits}) must be between 4 and 12"
       end
+      @max_blob_size = options[:max_blob_size] || 32
+      if @max_blob_size < 4 || @max_blob_size > 128
+        raise ArgumentError,
+          "max_blob_size option (#{@max_blob_size}) must be between 4 and 128"
+      end
+      # This format string is used to create the directory name.
       @dir_format_string = "%0#{(@dir_bits / 4) +
                                 (@dir_bits % 4 == 0 ? 0 : 1)}X"
+      # Bit mask to extract the dir_bits LSBs.
       @dir_mask = 2 ** @dir_bits - 1
 
       # Create the database directory if it doesn't exist yet.
@@ -130,12 +152,15 @@ module PEROBS
     def find_blob(id, create_missing_blob = false)
       dir_name = @db_dir
       loop do
-        name = @dir_format_string % (id & @dir_mask)
-        dir_name = File.join(dir_name, name)
-        if is_blob_dir?(dir_name)
-          # The directory is a blob directory and not a BTree node dir.
-          return BTreeBlob.new(dir_name, self)
-        elsif !Dir.exists?(dir_name)
+        dir_bits = id & @dir_mask
+        dir_name = File.join(dir_name, @dir_format_string % dir_bits)
+
+        if Dir.exists?(dir_name)
+          if File.exists?(File.join(dir_name, 'index'))
+            # The directory is a blob directory and not a BTree node dir.
+            return BTreeBlob.new(dir_name, self)
+          end
+        else
           if create_missing_blob
             # Create the new blob directory.
             Dir.mkdir(dir_name)
@@ -145,6 +170,7 @@ module PEROBS
             return nil
           end
         end
+
         # Discard the least significant @dir_bits bits and start over again
         # with the directory that matches the @dir_bits LSBs of the new ID.
         id = id >> @dir_bits
