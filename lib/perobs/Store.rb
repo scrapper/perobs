@@ -57,9 +57,9 @@ module PEROBS
     # @param options [Hash] various options to affect the operation of the
     #        database. Currently the following options are supported:
     #        :engine     : The class that provides the back-end storage
-    #                      engine. By default HashedBlobsDB is used. A user
+    #                      engine. By default BTreeDB is used. A user
     #                      can provide it's own storage engine that must
-    #                      conform to the same API exposed by HashedBlobsDB.
+    #                      conform to the same API exposed by BTreeBlobsDB.
     #        :cache_bits : the number of bits used for cache indexing. The
     #                      cache will hold 2 to the power of bits number of
     #                      objects. We have separate caches for reading and
@@ -82,7 +82,7 @@ module PEROBS
     #                      Unfortunately, it is 10x slower than marshal.
     def initialize(data_base, options = {})
       # Create a backing store handler
-      @db = (options[:engine] || HashedBlobsDB).new(data_base, options)
+      @db = (options[:engine] || BTreeDB).new(data_base, options)
 
       # The Cache reduces read and write latencies by keeping a subset of the
       # objects in memory.

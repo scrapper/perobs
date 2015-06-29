@@ -117,7 +117,8 @@ module PEROBS
       end
 
       unless found
-        raise ArgumentError, "Cannot find an entry for ID #{id} to mark"
+        raise ArgumentError,
+              "Cannot find an entry for ID #{'%016X' % id} to mark"
       end
 
       write_index
@@ -131,7 +132,8 @@ module PEROBS
         return entry[MARKED] != 0 if entry[ID] == id
       end
 
-      raise ArgumentError, "Cannot find an entry for ID #{id} to check"
+      raise ArgumentError,
+            "Cannot find an entry for ID #{'%016X' % id} to check"
     end
 
     # Remove all entries from the index that have not been marked.
@@ -158,9 +160,10 @@ module PEROBS
         if prev_entry && next_start > entry[START]
           raise RuntimeError,
                 "#{@dir}: Index entries are overlapping\n" +
-                "ID: #{prev_entry[ID]}  Start: #{prev_entry[START]}  " +
+                "ID: #{'%016X' % prev_entry[ID]}  " +
+                "Start: #{prev_entry[START]}  " +
                 "Bytes: #{prev_entry[BYTES]}\n" +
-                "ID: #{entry[ID]}  Start: #{entry[START]}  " +
+                "ID: #{'%016X' % entry[ID]}  Start: #{entry[START]}  " +
                 "Bytes: #{entry[BYTES]}"
         end
         next_start = entry[START] + entry[BYTES]
@@ -168,9 +171,10 @@ module PEROBS
         # Entries must fit within the data file
         if next_start > data_file_size
           raise RuntimeError,
-                "#{@dir}: Entry for ID #{entry[ID]} goes beyond 'data' file " +
+                "#{@dir}: Entry for ID #{'%016X' % entry[ID]} " +
+                "goes beyond 'data' file " +
                 "size (#{data_file_size})\n" +
-                "ID: #{entry[ID]}  Start: #{entry[START]}  " +
+                "ID: #{'%016X' % entry[ID]}  Start: #{entry[START]}  " +
                 "Bytes: #{entry[BYTES]}"
         end
 
@@ -259,11 +263,20 @@ module PEROBS
     end
 
     def read_index
+      # The entries are stored in two data structures to provide the fastest
+      # access mechanism for each situation. The Array @entries stores them in
+      # a plan Array. @entries_by_id stores them hashed by their ID.
       @entries = []
       @entries_by_id = {}
       if File.exists?(@index_file_name)
         begin
           File.open(@index_file_name, 'rb') do |f|
+            # The index is a binary format. Each entry has exactly 25 bytes.
+            # Bytes
+            #  0 -  7 : 64 bits, little endian : ID
+            #  8 - 15 : 64 bits, little endian : Entry length in bytes
+            # 16 - 23 : 64 bits, little endian : Start address in data file
+            # 24      : 8 bits : 0 if unmarked, 1 if marked
             while (bytes = f.read(25))
               @entries << (e = bytes.unpack('QQQC'))
               @entries_by_id[e[ID]] = e
@@ -279,6 +292,7 @@ module PEROBS
     def write_index
       begin
         File.open(@index_file_name, 'wb') do |f|
+          # See read_index for data format documentation.
           @entries.each do |entry|
             f.write(entry.pack('QQQC'))
           end
@@ -291,11 +305,18 @@ module PEROBS
     end
 
     def split_blob
+      # Rename the index file to hide the blob file from the DB.
       File.rename(@index_file_name, @index_file_name + '.bak')
+
+      # Read all entries from the blob and re-store them into the DB. We've
+      # already created the new BTree node, so these entries will be
+      # distributed into new leaf blobs of this new node.
       @entries.each do |entry|
         raw = read_from_blobs_file(entry[BYTES], entry[START])
         @btreedb.put_raw_object(raw, entry[ID])
       end
+
+      # Once the entries are re-stored, we can delete the old blob files.
       File.delete(@index_file_name + '.bak')
       File.delete(@blobs_file_name)
     end

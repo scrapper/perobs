@@ -30,6 +30,12 @@ require 'perobs/BTreeBlob'
 
 module PEROBS
 
+  # This class implements a BTree database using filesystem directories as
+  # nodes and blob files as leafs. The BTree grows with the number of stored
+  # entries. Each leaf node blob can hold a fixed number of entries. If more
+  # entries need to be stored, the blob is replaced by a node with multiple
+  # new leafs that store the entries of the previous node. The leafs are
+  # implemented by the BTreeBlob class.
   class BTreeDB < DataBase
 
     attr_reader :max_blob_size
@@ -51,6 +57,9 @@ module PEROBS
       super(options[:serializer] || :json)
 
       @db_dir = db_name
+      # Create the database directory if it doesn't exist yet.
+      ensure_dir_exists(@db_dir)
+
       @dir_bits = options[:dir_bits] || 12
       if @dir_bits < 4 || @dir_bits > 14
         raise ArgumentError,
@@ -61,14 +70,12 @@ module PEROBS
         raise ArgumentError,
           "max_blob_size option (#{@max_blob_size}) must be between 4 and 128"
       end
+
       # This format string is used to create the directory name.
       @dir_format_string = "%0#{(@dir_bits / 4) +
                                 (@dir_bits % 4 == 0 ? 0 : 1)}X"
       # Bit mask to extract the dir_bits LSBs.
       @dir_mask = 2 ** @dir_bits - 1
-
-      # Create the database directory if it doesn't exist yet.
-      ensure_dir_exists(@db_dir)
     end
 
     # Return true if the object with given ID exists
