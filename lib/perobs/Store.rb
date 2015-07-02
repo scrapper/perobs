@@ -50,7 +50,7 @@ module PEROBS
   # objects are all going to persistent objects again.
   class Store
 
-    attr_reader :db, :cache
+    attr_reader :db, :cache, :rename_map
 
     # Create a new Store.
     # @param data_base [String] the name of the database
@@ -108,6 +108,7 @@ module PEROBS
     # @param obj [PEROBS::Object] The object to store
     # @return [PEROBS::Object] The stored object.
     def []=(name, obj)
+      @rename_map = nil
       # If the passed object is nil, we delete the entry if it exists.
       if obj.nil?
         @root_objects.delete(name)
@@ -271,6 +272,15 @@ module PEROBS
           end
         end
       end
+    end
+
+    def rename_classes(rename_map)
+      @rename_map = rename_map
+      each do |obj|
+        @cache.cache_write(obj)
+      end
+      @rename_map = nil
+      sync
     end
 
     private

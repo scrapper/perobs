@@ -81,8 +81,14 @@ module PEROBS
       # Read the object from database.
       db_obj = store.db.get_object(id)
 
+      klass = db_obj['class']
+      # Check if we have a rename request pending for this class.
+      if store.rename_map
+        # If so, update the class name so we call the new constructor.
+        klass = store.rename_map[klass] || klass
+      end
       # Call the constructor of the specified class.
-      obj = Object.const_get(db_obj['class']).new(store)
+      obj = Object.const_get(klass).new(store)
       # The object gets created with a new ID by default. We need to restore
       # the old one.
       obj._change_id(id)
