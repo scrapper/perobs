@@ -27,7 +27,6 @@
 
 require 'perobs/Cache'
 require 'perobs/FileSystemDB'
-require 'perobs/HashedBlobsDB'
 require 'perobs/BTreeDB'
 require 'perobs/Object'
 require 'perobs/Hash'
