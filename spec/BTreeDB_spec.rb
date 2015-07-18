@@ -48,6 +48,14 @@ describe PEROBS::BTreeDB do
     Dir.exists?('fs_test').should be_true
   end
 
+  it 'should write and read a simple Hash' do
+    @db = PEROBS::BTreeDB.new('fs_test')
+    @db.get_hash('test').should == {}
+    h = { 'A' => 1, 'B' => 2, 'D' => 4 }
+    @db.put_hash('test', h)
+    @db.get_hash('test').should == h
+  end
+
   it 'should support object insertion and retrieval' do
     @db = PEROBS::BTreeDB.new('fs_test')
     @db.include?(0).should be_false

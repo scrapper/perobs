@@ -25,6 +25,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+require 'perobs/ClassMap'
+
 module PEROBS
 
   # This class is used to replace a direct reference to another Ruby object by
@@ -69,7 +71,7 @@ module PEROBS
       @_stash_map = nil
 
       db_obj = {
-        'class' => self.class.to_s,
+        'class_id' => @store.class_map.class_to_id(self.class.to_s),
         'data' => _serialize
       }
       @store.db.put_object(db_obj, @_id)
@@ -81,12 +83,7 @@ module PEROBS
       # Read the object from database.
       db_obj = store.db.get_object(id)
 
-      klass = db_obj['class']
-      # Check if we have a rename request pending for this class.
-      if store.rename_map
-        # If so, update the class name so we call the new constructor.
-        klass = store.rename_map[klass] || klass
-      end
+      klass = store.class_map.id_to_class(db_obj['class_id'])
       # Call the constructor of the specified class.
       obj = Object.const_get(klass).new(store)
       # The object gets created with a new ID by default. We need to restore

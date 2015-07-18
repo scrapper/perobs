@@ -84,6 +84,36 @@ module PEROBS
       (blob = find_blob(id)) && blob.find(id)
     end
 
+    # Store a simple Hash as a JSON encoded file into the DB directory.
+    # @param name [String] Name of the hash. Will be used as file name.
+    # @param hash [Hash] A Hash that maps String objects to strings or
+    # numbers.
+    def put_hash(name, hash)
+      file_name = File.join(@db_dir, name)
+      begin
+        File.write(file_name, hash.to_json)
+      rescue => e
+        raise RuntimeError,
+              "Cannot write hash file '#{file_name}': #{e.message}"
+      end
+    end
+
+    # Load the Hash with the given name.
+    # @param name [String] Name of the hash.
+    # @return [Hash] A Hash that maps String objects to strings or numbers.
+    def get_hash(name)
+      file_name = File.join(@db_dir, name)
+      return ::Hash.new unless File.exists?(file_name)
+
+      begin
+        json = File.read(file_name)
+      rescue => e
+        raise RuntimeError,
+              "Cannot read hash file '#{file_name}': #{e.message}"
+      end
+      JSON.parse(json)
+    end
+
     # Store the given object into the cluster files.
     # @param obj [Hash] Object as defined by PEROBS::ObjectBase
     def put_object(obj, id)

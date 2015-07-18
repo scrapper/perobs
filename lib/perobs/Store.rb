@@ -26,6 +26,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 require 'perobs/Cache'
+require 'perobs/ClassMap'
 require 'perobs/FileSystemDB'
 require 'perobs/BTreeDB'
 require 'perobs/Object'
@@ -49,7 +50,7 @@ module PEROBS
   # objects are all going to persistent objects again.
   class Store
 
-    attr_reader :db, :cache, :rename_map
+    attr_reader :db, :cache, :class_map
 
     # Create a new Store.
     # @param data_base [String] the name of the database
@@ -82,6 +83,9 @@ module PEROBS
     def initialize(data_base, options = {})
       # Create a backing store handler
       @db = (options[:engine] || BTreeDB).new(data_base, options)
+      # Create a map that can translate classes to numerical IDs and vice
+      # versa.
+      @class_map = ClassMap.new(@db)
 
       # The Cache reduces read and write latencies by keeping a subset of the
       # objects in memory.
@@ -107,7 +111,6 @@ module PEROBS
     # @param obj [PEROBS::Object] The object to store
     # @return [PEROBS::Object] The stored object.
     def []=(name, obj)
-      @rename_map = nil
       # If the passed object is nil, we delete the entry if it exists.
       if obj.nil?
         @root_objects.delete(name)
@@ -273,13 +276,10 @@ module PEROBS
       end
     end
 
+    # Rename classes of objects stored in the data base.
+    # @param rename_map [Hash] Hash that maps the old name to the new name
     def rename_classes(rename_map)
-      @rename_map = rename_map
-      each do |obj|
-        @cache.cache_write(obj)
-      end
-      @rename_map = nil
-      sync
+      @class_map.rename(rename_map)
     end
 
     private
