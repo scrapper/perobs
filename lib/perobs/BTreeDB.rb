@@ -60,16 +60,26 @@ module PEROBS
       # Create the database directory if it doesn't exist yet.
       ensure_dir_exists(@db_dir)
 
+      # Read the existing DB config.
+      @config = get_hash('config')
+      check_option('serializer')
+
+      # Check and set @dir_bits, the number of bits used for each tree level.
       @dir_bits = options[:dir_bits] || 12
       if @dir_bits < 4 || @dir_bits > 14
         raise ArgumentError,
               "dir_bits option (#{@dir_bits}) must be between 4 and 12"
       end
+      check_option('dir_bits')
+
       @max_blob_size = options[:max_blob_size] || 32
       if @max_blob_size < 4 || @max_blob_size > 128
         raise ArgumentError,
           "max_blob_size option (#{@max_blob_size}) must be between 4 and 128"
       end
+      check_option('max_blob_size')
+
+      put_hash('config', @config)
 
       # This format string is used to create the directory name.
       @dir_format_string = "%0#{(@dir_bits / 4) +
@@ -89,7 +99,7 @@ module PEROBS
     # @param hash [Hash] A Hash that maps String objects to strings or
     # numbers.
     def put_hash(name, hash)
-      file_name = File.join(@db_dir, name)
+      file_name = File.join(@db_dir, name + '.json')
       begin
         File.write(file_name, hash.to_json)
       rescue => e
@@ -102,7 +112,7 @@ module PEROBS
     # @param name [String] Name of the hash.
     # @return [Hash] A Hash that maps String objects to strings or numbers.
     def get_hash(name)
-      file_name = File.join(@db_dir, name)
+      file_name = File.join(@db_dir, name + '.json')
       return ::Hash.new unless File.exists?(file_name)
 
       begin
@@ -111,7 +121,7 @@ module PEROBS
         raise RuntimeError,
               "Cannot read hash file '#{file_name}': #{e.message}"
       end
-      JSON.parse(json)
+      JSON.parse(json, :create_additions => true)
     end
 
     # Store the given object into the cluster files.

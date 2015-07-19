@@ -41,6 +41,7 @@ module PEROBS
 
     def initialize(serializer = :json)
       @serializer = serializer
+      @config = {}
     end
 
     # Serialize the given object using the object serializer.
@@ -94,6 +95,25 @@ module PEROBS
       end while include?(id)
 
       id
+    end
+
+    # Check a config option and adjust it if needed.
+    # @param name [String] Name of the config option.
+    def check_option(name)
+      value = instance_variable_get('@' + name)
+
+      if @config.include?(name)
+        # The database already existed and has a setting for this config
+        # option. If it does not match the instance variable, adjust the
+        # instance variable accordingly.
+        unless @config[name] == value
+          instance_variable_set('@' + name, @config[name])
+        end
+      else
+        # There is no such config option yet. Create it with the value of the
+        # corresponding instance variable.
+        @config[name] = value
+      end
     end
 
     private

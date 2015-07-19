@@ -109,7 +109,7 @@ describe PEROBS::Store do
 
       @store.sync
 
-      @store = PEROBS::Store.new('test_db', { :serializer => serializer })
+      @store = PEROBS::Store.new('test_db')
       john = @store['john']
       john.name.should == 'John'
       john.zip.should == 4060
