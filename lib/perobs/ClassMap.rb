@@ -78,6 +78,19 @@ module PEROBS
       end
     end
 
+    # Delete all classes unless they are contained in _classes_.
+    # @param classes [Array of String] List of the class names
+    def keep(classes)
+      @by_id.each.with_index do |klass, id|
+        unless classes.include?(klass)
+          # Delete the class from the @by_id list by setting the entry to nil.
+          @by_id[id] = nil
+          # Delete the corresponding @by_class entry as well.
+          @by_class.delete(klass)
+        end
+      end
+    end
+
     private
 
     def new_id(klass)

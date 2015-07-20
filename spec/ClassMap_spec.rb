@@ -56,4 +56,15 @@ describe PEROBS::ClassMap do
     @map.id_to_class(1).should be_nil
   end
 
+  it 'should forget classes not in keep list' do
+    @map.class_to_id('Bar').should == 1
+    @map.class_to_id('Foobar').should == 2
+    @map.keep([ 'Bar' ])
+    @map.id_to_class(0).should be_nil
+    @map.id_to_class(1).should == 'Bar'
+    @map.id_to_class(2).should be_nil
+    @map.class_to_id('Foo1').should == 0
+    @map.class_to_id('Foo2').should == 2
+  end
+
 end

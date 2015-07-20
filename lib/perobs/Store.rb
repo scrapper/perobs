@@ -286,7 +286,9 @@ module PEROBS
     # Mark phase of a mark-and-sweep garbage collector. It will mark all
     # objects that are reachable from the root objects.
     def mark
-      each
+      classes = Set.new
+      each { |obj| classes.add(obj.class) }
+      @class_map.keep(classes.map { |c| c.to_s })
     end
 
     # Sweep phase of a mark-and-sweep garbage collector. It will remove all
