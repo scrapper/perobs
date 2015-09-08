@@ -1,6 +1,6 @@
 # encoding: UTF-8
 #
-# = BTreeBlob.rb -- Persistent Ruby Object Store
+# = BTreeDB.rb -- Persistent Ruby Object Store
 #
 # Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
 #
