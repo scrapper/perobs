@@ -35,7 +35,7 @@ module PEROBS
   # This class implements an Amazon DynamoDB storage engine for PEROBS.
   class DynamoDB < DataBase
 
-    # Create a new BTreeDB object.
+    # Create a new DynamoDB object.
     # @param db_name [String] name of the DB directory
     # @param options [Hash] options to customize the behavior. Currently only
     #        the following options are supported:

@@ -23,24 +23,19 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-$:.unshift File.join(File.dirname(__FILE__), '..', 'lib')
-
-require 'fileutils'
 require 'time'
 
+require 'spec_helper'
 require 'perobs/BTreeDB'
 
 describe PEROBS::BTreeDB do
 
-  class UStruct < Struct.new(:first, :second, :third)
-  end
-
   before(:all) do
-    FileUtils.rm_rf('fs_test')
+    PEROBS::BTreeDB::delete_db('fs_test')
   end
 
   after(:each) do
-    FileUtils.rm_rf('fs_test')
+    PEROBS::BTreeDB::delete_db('fs_test')
   end
 
   it 'should create database' do
@@ -93,7 +88,7 @@ describe PEROBS::BTreeDB do
       @db.include?(0).should be_true
       @db.check(0, false).should be_true
       @db.get_object(0).should == h
-      FileUtils.rm_rf('fs_test')
+      PEROBS::BTreeDB::delete_db('fs_test')
     end
   end
 

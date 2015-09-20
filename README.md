@@ -60,7 +60,7 @@ class Person < PEROBS::Object
   def initialize(store, name)
     super
     attr_init(:name, name)
-    attr_init(:kids, PEROBS::Array.new)
+    attr_init(:kids, PEROBS::Array.new(store))
   end
 
   def to_s
@@ -71,9 +71,9 @@ class Person < PEROBS::Object
 end
 
 store = PEROBS::Store.new('family')
-store['grandpa'] = joe = Person.new('Joe')
-store['grandma'] = jane = Person.new('Jane')
-jim = Person.new('Jim')
+store['grandpa'] = joe = Person.new(store, 'Joe')
+store['grandma'] = jane = Person.new(store, 'Jane')
+jim = Person.new(store, 'Jim')
 jim.father = joe
 joe.kids << jim
 jim.mother = jane

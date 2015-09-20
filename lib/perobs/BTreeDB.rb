@@ -25,6 +25,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+require 'fileutils'
+
 require 'perobs/DataBase'
 require 'perobs/BTreeBlob'
 
@@ -86,6 +88,10 @@ module PEROBS
                                 (@dir_bits % 4 == 0 ? 0 : 1)}X"
       # Bit mask to extract the dir_bits LSBs.
       @dir_mask = 2 ** @dir_bits - 1
+    end
+
+    def BTreeDB::delete_db(db_name)
+      FileUtils.rm_rf(db_name)
     end
 
     # Return true if the object with given ID exists
