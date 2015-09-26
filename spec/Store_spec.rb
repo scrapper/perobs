@@ -67,7 +67,7 @@ describe PEROBS::Store do
   after(:each) do
     @store.gc
     lambda { @store.check }.should_not raise_error
-    FileUtils.rm_rf('test_db')
+    lambda { @store.delete_store }.should_not raise_error
   end
 
   it 'should @store simple objects' do

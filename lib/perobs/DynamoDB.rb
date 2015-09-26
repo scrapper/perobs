@@ -70,6 +70,14 @@ module PEROBS
       put_hash('config', @config)
     end
 
+    # Delete the entire database. The database is no longer usable after this
+    # method was called.
+    def delete_database
+      dynamodb = Aws::DynamoDB::Client.new
+      dynamodb.delete_table(:table_name => @table_name)
+      dynamodb.wait_until(:table_not_exists, table_name: @table_name)
+    end
+
     def DynamoDB::delete_db(table_name)
       dynamodb = Aws::DynamoDB::Client.new
       dynamodb.delete_table(:table_name => table_name)

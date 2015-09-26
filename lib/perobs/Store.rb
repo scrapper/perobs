@@ -101,6 +101,14 @@ module PEROBS
       end
     end
 
+    # Delete the entire store. The store is no longer usable after this
+    # method was called.
+    def delete_store
+      @db.delete_database
+      @class_map = @cache = @root_objects = nil
+    end
+
+
     # Store the provided object under the given name. Use this to make the
     # object a root or top-level object (think global variable). Each store
     # should have at least one root object. Objects that are not directly or

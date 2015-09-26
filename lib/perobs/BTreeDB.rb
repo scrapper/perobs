@@ -90,6 +90,12 @@ module PEROBS
       @dir_mask = 2 ** @dir_bits - 1
     end
 
+    # Delete the entire database. The database is no longer usable after this
+    # method was called.
+    def delete_database
+      FileUtils.rm_rf(@db_dir)
+    end
+
     def BTreeDB::delete_db(db_name)
       FileUtils.rm_rf(db_name)
     end
