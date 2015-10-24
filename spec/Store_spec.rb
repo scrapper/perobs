@@ -23,10 +23,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-$:.unshift File.join(File.dirname(__FILE__), '..', 'lib')
-
-require 'fileutils'
-require 'time'
+require 'spec_helper'
 require 'perobs'
 
 class POSError < RuntimeError
@@ -61,7 +58,7 @@ end
 describe PEROBS::Store do
 
   before(:all) do
-    FileUtils.rm_rf('test_db')
+    @db_file = generate_db_name(__FILE__)
   end
 
   after(:each) do
@@ -70,8 +67,12 @@ describe PEROBS::Store do
     lambda { @store.delete_store }.should_not raise_error
   end
 
+  after(:all) do
+    FileUtils.rm_rf(@db_file)
+  end
+
   it 'should @store simple objects' do
-    @store = PEROBS::Store.new('test_db', { :serializer => :yaml })
+    @store = PEROBS::Store.new(@db_file, { :serializer => :yaml })
     @store['john'] = john = Person.new(@store)
     john.name = 'John'
     john.zip = 4060
@@ -95,8 +96,8 @@ describe PEROBS::Store do
 
   it 'should @store and retrieve simple objects' do
     [ :marshal, :json, :yaml ].each do |serializer|
-      FileUtils.rm_rf('test_db')
-      @store = PEROBS::Store.new('test_db', { :serializer => serializer })
+      FileUtils.rm_rf(@db_file)
+      @store = PEROBS::Store.new(@db_file, { :serializer => serializer })
       @store['john'] = john = Person.new(@store)
       john.name = 'John'
       john.zip = 4060
@@ -109,7 +110,7 @@ describe PEROBS::Store do
 
       @store.sync
 
-      @store = PEROBS::Store.new('test_db')
+      @store = PEROBS::Store.new(@db_file)
       john = @store['john']
       john.name.should == 'John'
       john.zip.should == 4060
@@ -124,7 +125,7 @@ describe PEROBS::Store do
   end
 
   it 'should flush cached objects when necessary' do
-    @store = PEROBS::Store.new('test_db', :cache_bits => 3)
+    @store = PEROBS::Store.new(@db_file, :cache_bits => 3)
     last_obj = nil
     0.upto(20) do |i|
       @store["person#{i}"] = obj = Person.new(@store)
@@ -141,7 +142,7 @@ describe PEROBS::Store do
   end
 
   it 'should support renaming of classes' do
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     @store['john'] = john = Person.new(@store)
     john.name = 'John'
     john.zip = 4060
@@ -154,7 +155,7 @@ describe PEROBS::Store do
 
     @store.sync
 
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     @store.rename_classes({ 'Person' => 'PersonN' })
     john = @store['john']
     john.name.should == 'John'
@@ -169,7 +170,7 @@ describe PEROBS::Store do
   end
 
   it 'should detect modification to non-working objects' do
-    @store = PEROBS::Store.new('test_db', :cache_bits => 3)
+    @store = PEROBS::Store.new(@db_file, :cache_bits => 3)
     0.upto(20) do |i|
       @store["person#{i}"] = obj = Person.new(@store)
       obj.name = "Person #{i}"
@@ -178,14 +179,14 @@ describe PEROBS::Store do
       @store["person#{i}"].name = "New Person #{i}"
     end
     @store.sync
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     0.upto(20) do |i|
       @store["person#{i}"].name.should == "New Person #{i}"
     end
   end
 
   it 'should garbage collect unlinked objects' do
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     @store['person1'] = obj = Person.new(@store)
     id1 = obj._id
     @store['person2'] = obj = Person.new(@store)
@@ -195,14 +196,14 @@ describe PEROBS::Store do
     @store.sync
     @store['person1'] = nil
     @store.gc
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     @store.object_by_id(id1).should be_nil
     @store['person2']._id.should == id2
     @store['person2'].related._id.should == id3
   end
 
   it 'should handle cyclicly linked objects' do
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     @store['person0'] = p0 = Person.new(@store)
     id0 = p0._id
     p1 = Person.new(@store)
@@ -214,7 +215,7 @@ describe PEROBS::Store do
     p0.related = p1
     @store.sync
     @store.gc
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     @store['person0']._id.should == id0
     @store['person0'].related._id.should == id1
     @store['person0'].related.related._id.should == id2
@@ -224,13 +225,13 @@ describe PEROBS::Store do
     @store.object_by_id(id1).should be_nil
     @store.object_by_id(id2).should be_nil
 
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     @store.object_by_id(id1).should be_nil
     @store.object_by_id(id2).should be_nil
   end
 
   it 'should support a successful transaction' do
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     @store.transaction do
       @store['person0'] = p0 = Person.new(@store)
       p0.name = 'Jimmy'
@@ -239,7 +240,7 @@ describe PEROBS::Store do
   end
 
   it 'should handle a failed transaction 1' do
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     begin
       @store.transaction do
         @store['person0'] = p0 = Person.new(@store)
@@ -252,7 +253,7 @@ describe PEROBS::Store do
   end
 
   it 'should handle a failed transaction 2' do
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     @store['person1'] = p1 = Person.new(@store)
     p1.name = 'Joe'
     begin
@@ -268,7 +269,7 @@ describe PEROBS::Store do
   end
 
   it 'should support a successful nested transaction' do
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     @store.transaction do
       @store['person0'] = p0 = Person.new(@store)
       p0.name = 'Jimmy'
@@ -282,7 +283,7 @@ describe PEROBS::Store do
   end
 
   it 'should handle a failed nested transaction 1' do
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     begin
       @store.transaction do
         @store['person0'] = p0 = Person.new(@store)
@@ -303,7 +304,7 @@ describe PEROBS::Store do
   end
 
   it 'should handle a failed nested transaction 2' do
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     begin
       @store.transaction do
         @store['person0'] = p0 = Person.new(@store)
@@ -321,7 +322,7 @@ describe PEROBS::Store do
   end
 
   it 'should support a successful 2-level nested transaction' do
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     @store.transaction do
       @store['person0'] = p0 = Person.new(@store)
       p0.name = 'Jimmy'
@@ -340,7 +341,7 @@ describe PEROBS::Store do
   end
 
   it 'should handle a failed 2-level nested transaction 1' do
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     @store.transaction do
       @store['person0'] = p0 = Person.new(@store)
       p0.name = 'Jimmy'
@@ -363,7 +364,7 @@ describe PEROBS::Store do
   end
 
   it 'should handle a failed 2-level nested transaction 2' do
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_file)
     @store.transaction do
       @store['person0'] = p0 = Person.new(@store)
       p0.name = 'Jimmy'
@@ -388,7 +389,7 @@ describe PEROBS::Store do
 
   it 'should survive a real world usage test' do
     options = { :engine => PEROBS::BTreeDB, :dir_bits => 4 }
-    @store = PEROBS::Store.new('test_db', options)
+    @store = PEROBS::Store.new(@db_file, options)
     ref = {}
 
     0.upto(2000) do |i|
@@ -417,7 +418,7 @@ describe PEROBS::Store do
       when 4
         if rand(15) == 0
           @store.sync
-          @store = PEROBS::Store.new('test_db', options)
+          @store = PEROBS::Store.new(@db_file, options)
         end
       when 5
         index = i - rand(10)

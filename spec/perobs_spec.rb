@@ -23,10 +23,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-$:.unshift File.join(File.dirname(__FILE__), '..', 'lib')
-
-require 'fileutils'
-require 'time'
+require 'spec_helper'
 require 'perobs'
 
 class Person < PEROBS::Object
@@ -45,15 +42,15 @@ end
 describe PEROBS::Store do
 
   before(:all) do
-    FileUtils.rm_rf('test_db')
+    @db_name = File.join(Dir.tmpdir, "perobs_spec.#{rand(2**32)}")
   end
 
   after(:each) do
-    FileUtils.rm_rf('test_db')
+    FileUtils.rm_rf(@db_name)
   end
 
   it 'should store simple objects' do
-    store = PEROBS::Store.new('test_db')
+    store = PEROBS::Store.new(@db_name)
     store['john'] = john = Person.new(store)
     john.name = 'John'
     john.zip = 4060
@@ -76,7 +73,7 @@ describe PEROBS::Store do
   end
 
   it 'should store and retrieve simple objects' do
-    store = PEROBS::Store.new('test_db')
+    store = PEROBS::Store.new(@db_name)
     store['john'] = john = Person.new(store)
     john.name = 'John'
     john.zip = 4060
@@ -89,7 +86,7 @@ describe PEROBS::Store do
 
     store.sync
 
-    store = PEROBS::Store.new('test_db')
+    store = PEROBS::Store.new(@db_name)
     john = store['john']
     john.name.should == 'John'
     john.zip.should == 4060
@@ -103,7 +100,7 @@ describe PEROBS::Store do
   end
 
   it 'should flush cached objects when necessary' do
-    store = PEROBS::Store.new('test_db', :cache_bits => 3)
+    store = PEROBS::Store.new(@db_name, :cache_bits => 3)
     last_obj = nil
     0.upto(20) do |i|
       store["person#{i}"] = obj = Person.new(store)
@@ -120,7 +117,7 @@ describe PEROBS::Store do
   end
 
   it 'should detect modification to non-working objects' do
-    store = PEROBS::Store.new('test_db', :cache_bits => 3)
+    store = PEROBS::Store.new(@db_name, :cache_bits => 3)
     0.upto(20) do |i|
       store["person#{i}"] = obj = Person.new(store)
       obj.name = "Person #{i}"
@@ -129,14 +126,14 @@ describe PEROBS::Store do
       store["person#{i}"].name = "New Person #{i}"
     end
     store.sync
-    store = PEROBS::Store.new('test_db')
+    store = PEROBS::Store.new(@db_name)
     0.upto(20) do |i|
       store["person#{i}"].name.should == "New Person #{i}"
     end
   end
 
   it 'should garbage collect unlinked objects' do
-    store = PEROBS::Store.new('test_db')
+    store = PEROBS::Store.new(@db_name)
     store['person1'] = obj = Person.new(store)
     id1 = obj._id
     store['person2'] = obj = Person.new(store)
@@ -146,7 +143,7 @@ describe PEROBS::Store do
     store.sync
     store['person1'] = nil
     store.gc
-    store = PEROBS::Store.new('test_db')
+    store = PEROBS::Store.new(@db_name)
     store.object_by_id(id1).should be_nil
     store['person2']._id.should == id2
     store['person2'].related._id.should == id3

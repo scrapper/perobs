@@ -23,10 +23,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-$:.unshift File.join(File.dirname(__FILE__), '..', 'lib')
-
-require 'fileutils'
-require 'time'
+require 'spec_helper'
 
 require 'perobs'
 
@@ -36,7 +33,7 @@ class PO < PEROBS::Object
 
   def initialize(store, name = nil)
     super(store)
-    set(:name, name)
+    _set(:name, name)
   end
 
 end
@@ -44,8 +41,7 @@ end
 describe PEROBS::Array do
 
   before(:all) do
-    @db_name = 'test_db'
-    FileUtils.rm_rf(@db_name)
+    @db_name = generate_db_name(__FILE__)
   end
 
   after(:each) do

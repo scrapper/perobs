@@ -23,10 +23,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-$:.unshift File.join(File.dirname(__FILE__), '..', 'lib')
-
-require 'fileutils'
-require 'time'
+require 'spec_helper'
 require 'perobs'
 
 class O1 < PEROBS::Object
@@ -54,13 +51,16 @@ end
 
 describe PEROBS::Store do
 
-  before(:each) do
-    FileUtils.rm_rf('test_db')
-    @store = PEROBS::Store.new('test_db')
+  before(:all) do
+    @db_name = File.join(Dir.tmpdir, "Object_spec.#{rand(2**32)}")
   end
 
-  after(:all) do
-    FileUtils.rm_rf('test_db')
+  before(:each) do
+    @store = PEROBS::Store.new(@db_name)
+  end
+
+  after(:each) do
+    FileUtils.rm_rf(@db_name)
   end
 
   it 'should initialize attributes with default values' do
@@ -96,7 +96,7 @@ describe PEROBS::Store do
     o2.a4 += [ 0, 1, 2 ]
     @store.sync
 
-    @store = PEROBS::Store.new('test_db')
+    @store = PEROBS::Store.new(@db_name)
     o1 = @store['o1']
     o2 = @store['o2']
     o1.a1.should == 'a1'

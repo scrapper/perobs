@@ -23,7 +23,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-$:.unshift File.join(File.dirname(__FILE__), '..', 'lib')
+require 'spec_helper'
 
 require 'perobs/ClassMap'
 require 'perobs/BTreeDB'
@@ -31,13 +31,13 @@ require 'perobs/BTreeDB'
 describe PEROBS::ClassMap do
 
   before(:all) do
-    FileUtils.rm_rf('fs_test')
-    @db = PEROBS::BTreeDB.new('fs_test')
+    @db_name = generate_db_name(__FILE__)
+    @db = PEROBS::BTreeDB.new(@db_name)
     @map = PEROBS::ClassMap.new(@db)
   end
 
   after(:all) do
-    FileUtils.rm_rf('fs_test')
+    FileUtils.rm_rf(@db_name)
   end
 
   it 'should return nil for an unknown ID' do
