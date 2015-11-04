@@ -106,6 +106,12 @@ module PEROBS
       end
     end
 
+    # Equivalent to Array::find
+    def find(ifnone = nil)
+      @data.find(ifnone) { |v| yield(_dereferenced(v)) }
+    end
+    alias detect find
+
     # Equivalent to Array::each
     def each
       @data.each do |item|
@@ -138,6 +144,25 @@ module PEROBS
       end
     end
     alias collect map
+
+    # Equivalent to Array::sort!
+    def sort!
+      if block_given?
+        @data.sort! { |v1, v2| yield(_dereferenced(v1), _dereferenced(v2)) }
+      else
+        @data.sort! { |v1, v2| _dereferenced(v1) <=> _dereferenced(v2) }
+      end
+    end
+
+    # Convert the PEROBS::Array into a normal Array. All entries that
+    # reference other PEROBS objects will be de-referenced. The resulting
+    # Array will not include any POReference objects.
+    # @return [Array]
+    def to_ary
+      a = ::Array.new
+      @data.each { |v| a << _dereferenced(v) }
+      a
+    end
 
     # Return a list of all object IDs of all persistend objects that this Array
     # is referencing.

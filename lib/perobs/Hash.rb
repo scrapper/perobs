@@ -118,6 +118,12 @@ module PEROBS
     alias key? has_key?
     alias member? has_key?
 
+    # Equivalent to Hash::find
+    def find(ifnone = nil)
+      @data.find(ifnone) { |k, v| yield(_dereferenced(v)) }
+    end
+    alias detect find
+
     # Equivalent to Hash::keys
     def keys
       @data.keys
@@ -134,6 +140,16 @@ module PEROBS
       @data.map do |k, v|
         yield(k, _dereferenced(v))
       end
+    end
+
+    # Convert the PEROBS::Hash into a normal Hash. All entries that
+    # reference other PEROBS objects will be de-referenced. The resulting
+    # Hash will not include any POReference objects.
+    # @return [Hash]
+    def to_hash
+      h = ::Hash.new
+      @data.each { |k, v| h[k] = _dereferenced(v) }
+      h
     end
 
     # Equivalent to Hash::values
