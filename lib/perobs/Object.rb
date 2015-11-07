@@ -104,7 +104,7 @@ module PEROBS
       ids = []
       _all_attributes.each do |attr|
         value = instance_variable_get(('@' + attr.to_s).to_sym)
-        ids << value.id if value && value.is_a?(POReference)
+        ids << value.id if value && value.is_a?(POXReference)
       end
       ids
     end
@@ -116,7 +116,7 @@ module PEROBS
       _all_attributes.each do |attr|
         ivar = ('@' + attr.to_s).to_sym
         value = instance_variable_get(ivar)
-        if value && value.is_a?(POReference) && value.id == id
+        if value && value.is_a?(POXReference) && value.id == id
           instance_variable_set(ivar, nil)
         end
       end
@@ -129,6 +129,7 @@ module PEROBS
     def _deserialize(data)
       # Initialize all attributes with the provided values.
       data.each do |attr_name, value|
+        value = POXReference.new(@store, value.id) if value.is_a?(POReference)
         instance_variable_set(('@' + attr_name).to_sym, value)
       end
     end
@@ -159,7 +160,8 @@ module PEROBS
                                "accessor method to assign a reference to " +
                                "another PEROBS object."
         end
-        attributes[attr.to_s] = value
+        attributes[attr.to_s] = value.is_a?(POXReference) ?
+          POReference.new(value.id) : value
       end
       attributes
     end
@@ -175,7 +177,7 @@ module PEROBS
         # To release the object from the Ruby object list later, we store the
         # PEROBS::Store ID of the referenced object instead of the actual
         # reference.
-        instance_variable_set(ivar, POReference.new(val._id))
+        instance_variable_set(ivar, POXReference.new(@store, val._id))
       else
         instance_variable_set(ivar, val)
       end
@@ -187,7 +189,7 @@ module PEROBS
 
     def _get(attr)
       value = instance_variable_get(('@' + attr.to_s).to_sym)
-      if value.is_a?(POReference)
+      if value.is_a?(POXReference)
         @store.object_by_id(value.id)
       else
         value

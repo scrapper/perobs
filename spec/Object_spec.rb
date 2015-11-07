@@ -47,6 +47,10 @@ class O2 < PEROBS::Object
     init_attr(:a4, 42)
   end
 
+  def a3_deref
+    @a3.a1
+  end
+
 end
 
 class O3 < PEROBS::Object
@@ -111,6 +115,14 @@ describe PEROBS::Store do
     o2.a1.should be_nil
     o2.a3.should == o1
     o2.a4.should == [ 0, 1, 2 ]
+  end
+
+  it 'should transparently access a referenced object' do
+    @store['o1'] = o1 = O1.new(@store)
+    @store['o2'] = o2 = O2.new(@store)
+    o1.a1 = 'a1'
+    o2.a3 = o1
+    o2.a3_deref.should == 'a1'
   end
 
   it 'should raise an error when no attributes are defined' do

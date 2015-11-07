@@ -32,8 +32,26 @@ module PEROBS
   # This class is used to replace a direct reference to another Ruby object by
   # the Store ID. This makes object disposable by the Ruby garbage collector
   # since it's no longer referenced once it has been evicted from the
-  # PEROBS::Store cache.
-  class POReference < Struct.new(:id)
+  # PEROBS::Store cache. The POXReference objects function as a transparent
+  # proxy for the objects they are referencing.
+  class POXReference
+
+    attr_reader :id
+
+    def initialize(store, id)
+      @store = store
+      @id = id
+    end
+
+    # Proxy all calls to unknown methods to the referenced object.
+    def method_missing(method_sym, *args, &block)
+      @store.object_by_id(@id).send(method_sym, *args, &block)
+    end
+
+    # Proxy all calls to unknown methods to the referenced object.
+    def respond_to?(method_sym, include_private = false)
+      @store.object_by_id(@id).respond_to?(method_sym, include_private) || super
+    end
 
     # Textual dump for debugging purposes
     # @return [String]
@@ -41,6 +59,11 @@ module PEROBS
       "@#{id}"
     end
 
+  end
+
+  # This class is used to serialize the POXReference objects. It only holds
+  # the ID of the referenced Object.
+  class POReference < Struct.new(:id)
   end
 
   # Base class for all persistent objects. It provides the functionality
@@ -147,17 +170,17 @@ module PEROBS
     private
 
     def _dereferenced(v)
-      v.is_a?(POReference) ? @store.object_by_id(v.id) : v
+      v.is_a?(POXReference) ? @store.object_by_id(v.id) : v
     end
 
     def _referenced(obj)
       if obj.is_a?(ObjectBase)
         # The obj is a reference to another persistent object. Store the ID
-        # of that object in a POReference object.
+        # of that object in a POXReference object.
         if @store != obj.store
           raise ArgumentError, 'The referenced object is not part of this store'
         end
-        POReference.new(obj._id)
+        POXReference.new(@store, obj._id)
       else
         obj
       end

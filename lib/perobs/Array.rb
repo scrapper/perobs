@@ -156,7 +156,7 @@ module PEROBS
 
     # Convert the PEROBS::Array into a normal Array. All entries that
     # reference other PEROBS objects will be de-referenced. The resulting
-    # Array will not include any POReference objects.
+    # Array will not include any POXReference objects.
     # @return [Array]
     def to_ary
       a = ::Array.new
@@ -168,14 +168,14 @@ module PEROBS
     # is referencing.
     # @return [Array of Fixnum or Bignum] IDs of referenced objects
     def _referenced_object_ids
-      @data.each.select { |v| v && v.is_a?(POReference) }.map { |o| o.id }
+      @data.each.select { |v| v && v.is_a?(POXReference) }.map { |o| o.id }
     end
 
     # This method should only be used during store repair operations. It will
     # delete all referenced to the given object ID.
     # @param id [Fixnum/Bignum] targeted object ID
     def _delete_reference_to_id(id)
-      @data.delete_if { |v| v && v.is_a?(POReference) && v.id == id }
+      @data.delete_if { |v| v && v.is_a?(POXReference) && v.id == id }
     end
 
     # Restore the persistent data from a single data structure.
@@ -183,7 +183,8 @@ module PEROBS
     # @param data [Array] the actual Array object
     # @private
     def _deserialize(data)
-      @data = data
+      @data = data.map { |v| v.is_a?(POReference) ?
+                         POXReference.new(@store, v.id) : v }
     end
 
     # Textual dump for debugging purposes
@@ -195,7 +196,7 @@ module PEROBS
     private
 
     def _serialize
-      @data
+      @data.map { |v| v.is_a?(POXReference) ? POReference.new(v.id) : v }
     end
 
   end

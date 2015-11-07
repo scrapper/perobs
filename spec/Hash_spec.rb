@@ -34,7 +34,7 @@ class PO < PEROBS::Object
 
   def initialize(store, name = nil)
     super(store)
-    @name =  name
+    @name = name
   end
 
 end
