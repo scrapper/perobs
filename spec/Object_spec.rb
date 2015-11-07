@@ -49,6 +49,14 @@ class O2 < PEROBS::Object
 
 end
 
+class O3 < PEROBS::Object
+
+  def initialize(store)
+    super
+  end
+
+end
+
 describe PEROBS::Store do
 
   before(:all) do
@@ -103,6 +111,11 @@ describe PEROBS::Store do
     o2.a1.should be_nil
     o2.a3.should == o1
     o2.a4.should == [ 0, 1, 2 ]
+  end
+
+  it 'should raise an error when no attributes are defined' do
+    @store['o3'] = O3.new(@store)
+    lambda { @store.sync }.should raise_error
   end
 
 end

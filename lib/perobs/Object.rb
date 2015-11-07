@@ -89,7 +89,7 @@ module PEROBS
     # @param val [Any] Value to be set
     # @return [true|false] True if the value was initialized, otherwise false.
     def init_attr(attr, val)
-      if self.class.attributes.include?(attr)
+      if _all_attributes.include?(attr)
         _set(attr, val)
         return true
       end
@@ -102,7 +102,7 @@ module PEROBS
     # @return [Array of Fixnum or Bignum] IDs of referenced objects
     def _referenced_object_ids
       ids = []
-      self.class.attributes.each do |attr|
+      _all_attributes.each do |attr|
         value = instance_variable_get(('@' + attr.to_s).to_sym)
         ids << value.id if value && value.is_a?(POReference)
       end
@@ -113,7 +113,7 @@ module PEROBS
     # delete all referenced to the given object ID.
     # @param id [Fixnum/Bignum] targeted object ID
     def _delete_reference_to_id(id)
-      self.class.attributes.each do |attr|
+      _all_attributes.each do |attr|
         ivar = ('@' + attr.to_s).to_sym
         value = instance_variable_get(ivar)
         if value && value.is_a?(POReference) && value.id == id
@@ -137,7 +137,7 @@ module PEROBS
     # @return [String]
     def inspect
       "{\n" +
-      self.class.attributes.map do |attr|
+      _all_attributes.map do |attr|
         ivar = ('@' + attr.to_s).to_sym
         "  #{attr.inspect}=>#{instance_variable_get(ivar).inspect}"
       end.join(",\n") +
@@ -150,7 +150,7 @@ module PEROBS
     # class.
     def _serialize
       attributes = {}
-      self.class.attributes.each do |attr|
+      _all_attributes.each do |attr|
         ivar = ('@' + attr.to_s).to_sym
         if (value = instance_variable_get(ivar)).is_a?(ObjectBase)
           raise ArgumentError, "The instance variable #{ivar} contains a " +
@@ -192,6 +192,17 @@ module PEROBS
       else
         value
       end
+    end
+
+    def _all_attributes
+      # PEROBS objects that don't have persistent attributes declared don't
+      # really make sense.
+      unless self.class.attributes
+        raise StandardError
+          "No persistent attributes have been declared for " +
+          "class #{self.class}. Use 'po_attr' to declare them."
+      end
+      self.class.attributes
     end
 
   end
