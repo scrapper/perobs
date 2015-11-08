@@ -104,7 +104,7 @@ module PEROBS
       ids = []
       _all_attributes.each do |attr|
         value = instance_variable_get(('@' + attr.to_s).to_sym)
-        ids << value.id if value && value.is_a?(POXReference)
+        ids << value.id if value && value.respond_to?(:is_poxreference?)
       end
       ids
     end
@@ -116,7 +116,7 @@ module PEROBS
       _all_attributes.each do |attr|
         ivar = ('@' + attr.to_s).to_sym
         value = instance_variable_get(ivar)
-        if value && value.is_a?(POXReference) && value.id == id
+        if value && value.respond_to?(:is_poxreference?) && value.id == id
           instance_variable_set(ivar, nil)
         end
       end
@@ -153,14 +153,15 @@ module PEROBS
       attributes = {}
       _all_attributes.each do |attr|
         ivar = ('@' + attr.to_s).to_sym
-        if (value = instance_variable_get(ivar)).is_a?(ObjectBase)
-          raise ArgumentError, "The instance variable #{ivar} contains a " +
-                               "reference to a PEROBS::ObjectBase object! " +
-                               "This is not allowed. You must use the " +
-                               "accessor method to assign a reference to " +
-                               "another PEROBS object."
-        end
-        attributes[attr.to_s] = value.is_a?(POXReference) ?
+        value = instance_variable_get(ivar)
+        #if (value = instance_variable_get(ivar)).is_a?(ObjectBase)
+        #  raise ArgumentError, "The instance variable #{ivar} contains a " +
+        #                       "reference to a PEROBS::ObjectBase object! " +
+        #                       "This is not allowed. You must use the " +
+        #                       "accessor method to assign a reference to " +
+        #                       "another PEROBS object."
+        #end
+        attributes[attr.to_s] = value.respond_to?(:is_poxreference?) ?
           POReference.new(value.id) : value
       end
       attributes
@@ -189,7 +190,7 @@ module PEROBS
 
     def _get(attr)
       value = instance_variable_get(('@' + attr.to_s).to_sym)
-      if value.is_a?(POXReference)
+      if value.respond_to?(:is_poxreference?)
         @store.object_by_id(value.id)
       else
         value

@@ -34,11 +34,12 @@ module PEROBS
   # since it's no longer referenced once it has been evicted from the
   # PEROBS::Store cache. The POXReference objects function as a transparent
   # proxy for the objects they are referencing.
-  class POXReference
+  class POXReference  < BasicObject
 
     attr_reader :id
 
     def initialize(store, id)
+      super()
       @store = store
       @id = id
     end
@@ -48,15 +49,23 @@ module PEROBS
       @store.object_by_id(@id).send(method_sym, *args, &block)
     end
 
-    # Proxy all calls to unknown methods to the referenced object.
+    # Proxy all calls to unknown methods to the referenced object. Calling
+    # respond_to?(:is_poxreference?) is the only reliable way to find out if
+    # the object is a POXReference or not as pretty much every method call is
+    # proxied to the referenced object.
     def respond_to?(method_sym, include_private = false)
-      @store.object_by_id(@id).respond_to?(method_sym, include_private) || super
+      method_sym == :is_poxreference? ||
+        @store.object_by_id(@id).respond_to?(method_sym, include_private) ||
+        super
     end
 
-    # Textual dump for debugging purposes
-    # @return [String]
-    def inspect
-      "@#{id}"
+    # Just for completeness. We don't want to be caught lying.
+    def is_poxreference?
+      true
+    end
+
+    def ==(r)
+      @store.object_by_id(@id) == r
     end
 
   end
@@ -170,7 +179,7 @@ module PEROBS
     private
 
     def _dereferenced(v)
-      v.is_a?(POXReference) ? @store.object_by_id(v.id) : v
+      v.respond_to?(:is_poxreference?) ? @store.object_by_id(v.id) : v
     end
 
     def _referenced(obj)

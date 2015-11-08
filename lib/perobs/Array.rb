@@ -179,14 +179,18 @@ module PEROBS
     # is referencing.
     # @return [Array of Fixnum or Bignum] IDs of referenced objects
     def _referenced_object_ids
-      @data.each.select { |v| v && v.is_a?(POXReference) }.map { |o| o.id }
+      @data.each.select do |v|
+        v && v.respond_to?(:is_poxreference?)
+      end.map { |o| o.id }
     end
 
     # This method should only be used during store repair operations. It will
     # delete all referenced to the given object ID.
     # @param id [Fixnum/Bignum] targeted object ID
     def _delete_reference_to_id(id)
-      @data.delete_if { |v| v && v.is_a?(POXReference) && v.id == id }
+      @data.delete_if do |v|
+        v && v.respond_to?(:is_poxreference?) && v.id == id
+      end
     end
 
     # Restore the persistent data from a single data structure.
@@ -207,7 +211,9 @@ module PEROBS
     private
 
     def _serialize
-      @data.map { |v| v.is_a?(POXReference) ? POReference.new(v.id) : v }
+      @data.map do |v|
+        v.respond_to?(:is_poxreference?) ? POReference.new(v.id) : v
+      end
     end
 
   end
