@@ -106,7 +106,7 @@ module PEROBS
     end
 
     # Equivalent to Hash::empty?
-    def emtpy?
+    def empty?
       @data.empty?
     end
 
