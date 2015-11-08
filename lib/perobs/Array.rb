@@ -112,6 +112,17 @@ module PEROBS
     end
     alias detect find
 
+    # Equivalent to Array::index
+    def index(obj)
+      i = 0
+      each do |item|
+        return i if block_given? ? yield(item) : item == obj
+        i += 1
+      end
+
+      nil
+    end
+
     # Equivalent to Array::each
     def each
       @data.each do |item|
