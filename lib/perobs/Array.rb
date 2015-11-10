@@ -26,13 +26,23 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 require 'perobs/ObjectBase'
+require 'perobs/Delegator'
 
 module PEROBS
 
   # An Array that is transparently persisted onto the back-end storage. It is
   # very similar to the Ruby built-in Array class but has some additional
   # limitations. The hash key must always be a String.
+  #
+  # The implementation is largely a proxy around the standard Array class. But
+  # all mutating methods must be re-implemented to convert PEROBS::Objects to
+  # POXReference objects and to register the object as modified with the
+  # cache.
   class Array < ObjectBase
+
+    include Delegator
+
+    attr_reader :data
 
     # Create a new PersistentArray object.
     # @param store [Store] The Store this hash is stored in
@@ -44,15 +54,10 @@ module PEROBS
       @data = ::Array.new(size, default)
     end
 
-    # Equivalent to Array::[]
-    def [](index)
-      _dereferenced(@data[index])
-    end
-
     # Equivalent to Array::[]=
     def []=(index, obj)
-      @data[index] = _referenced(obj)
       @store.cache.cache_write(self)
+      @data[index] = _referenced(obj)
 
       obj
     end
@@ -66,7 +71,13 @@ module PEROBS
     # Equivalent to Array::+
     def +(ary)
       @store.cache.cache_write(self)
-      @data + ary
+      if ary.is_a?(PEROBS::Array)
+        @data + ary.data
+      else
+        # For non PEROBS::Arrays we need to ensure that all PEROBS::Objects
+        # are converted to POXReference objects.
+        @data + ary.map { |obj| _referenced(obj) }
+      end
     end
 
     # Equivalent to Array::push
@@ -101,63 +112,15 @@ module PEROBS
 
     # Equivalent to Array::delete_if
     def delete_if
+      @store.cache.cache_write(self)
       @data.delete_if do |item|
         yield(_dereferenced(item))
       end
     end
 
-    # Equivalent to Array::find
-    def find(ifnone = nil)
-      @data.find(ifnone) { |v| yield(_dereferenced(v)) }
-    end
-    alias detect find
-
-    # Equivalent to Array::index
-    def index(obj)
-      i = 0
-      each do |item|
-        return i if block_given? ? yield(item) : item == obj
-        i += 1
-      end
-
-      nil
-    end
-
-    # Equivalent to Array::each
-    def each
-      @data.each do |item|
-        yield(_dereferenced(item))
-      end
-    end
-
-    # Equivalent to Array::empty?
-    def empty?
-      @data.empty?
-    end
-
-    # Equivalent to Array::include?
-    def include?(obj)
-      @data.each { |v| return true if _dereferenced(v) == obj }
-
-      false
-    end
-
-    # Equivalent to Array::length
-    def length
-      @data.length
-    end
-    alias size length
-
-    # Equivalent to Array::map
-    def map
-      @data.map do |item|
-        yield(_dereferenced(item))
-      end
-    end
-    alias collect map
-
     # Equivalent to Array::sort!
     def sort!
+      @store.cache.cache_write(self)
       if block_given?
         @data.sort! { |v1, v2| yield(_dereferenced(v1), _dereferenced(v2)) }
       else
@@ -200,12 +163,6 @@ module PEROBS
     def _deserialize(data)
       @data = data.map { |v| v.is_a?(POReference) ?
                          POXReference.new(@store, v.id) : v }
-    end
-
-    # Textual dump for debugging purposes
-    # @return [String]
-    def inspect
-      "[\n" + @data.map { |v| "  #{v.inspect}" }.join(",\n") + "\n]\n"
     end
 
     private

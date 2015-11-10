@@ -26,13 +26,21 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 require 'perobs/ObjectBase'
+require 'perobs/Delegator'
 
 module PEROBS
 
   # A Hash that is transparently persisted in the back-end storage. It is very
   # similar to the Ruby built-in Hash class but has some additional
   # limitations. The hash key must always be a String.
+  #
+  # The implementation is largely a proxy around the standard Hash class. But
+  # all mutating methods must be re-implemented to convert PEROBS::Objects to
+  # POXReference objects and to register the object as modified with the
+  # cache.
   class Hash < ObjectBase
+
+    include Delegator
 
     # Create a new PersistentHash object.
     # @param store [Store] The Store this hash is stored in
@@ -44,15 +52,6 @@ module PEROBS
       @data = {}
     end
 
-    # Retrieves the value object corresponding to the
-    # key object. If not found, returns the default value.
-    def [](key)
-      #unless key.is_a?(String)
-      #  raise ArgumentError, 'The Hash key must be of type String'
-      #end
-      _dereferenced(@data.include?(key) ? @data[key] : @default)
-    end
-
     # Associates the value given by value with the key given by key.
     # @param key [String] The key
     # @param value [Any] The value to store
@@ -60,8 +59,8 @@ module PEROBS
       #unless key.is_a?(String)
       #  raise ArgumentError, 'The Hash key must be of type String'
       #end
-      @data[key] = _referenced(value)
       @store.cache.cache_write(self)
+      @data[key] = _referenced(value)
 
       value
     end
@@ -86,59 +85,11 @@ module PEROBS
       end
     end
 
-    # Equivalent to Hash::each
-    def each
-      @data.each do |k, v|
-        yield(k, _dereferenced(v))
-      end
-    end
-
-    # Equivalent to Hash::each_key
-    def each_key
-      @data.each_key { |k| yield(k) }
-    end
-
-    # Equivalent to Hash::each_value
-    def each_value
-      @data.each_value do |v|
-        yield(_dereferenced(v))
-      end
-    end
-
-    # Equivalent to Hash::empty?
-    def empty?
-      @data.empty?
-    end
-
-    # Equivalent to Hash::has_key?
-    def has_key?(key)
-      @data.has_key?(key)
-    end
-    alias include? has_key?
-    alias key? has_key?
-    alias member? has_key?
-
-    # Equivalent to Hash::find
-    def find(ifnone = nil)
-      @data.find(ifnone) { |k, v| yield(_dereferenced(v)) }
-    end
-    alias detect find
-
-    # Equivalent to Hash::keys
-    def keys
-      @data.keys
-    end
-
-    # Equivalent to Hash::length
-    def length
-      @data.length
-    end
-    alias size length
-
-    # Equivalent to Hash::map
-    def map
-      @data.map do |k, v|
-        yield(k, _dereferenced(v))
+    # Equivalent to Hash::sort
+    def sort!
+      @store.cache.cache_write(self)
+      @data.sort! do |v1, v2|
+        yield(_dereferenced(v1), _dereferenced(v2))
       end
     end
 
@@ -183,14 +134,6 @@ module PEROBS
       data.each { |k, v| @data[k] = v.is_a?(POReference) ?
                                     POXReference.new(@store, v.id) : v }
       @data
-    end
-
-    # Textual dump for debugging purposes
-    # @return [String]
-    def inspect
-      "{\n" +
-      @data.map { |k, v| "  #{k.inspect}=>#{v.inspect}" }.join(",\n") +
-      "\n}\n"
     end
 
     private
