@@ -26,23 +26,40 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 require 'perobs/ObjectBase'
-require 'perobs/Delegator'
 
 module PEROBS
 
   # An Array that is transparently persisted onto the back-end storage. It is
-  # very similar to the Ruby built-in Array class but has some additional
-  # limitations. The hash key must always be a String.
-  #
-  # The implementation is largely a proxy around the standard Array class. But
-  # all mutating methods must be re-implemented to convert PEROBS::Objects to
-  # POXReference objects and to register the object as modified with the
-  # cache.
+  # very similar to the Ruby built-in Array class but like other PEROBS
+  # object classes it converts direct references to other PEROBS objects into
+  # POXReference objects that only indirectly reference the other object. It
+  # also tracks all reads and write to any Array element and updates the cache
+  # accordingly.
   class Array < ObjectBase
 
-    include Delegator
-
     attr_reader :data
+
+    # These methods do not mutate the Array. They only perform read
+    # operations.
+    READERS = [
+      :&, :*, :+, :-, :[], :<=>, :at, :abbrev, :assoc, :bsearch, :collect,
+      :combination, :compact, :count, :cycle, :dclone, :drop, :drop_while,
+      :each, :each_index, :empty?, :eql?, :fetch, :find_index, :first,
+      :flatten, :frozen?, :hash, :include?, :index, :inspect, :join, :last,
+      :length, :map, :pack, :permutation, :pretty_print, :pretty_print_cycle,
+      :product, :rassoc, :reject, :repeated_combination,
+      :repeated_permutation, :reverse, :reverse_each, :rindex, :rotate,
+      :sample, :select, :shelljoin, :shuffle, :size, :slice, :sort, :take,
+      :take_while, :to_a, :to_ary, :to_s, :transpose, :uniq, :values_at, :zip,
+      :|
+    ]
+    # These methods mutate the Array but do not introduce any new elements
+    # that potentially need to converted into POXReference objects.
+    REWRITERS = [
+      :clear, :compact!, :delete, :delete_at, :delete_if, :keep_if, :pop,
+      :reject!, :select!, :reverse!, :rotate!, :shift, :shuffle!, :slice!,
+      :sort!, :sort_by!, :uniq!
+    ]
 
     # Create a new PersistentArray object.
     # @param store [Store] The Store this hash is stored in
@@ -54,12 +71,36 @@ module PEROBS
       @data = ::Array.new(size, default)
     end
 
-    # Equivalent to Array::[]=
-    def []=(index, obj)
-      @store.cache.cache_write(self)
-      @data[index] = _referenced(obj)
+    # Proxy all calls to unknown methods to the data object.
+    def method_missing(method_sym, *args, &block)
+      if READERS.include?(method_sym)
+        # If any element of this Array is read, we register this object as
+        # being read with the cache.
+        @store.cache.cache_read(self)
+        @data.send(method_sym, *args, &block)
+      elsif REWRITERS.include?(method_sym)
+        # Re-writers don't introduce any new elements. We just mark the object
+        # as written in the cache and call the Array method.
+        @store.cache.cache_write(self)
+        @data.send(method_sym, *args, &block)
+      else
+        # Any method we don't know about must cause an error. New Array method
+        # need to be added to the right bucket first.
+        raise NoMethodError.new("undefined method '#{method_sym}' for " +
+                                "#{self.class}")
+      end
+    end
 
-      obj
+    def respond_to?(method_sym, include_private = false)
+      (READERS + REWRITERS).include?(method_sym) || super
+    end
+
+    # Equivalent to Array::==
+    # This method is just a reader but also part of BasicObject. Hence
+    # BasicObject::== would be called instead of method_missing.
+    def ==(obj)
+      @store.cache.cache_read(self)
+      @data == obj
     end
 
     # Equivalent to Array::<<
@@ -68,17 +109,56 @@ module PEROBS
       @data << _referenced(obj)
     end
 
-    # Equivalent to Array::+
-    def +(ary)
+    # Equivalent to Array::[]=
+    def []=(index, obj)
       @store.cache.cache_write(self)
-      if ary.is_a?(PEROBS::Array)
-        @data + ary.data
+      @data[index] = _referenced(obj)
+    end
+
+    # Equivalent to Array::collect!
+    def collect!(&block)
+      if block_given?
+        @store.cache.cache_write(self)
+        @data = @data.collect { |item| _referenced(yield(item)) }
       else
-        # For non PEROBS::Arrays we need to ensure that all PEROBS::Objects
-        # are converted to POXReference objects.
-        @data + ary.map { |obj| _referenced(obj) }
+        # We don't really know what's being done with the enumerator. We treat
+        # it like a read.
+        @store.cache.cache_read(self)
+        @data.collect
       end
     end
+
+    # Equivalent to Array::concat
+    def concat(other_ary)
+      @store.cache.cache_write(self)
+      @data.concat(other_ary.map { |item| _referenced(item) })
+    end
+
+    # Equivalent to Array::fill
+    def fill(*args)
+      @store.cache.cache_write(self)
+      @data = @data.fill(*args).map { |item| _referenced(item) }
+    end
+
+    # Eqivalent to Array::flatten!
+    def flatten!(level = -1)
+      @store.cache.cache_write(self)
+      @data = @data.flatten(level).map { |item| _referenced(item) }
+    end
+
+    # Equivalent to Array::initialize_copy
+    def replace(other_ary)
+      @store.cache.cache_write(self)
+      @data = other_ary.map { |item| _referenced(item) }
+    end
+
+    # Equivalent to Array::insert
+    def insert(index, *obj)
+      @store.cache.cache_write(self)
+      @data.insert(index, *obj.map{ |item| _referenced(item) })
+    end
+
+    alias map! collect!
 
     # Equivalent to Array::push
     def push(obj)
@@ -86,56 +166,12 @@ module PEROBS
       @data.push(_referenced(obj))
     end
 
-    # Equivalent to Array::pop
-    def pop
-      @store.cache.cache_write(self)
-      _dereferenced(@data.pop)
-    end
+    #alias replace initialize_copy
 
-    # Equivalent to Array::clear
-    def clear
+    # Equivalent to Array::unshift
+    def unshift(obj)
       @store.cache.cache_write(self)
-      @data.clear
-    end
-
-    # Equivalent to Array::delete
-    def delete(obj)
-      @store.cache.cache_write(self)
-      @data.delete { |v| _dereferenced(v) == obj }
-    end
-
-    # Equivalent to Array::delete_at
-    def delete_at(index)
-      @store.cache.cache_write(self)
-      @data.delete_at(index)
-    end
-
-    # Equivalent to Array::delete_if
-    def delete_if
-      @store.cache.cache_write(self)
-      @data.delete_if do |item|
-        yield(_dereferenced(item))
-      end
-    end
-
-    # Equivalent to Array::sort!
-    def sort!
-      @store.cache.cache_write(self)
-      if block_given?
-        @data.sort! { |v1, v2| yield(_dereferenced(v1), _dereferenced(v2)) }
-      else
-        @data.sort! { |v1, v2| _dereferenced(v1) <=> _dereferenced(v2) }
-      end
-    end
-
-    # Convert the PEROBS::Array into a normal Array. All entries that
-    # reference other PEROBS objects will be de-referenced. The resulting
-    # Array will not include any POXReference objects.
-    # @return [Array]
-    def to_ary
-      a = ::Array.new
-      @data.each { |v| a << _dereferenced(v) }
-      a
+      @data.unshift(_referenced(obj))
     end
 
     # Return a list of all object IDs of all persistend objects that this Array

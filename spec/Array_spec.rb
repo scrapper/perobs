@@ -87,4 +87,61 @@ describe PEROBS::Array do
     vs.should == 'ABCD'
   end
 
+  # Utility method to create a PEROBS::Array from a normal Array.
+  def cpa(ary = nil)
+    a = PEROBS::Array.new(@store)
+    a.replace(ary) unless ary.nil?
+    @store['a'] = a
+  end
+
+  it 'should support the & operator' do
+    @store = PEROBS::Store.new(@db_name)
+
+  end
+
+  it 'should support reading methods' do
+    @store = PEROBS::Store.new(@db_name)
+
+    (cpa([ 1, 1, 3, 5 ]) & cpa([ 1, 2, 3 ])).should == [ 1, 3 ]
+    (cpa & cpa([ 1, 2, 3 ])).should == []
+
+    cpa.empty?.should be_true
+    cpa([ 0 ]).empty?.should be_false
+
+    x = cpa(["it", "came", "to", "pass", "that", "..."])
+    x = x.sort.join(" ")
+    x.should == "... came it pass that to"
+  end
+
+  it 'should support re-writing methods' do
+    @store = PEROBS::Store.new(@db_name)
+
+    x = cpa([2, 5, 3, 1, 7])
+    x.sort!{ |a, b| a <=> b }
+    x.should == [1,2,3,5,7]
+    x.sort!{ |a, b| b - a }
+    x.should == [7,5,3,2,1]
+
+    x.clear.should == []
+  end
+
+  it 'should support <<()' do
+    @store = PEROBS::Store.new(@db_name)
+
+    a = cpa([ 0, 1, 2 ])
+    a << 4
+    a.should == [ 0, 1, 2, 4 ]
+  end
+
+  it 'should support collect()' do
+    @store = PEROBS::Store.new(@db_name)
+
+    a = cpa([ 1, 'cat', 1..1 ])
+    a.collect {|e| e.class}.should == [ Fixnum, String, Range]
+    a.collect { 99 }.should == [ 99, 99, 99]
+    cpa([]).collect { 99 }.should == []
+    cpa([1, 2, 3]).collect.should be_a_kind_of(Enumerator)
+  end
+
+
 end

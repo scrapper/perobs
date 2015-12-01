@@ -64,10 +64,6 @@ module PEROBS
       true
     end
 
-    def ==(r)
-      @store.object_by_id(@id) == r
-    end
-
   end
 
   # This class is used to serialize the POXReference objects. It only holds
@@ -93,6 +89,7 @@ module PEROBS
 
     # Two objects are considered equal if their object IDs are the same.
     def ==(obj)
+      return false unless obj.is_a?(ObjectBase)
       obj && @_id == obj._id
     end
 
