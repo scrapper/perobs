@@ -161,12 +161,12 @@ module PEROBS
     alias map! collect!
 
     # Equivalent to Array::push
-    def push(obj)
+    def push(*args)
       @store.cache.cache_write(self)
-      @data.push(_referenced(obj))
+      args.each { |obj| @data.push(_referenced(obj)) }
     end
 
-    #alias replace initialize_copy
+    alias initialize_copy replace
 
     # Equivalent to Array::unshift
     def unshift(obj)

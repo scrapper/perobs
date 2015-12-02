@@ -2,6 +2,10 @@
 #
 # Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
 #
+# This file contains tests for Array that are similar to the tests for the
+# Array implementation in MRI. The ideas of these tests were replicated in
+# this code.
+#
 # MIT License
 #
 # Permission is hereby granted, free of charge, to any person obtaining
@@ -44,45 +48,47 @@ describe PEROBS::Array do
     @db_name = generate_db_name(__FILE__)
   end
 
+  before(:each) do
+    @store = PEROBS::Store.new(@db_name)
+  end
+
   after(:each) do
-    FileUtils.rm_rf(@db_name)
+    @store.delete_store
   end
 
   it 'should store simple objects persistently' do
-    store = PEROBS::Store.new(@db_name)
-    store['a'] = a = PEROBS::Array.new(store)
+    @store['a'] = a = PEROBS::Array.new(@store)
     a[0] = 'A'
     a[1] = 'B'
-    a[2] = po = PO.new(store)
+    a[2] = po = PO.new(@store)
     po.name = 'foobar'
 
     a[0].should == 'A'
     a[1].should == 'B'
     a[2].name.should == 'foobar'
-    store.sync
+    @store.sync
 
-    store = PEROBS::Store.new(@db_name)
-    a = store['a']
+    @store = PEROBS::Store.new(@db_name)
+    a = @store['a']
     a[0].should == 'A'
     a[1].should == 'B'
     a[2].name.should == 'foobar'
   end
 
   it 'should have an each method to iterate' do
-    store = PEROBS::Store.new(@db_name)
-    store['a'] = a = PEROBS::Array.new(store)
+    @store['a'] = a = PEROBS::Array.new(@store)
     a[0] = 'A'
     a[1] = 'B'
     a[2] = 'C'
     vs = ''
     a.each { |v| vs << v }
     vs.should == 'ABC'
-    store.sync
+    @store.sync
 
-    store = PEROBS::Store.new(@db_name)
-    a = store['a']
+    @store = PEROBS::Store.new(@db_name)
+    a = @store['a']
     vs = ''
-    a[3] = PO.new(store, 'D')
+    a[3] = PO.new(@store, 'D')
     a.each { |v| vs << (v.is_a?(String) ? v : v.name) }
     vs.should == 'ABCD'
   end
@@ -94,14 +100,14 @@ describe PEROBS::Array do
     @store['a'] = a
   end
 
-  it 'should support the & operator' do
+  def pcheck
+    yield
+    @store.sync
     @store = PEROBS::Store.new(@db_name)
-
+    yield
   end
 
   it 'should support reading methods' do
-    @store = PEROBS::Store.new(@db_name)
-
     (cpa([ 1, 1, 3, 5 ]) & cpa([ 1, 2, 3 ])).should == [ 1, 3 ]
     (cpa & cpa([ 1, 2, 3 ])).should == []
 
@@ -114,34 +120,73 @@ describe PEROBS::Array do
   end
 
   it 'should support re-writing methods' do
-    @store = PEROBS::Store.new(@db_name)
-
     x = cpa([2, 5, 3, 1, 7])
     x.sort!{ |a, b| a <=> b }
-    x.should == [1,2,3,5,7]
+    pcheck { x.should == [1,2,3,5,7] }
     x.sort!{ |a, b| b - a }
-    x.should == [7,5,3,2,1]
+    pcheck { x.should == [7,5,3,2,1]}
 
-    x.clear.should == []
+    x.clear
+    pcheck { x.should == [] }
   end
 
   it 'should support <<()' do
-    @store = PEROBS::Store.new(@db_name)
-
     a = cpa([ 0, 1, 2 ])
     a << 4
-    a.should == [ 0, 1, 2, 4 ]
+    pcheck { a.should == [ 0, 1, 2, 4 ] }
   end
 
-  it 'should support collect()' do
-    @store = PEROBS::Store.new(@db_name)
+  it 'should support []=' do
+    a = cpa([ 0, nil, 2 ])
+    a[1] = 1
+    pcheck { a.should == [ 0, 1, 2 ] }
+  end
+
+  it 'should support collect!()' do
+    a = cpa([ 1, 'cat', 1..1 ])
+    a.collect! { |e| e.class }.should == [ Fixnum, String, Range ]
+    pcheck { a.should == [ Fixnum, String, Range ] }
 
     a = cpa([ 1, 'cat', 1..1 ])
-    a.collect {|e| e.class}.should == [ Fixnum, String, Range]
-    a.collect { 99 }.should == [ 99, 99, 99]
-    cpa([]).collect { 99 }.should == []
-    cpa([1, 2, 3]).collect.should be_a_kind_of(Enumerator)
+    a.collect! { 99 }.should == [ 99, 99, 99]
+    pcheck { a.should == [ 99, 99, 99] }
   end
 
+  it 'should support fill()' do
+    pcheck { cpa([]).fill(99).should == [] }
+    pcheck { cpa([]).fill(99, 0).should == [] }
+    pcheck { cpa([]).fill(99, 0, 1).should == [ 99 ] }
+  end
+
+  it 'should support flatten!()' do
+    a1 = cpa([ 1, 2, 3])
+    a2 = cpa([ 5, 6 ])
+    a3 = cpa([ 4, a2 ])
+    a4 = cpa([ a1, a3 ])
+    pcheck { a4.flatten.should == [1, 2, 3, 4, 5, 6] }
+  end
+
+  it 'should support replace()' do
+    a = cpa([ 1, 2, 3])
+    a_id = a.__id__
+    a.replace(cpa([4, 5, 6])).should == [ 4, 5, 6 ]
+    pcheck { a.should == [ 4, 5, 6] }
+  end
+
+  it 'should support insert()' do
+    a = cpa([ 0 ])
+    a.insert(1)
+    pcheck { a.should == [ 0 ] }
+    a.insert(1, 1)
+    pcheck { a.should == [ 0, 1] }
+  end
+
+  it 'should support push()' do
+    a = cpa([ 1, 2, 3 ])
+    a.push(4, 5)
+    pcheck { a.should == [ 1, 2, 3, 4, 5 ] }
+    a.push(nil)
+    pcheck { a.should == [ 1, 2, 3, 4, 5, nil ] }
+  end
 
 end
