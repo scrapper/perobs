@@ -40,6 +40,20 @@ module PEROBS
   # cache.
   class Hash < ObjectBase
 
+    READERS = [
+      :==, :[], :assoc, :compare_by_identity, :compare_by_identity?, :default,
+      :default_proc, :each, :each_key, :each_pair, :each_value, :empty?,
+      :eql?, :fetch, :flatten, :has_key?, :has_value?, :hash, :include?,
+      :inspect, :invert, :key, :key?, :keys, :length, :member?, :merge,
+      :pretty_print, :pretty_print_cycle, :rassoc, :reject, :select, :size,
+      :to_a, :to_h, :to_hash, :to_s, :value?, :values, :values_at
+    ]
+
+    REWRITERS = [
+      :clear, :default=, :default_proc=, :delete, :delete_if, :keep_if,
+      :rehash, :reject!, :select!, :shift
+    ]
+
     include Delegator
 
     # Create a new PersistentHash object.
@@ -56,42 +70,43 @@ module PEROBS
     # @param key [String] The key
     # @param value [Any] The value to store
     def []=(key, value)
-      #unless key.is_a?(String)
-      #  raise ArgumentError, 'The Hash key must be of type String'
-      #end
       @store.cache.cache_write(self)
       @data[key] = _referenced(value)
 
       value
     end
 
-    # Equivalent to Hash::clear
-    def clear
+    # Equivalent to Hash.initialize_copy
+    def initialize_copy(hash)
       @store.cache.cache_write(self)
       @data.clear
+      @data.default = hash.default
+      @data.default_proc = hash.default_proc
+      hash.each { |k, v| @data[k] = _referenced(v) }
+      @data
     end
 
-    # Equivalent to Hash::delete
-    def delete(key)
+    def merge!(other_hash, &block)
       @store.cache.cache_write(self)
-      @data.delete(key)
+      hsh = []
+      other_hash.each { |k, v| hsh[k] = _referenced(v) }
+      @data.merge!(hsh, &block)
     end
 
-    # Equivalent to Hash::delete_if
-    def delete_if
-      @store.cache.cache_write(self)
-      @data.delete_if do |k, v|
-        yield(k, _dereferenced(v))
-      end
-    end
+    alias replace initialize_copy
+
+    # We explicitely don't support Hash::store() as it conflicts with
+    # ObjectBase::store() method to access the store.
+
+    alias update merge!
 
     # Equivalent to Hash::sort
-    def sort!
-      @store.cache.cache_write(self)
-      @data.sort! do |v1, v2|
-        yield(_dereferenced(v1), _dereferenced(v2))
-      end
-    end
+    #def sort!
+    #  @store.cache.cache_write(self)
+    #  @data.sort! do |v1, v2|
+    #    yield(_dereferenced(v1), _dereferenced(v2))
+    #  end
+    #end
 
     # Convert the PEROBS::Hash into a normal Hash. All entries that
     # reference other PEROBS objects will be de-referenced. The resulting
@@ -101,11 +116,6 @@ module PEROBS
       h = ::Hash.new
       @data.each { |k, v| h[k] = _dereferenced(v) }
       h
-    end
-
-    # Equivalent to Hash::values
-    def values
-      @data.values.map { |v| _dereferenced(v) }
     end
 
     # Return a list of all object IDs of all persistend objects that this Hash

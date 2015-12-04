@@ -169,7 +169,7 @@ module PEROBS
     def _change_id(id)
       # Unregister the object with the old ID from the write cache to prevent
       # cache corruption. The objects are index by ID in the cache.
-      store.cache.unwrite(self)
+      @store.cache.unwrite(self)
       @_id = id
     end
 

@@ -26,6 +26,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 require 'perobs/ObjectBase'
+require 'perobs/Delegator'
 
 module PEROBS
 
@@ -61,6 +62,8 @@ module PEROBS
       :sort!, :sort_by!, :uniq!
     ]
 
+    include Delegator
+
     # Create a new PersistentArray object.
     # @param store [Store] The Store this hash is stored in
     # @param size [Fixnum] The requested size of the Array
@@ -69,30 +72,6 @@ module PEROBS
     def initialize(store, size = 0, default = nil)
       super(store)
       @data = ::Array.new(size, default)
-    end
-
-    # Proxy all calls to unknown methods to the data object.
-    def method_missing(method_sym, *args, &block)
-      if READERS.include?(method_sym)
-        # If any element of this Array is read, we register this object as
-        # being read with the cache.
-        @store.cache.cache_read(self)
-        @data.send(method_sym, *args, &block)
-      elsif REWRITERS.include?(method_sym)
-        # Re-writers don't introduce any new elements. We just mark the object
-        # as written in the cache and call the Array method.
-        @store.cache.cache_write(self)
-        @data.send(method_sym, *args, &block)
-      else
-        # Any method we don't know about must cause an error. New Array method
-        # need to be added to the right bucket first.
-        raise NoMethodError.new("undefined method '#{method_sym}' for " +
-                                "#{self.class}")
-      end
-    end
-
-    def respond_to?(method_sym, include_private = false)
-      (READERS + REWRITERS).include?(method_sym) || super
     end
 
     # Equivalent to Array::==
@@ -158,7 +137,7 @@ module PEROBS
       @data.insert(index, *obj.map{ |item| _referenced(item) })
     end
 
-    alias map! collect!
+    alias :map! :collect!
 
     # Equivalent to Array::push
     def push(*args)
@@ -166,7 +145,7 @@ module PEROBS
       args.each { |obj| @data.push(_referenced(obj)) }
     end
 
-    alias initialize_copy replace
+    alias :initialize_copy :replace
 
     # Equivalent to Array::unshift
     def unshift(obj)

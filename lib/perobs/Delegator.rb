@@ -1,6 +1,6 @@
 # encoding: UTF-8
 #
-# = ObjectBase.rb -- Persistent Ruby Object Store
+# = Delegator.rb -- Persistent Ruby Object Store
 #
 # Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
 #
@@ -33,11 +33,27 @@ module PEROBS
 
     # Proxy all calls to unknown methods to the data object.
     def method_missing(method_sym, *args, &block)
-      @data.send(method_sym, *args, &block)
+      if self.class::READERS.include?(method_sym)
+        # If any element of this class is read, we register this object as
+        # being read with the cache.
+        @store.cache.cache_read(self)
+        @data.send(method_sym, *args, &block)
+      elsif self.class::REWRITERS.include?(method_sym)
+        # Re-writers don't introduce any new elements. We just mark the object
+        # as written in the cache and call the class' method.
+        @store.cache.cache_write(self)
+        @data.send(method_sym, *args, &block)
+      else
+        # Any method we don't know about must cause an error. A new class
+        # method needs to be added to the right bucket first.
+        raise NoMethodError.new("undefined method '#{method_sym}' for " +
+                                "#{self.class}")
+      end
     end
 
     def respond_to?(method_sym, include_private = false)
-      @data.respond_to?(method_sym, include_private) || super
+      (self.class::READERS + self.class::REWRITERS).include?(method_sym) ||
+        super
     end
 
   end
