@@ -152,6 +152,16 @@ describe PEROBS::Array do
     pcheck { a.should == [ 99, 99, 99] }
   end
 
+  it 'should support map!()' do
+    a = cpa([ 1, 'cat', 1..1 ])
+    a.map! { |e| e.class }.should == [ Fixnum, String, Range ]
+    pcheck { a.should == [ Fixnum, String, Range ] }
+
+    a = cpa([ 1, 'cat', 1..1 ])
+    a.map! { 99 }.should == [ 99, 99, 99]
+    pcheck { a.should == [ 99, 99, 99] }
+  end
+
   it 'should support fill()' do
     pcheck { cpa([]).fill(99).should == [] }
     pcheck { cpa([]).fill(99, 0).should == [] }
@@ -164,6 +174,13 @@ describe PEROBS::Array do
     a3 = cpa([ 4, a2 ])
     a4 = cpa([ a1, a3 ])
     pcheck { a4.flatten.should == [1, 2, 3, 4, 5, 6] }
+  end
+
+  it 'should support initialize_copy()' do
+    a = cpa([ 1, 2, 3])
+    a_id = a.__id__
+    a.initialize_copy(cpa([4, 5, 6])).should == [ 4, 5, 6 ]
+    pcheck { a.should == [ 4, 5, 6] }
   end
 
   it 'should support replace()' do

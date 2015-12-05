@@ -54,9 +54,8 @@ module PEROBS
     # the object is a POXReference or not as pretty much every method call is
     # proxied to the referenced object.
     def respond_to?(method_sym, include_private = false)
-      method_sym == :is_poxreference? ||
-        @store.object_by_id(@id).respond_to?(method_sym, include_private) ||
-        super
+      (method_sym == :is_poxreference?) ||
+        @store.object_by_id(@id).respond_to?(method_sym, include_private)
     end
 
     # Just for completeness. We don't want to be caught lying.

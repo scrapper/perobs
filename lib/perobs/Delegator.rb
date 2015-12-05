@@ -43,6 +43,9 @@ module PEROBS
         # as written in the cache and call the class' method.
         @store.cache.cache_write(self)
         @data.send(method_sym, *args, &block)
+      elsif (alias_sym = self.class::ALIASES[method_sym])
+        @store.cache.cache_write(self)
+        send(alias_sym, *args, &block)
       else
         # Any method we don't know about must cause an error. A new class
         # method needs to be added to the right bucket first.
@@ -54,6 +57,14 @@ module PEROBS
     def respond_to?(method_sym, include_private = false)
       (self.class::READERS + self.class::REWRITERS).include?(method_sym) ||
         super
+    end
+
+    # Equivalent to Class::==
+    # This method is just a reader but also part of BasicObject. Hence
+    # BasicObject::== would be called instead of method_missing.
+    def ==(obj)
+      @store.cache.cache_read(self)
+      @data == obj
     end
 
   end

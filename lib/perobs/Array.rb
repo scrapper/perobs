@@ -55,12 +55,18 @@ module PEROBS
       :|
     ]
     # These methods mutate the Array but do not introduce any new elements
-    # that potentially need to converted into POXReference objects.
+    # that potentially need to be converted into POXReference objects.
     REWRITERS = [
       :clear, :compact!, :delete, :delete_at, :delete_if, :keep_if, :pop,
       :reject!, :select!, :reverse!, :rotate!, :shift, :shuffle!, :slice!,
       :sort!, :sort_by!, :uniq!
     ]
+    # Aliases don't seem to work for classes that are derived from
+    # BasicObject. So we roll our own.
+    ALIASES = {
+      :map! => :collect!,
+      :initialize_copy => :replace
+    }
 
     include Delegator
 
@@ -72,14 +78,6 @@ module PEROBS
     def initialize(store, size = 0, default = nil)
       super(store)
       @data = ::Array.new(size, default)
-    end
-
-    # Equivalent to Array::==
-    # This method is just a reader but also part of BasicObject. Hence
-    # BasicObject::== would be called instead of method_missing.
-    def ==(obj)
-      @store.cache.cache_read(self)
-      @data == obj
     end
 
     # Equivalent to Array::<<
@@ -137,15 +135,11 @@ module PEROBS
       @data.insert(index, *obj.map{ |item| _referenced(item) })
     end
 
-    alias :map! :collect!
-
     # Equivalent to Array::push
     def push(*args)
       @store.cache.cache_write(self)
       args.each { |obj| @data.push(_referenced(obj)) }
     end
-
-    alias :initialize_copy :replace
 
     # Equivalent to Array::unshift
     def unshift(obj)

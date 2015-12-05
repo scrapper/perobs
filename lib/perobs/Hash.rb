@@ -38,21 +38,33 @@ module PEROBS
   # all mutating methods must be re-implemented to convert PEROBS::Objects to
   # POXReference objects and to register the object as modified with the
   # cache.
+  #
+  # We explicitely don't support Hash::store() as it conflicts with
+  # ObjectBase::store() method to access the store.
   class Hash < ObjectBase
 
+    # These methods do not mutate the Hash. They only perform read
+    # operations.
     READERS = [
-      :==, :[], :assoc, :compare_by_identity, :compare_by_identity?, :default,
+      :[], :assoc, :compare_by_identity, :compare_by_identity?, :default,
       :default_proc, :each, :each_key, :each_pair, :each_value, :empty?,
       :eql?, :fetch, :flatten, :has_key?, :has_value?, :hash, :include?,
       :inspect, :invert, :key, :key?, :keys, :length, :member?, :merge,
       :pretty_print, :pretty_print_cycle, :rassoc, :reject, :select, :size,
       :to_a, :to_h, :to_hash, :to_s, :value?, :values, :values_at
     ]
-
+    # These methods mutate the Hash but do not introduce any new elements
+    # that potentially need to be converted into POXReference objects.
     REWRITERS = [
       :clear, :default=, :default_proc=, :delete, :delete_if, :keep_if,
       :rehash, :reject!, :select!, :shift
     ]
+    # Aliases don't seem to work for classes that are derived from
+    # BasicObject. So we roll our own.
+    ALIASES = {
+      :replace => :initialize_copy,
+      :update => :merge!
+    }
 
     include Delegator
 
@@ -86,37 +98,21 @@ module PEROBS
       @data
     end
 
+    # Equivalent to Hash.merge!
     def merge!(other_hash, &block)
       @store.cache.cache_write(self)
-      hsh = []
+      hsh = {}
       other_hash.each { |k, v| hsh[k] = _referenced(v) }
       @data.merge!(hsh, &block)
     end
 
-    alias replace initialize_copy
-
-    # We explicitely don't support Hash::store() as it conflicts with
-    # ObjectBase::store() method to access the store.
-
-    alias update merge!
-
-    # Equivalent to Hash::sort
+    # Equivalent to Hash::sort!
     #def sort!
     #  @store.cache.cache_write(self)
     #  @data.sort! do |v1, v2|
     #    yield(_dereferenced(v1), _dereferenced(v2))
     #  end
     #end
-
-    # Convert the PEROBS::Hash into a normal Hash. All entries that
-    # reference other PEROBS objects will be de-referenced. The resulting
-    # Hash will not include any POXReference objects.
-    # @return [Hash]
-    def to_hash
-      h = ::Hash.new
-      @data.each { |k, v| h[k] = _dereferenced(v) }
-      h
-    end
 
     # Return a list of all object IDs of all persistend objects that this Hash
     # is referencing.
