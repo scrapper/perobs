@@ -119,6 +119,12 @@ describe PEROBS::Array do
     x.should == "... came it pass that to"
   end
 
+  it 'should support Enumberable methods' do
+    x = cpa([ 2, 5, 3, 1, 7 ])
+    x.find { |e| e == 4 }.should be_nil
+    x.find { |e| e == 3 }.should == 3
+  end
+
   it 'should support re-writing methods' do
     x = cpa([2, 5, 3, 1, 7])
     x.sort!{ |a, b| a <=> b }

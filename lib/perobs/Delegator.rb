@@ -29,11 +29,14 @@ require 'perobs/ClassMap'
 
 module PEROBS
 
+  # This Delegator module provides the methods to turn the PEROBS::Array and
+  # PEROBS::Hash into proxies for Array and Hash.
   module Delegator
 
     # Proxy all calls to unknown methods to the data object.
     def method_missing(method_sym, *args, &block)
-      if self.class::READERS.include?(method_sym)
+      if self.class::READERS.include?(method_sym) ||
+         Enumerable.instance_methods.include?(method_sym)
         # If any element of this class is read, we register this object as
         # being read with the cache.
         @store.cache.cache_read(self)
@@ -55,7 +58,9 @@ module PEROBS
     end
 
     def respond_to?(method_sym, include_private = false)
-      (self.class::READERS + self.class::REWRITERS).include?(method_sym) ||
+      self.class::READERS.include?(method_sym) ||
+        Enumerable.instance_methods.include?(method_sym) ||
+        self.class::REWRITERS.include?(method_sym) ||
         super
     end
 

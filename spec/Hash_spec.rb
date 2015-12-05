@@ -122,6 +122,11 @@ describe PEROBS::Hash do
     a.has_key?(2).should be_true
   end
 
+  it 'should support Enumberable methods' do
+    h = cph({ 1 => 'a', 2 => 'b' })
+    h.first.should == [ 1, 'a' ]
+  end
+
   it 'should support rewriting methods' do
     h = cph({ 1 => 'a', 2 => 'b' })
     h.clear
