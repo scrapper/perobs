@@ -182,13 +182,6 @@ describe PEROBS::Array do
     pcheck { a4.flatten.should == [1, 2, 3, 4, 5, 6] }
   end
 
-  it 'should support initialize_copy()' do
-    a = cpa([ 1, 2, 3])
-    a_id = a.__id__
-    a.initialize_copy(cpa([4, 5, 6])).should == [ 4, 5, 6 ]
-    pcheck { a.should == [ 4, 5, 6] }
-  end
-
   it 'should support replace()' do
     a = cpa([ 1, 2, 3])
     a_id = a.__id__

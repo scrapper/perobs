@@ -26,7 +26,6 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 require 'perobs/ObjectBase'
-require 'perobs/Delegator'
 
 module PEROBS
 
@@ -45,28 +44,35 @@ module PEROBS
 
     # These methods do not mutate the Hash. They only perform read
     # operations.
-    READERS = [
-      :[], :assoc, :compare_by_identity, :compare_by_identity?, :default,
+    ([
+      :==, :[], :assoc, :compare_by_identity, :compare_by_identity?, :default,
       :default_proc, :each, :each_key, :each_pair, :each_value, :empty?,
       :eql?, :fetch, :flatten, :has_key?, :has_value?, :hash, :include?,
       :inspect, :invert, :key, :key?, :keys, :length, :member?, :merge,
       :pretty_print, :pretty_print_cycle, :rassoc, :reject, :select, :size,
       :to_a, :to_h, :to_hash, :to_s, :value?, :values, :values_at
-    ]
+    ] + Enumerable.instance_methods).each do |method_sym|
+      # Create a wrapper method that passes the call to @data.
+      define_method(method_sym) do |*args, &block|
+        # Register the read operation with the cache.
+        @store.cache.cache_read(self)
+        @data.send(method_sym, *args, &block)
+      end
+    end
+
     # These methods mutate the Hash but do not introduce any new elements
     # that potentially need to be converted into POXReference objects.
-    REWRITERS = [
+    [
       :clear, :default=, :default_proc=, :delete, :delete_if, :keep_if,
       :rehash, :reject!, :select!, :shift
-    ]
-    # Aliases don't seem to work for classes that are derived from
-    # BasicObject. So we roll our own.
-    ALIASES = {
-      :replace => :initialize_copy,
-      :update => :merge!
-    }
-
-    include Delegator
+    ].each do |method_sym|
+      # Create a wrapper method that passes the call to @data.
+      define_method(method_sym) do |*args, &block|
+        # Register the write operation with the cache.
+        @store.cache.cache_write(self)
+        @data.send(method_sym, *args, &block)
+      end
+    end
 
     # Create a new PersistentHash object.
     # @param store [Store] The Store this hash is stored in
@@ -104,6 +110,16 @@ module PEROBS
       hsh = {}
       other_hash.each { |k, v| hsh[k] = _referenced(v) }
       @data.merge!(hsh, &block)
+    end
+
+    # Equivalent to Hash.replace
+    def replace(hash)
+      initialize_copy(hash)
+    end
+
+    # Equivalent to Hash.update
+    def update(other_hash, &block)
+      merge!(other_hash, &block)
     end
 
     # Equivalent to Hash::sort!

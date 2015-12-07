@@ -26,7 +26,6 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 require 'perobs/ObjectBase'
-require 'perobs/Delegator'
 
 module PEROBS
 
@@ -36,14 +35,18 @@ module PEROBS
   # POXReference objects that only indirectly reference the other object. It
   # also tracks all reads and write to any Array element and updates the cache
   # accordingly.
+  #
+  # We don't support an Array.initialize_copy proxy as this would conflict
+  # with BasicObject.initialize_copy. You can use PEROBS::Array.replace()
+  # instead.
   class Array < ObjectBase
 
     attr_reader :data
 
     # These methods do not mutate the Array. They only perform read
     # operations.
-    READERS = [
-      :&, :*, :+, :-, :[], :<=>, :at, :abbrev, :assoc, :bsearch, :collect,
+    ([
+      :&, :*, :+, :-, :==, :[], :<=>, :at, :abbrev, :assoc, :bsearch, :collect,
       :combination, :compact, :count, :cycle, :dclone, :drop, :drop_while,
       :each, :each_index, :empty?, :eql?, :fetch, :find_index, :first,
       :flatten, :frozen?, :hash, :include?, :index, :inspect, :join, :last,
@@ -53,22 +56,25 @@ module PEROBS
       :sample, :select, :shelljoin, :shuffle, :size, :slice, :sort, :take,
       :take_while, :to_a, :to_ary, :to_s, :transpose, :uniq, :values_at, :zip,
       :|
-    ]
+    ] + Enumerable.instance_methods).each do |method_sym|
+      define_method(method_sym) do |*args, &block|
+        @store.cache.cache_read(self)
+        @data.send(method_sym, *args, &block)
+      end
+    end
+
     # These methods mutate the Array but do not introduce any new elements
     # that potentially need to be converted into POXReference objects.
-    REWRITERS = [
+    [
       :clear, :compact!, :delete, :delete_at, :delete_if, :keep_if, :pop,
       :reject!, :select!, :reverse!, :rotate!, :shift, :shuffle!, :slice!,
       :sort!, :sort_by!, :uniq!
-    ]
-    # Aliases don't seem to work for classes that are derived from
-    # BasicObject. So we roll our own.
-    ALIASES = {
-      :map! => :collect!,
-      :initialize_copy => :replace
-    }
-
-    include Delegator
+    ].each do |method_sym|
+      define_method(method_sym) do |*args, &block|
+        @store.cache.cache_write(self)
+        @data.send(method_sym, *args, &block)
+      end
+    end
 
     # Create a new PersistentArray object.
     # @param store [Store] The Store this hash is stored in
@@ -123,22 +129,27 @@ module PEROBS
       @data = @data.flatten(level).map { |item| _referenced(item) }
     end
 
-    # Equivalent to Array::initialize_copy
-    def replace(other_ary)
-      @store.cache.cache_write(self)
-      @data = other_ary.map { |item| _referenced(item) }
-    end
-
     # Equivalent to Array::insert
     def insert(index, *obj)
       @store.cache.cache_write(self)
       @data.insert(index, *obj.map{ |item| _referenced(item) })
     end
 
+    # Equivalent to Array::map!
+    def map!(&block)
+      collect!(&block)
+    end
+
     # Equivalent to Array::push
     def push(*args)
       @store.cache.cache_write(self)
       args.each { |obj| @data.push(_referenced(obj)) }
+    end
+
+    # Equivalent to Array::replace
+    def replace(other_ary)
+      @store.cache.cache_write(self)
+      @data = other_ary.map { |item| _referenced(item) }
     end
 
     # Equivalent to Array::unshift
