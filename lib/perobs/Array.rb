@@ -56,7 +56,7 @@ module PEROBS
       :sample, :select, :shelljoin, :shuffle, :size, :slice, :sort, :take,
       :take_while, :to_a, :to_ary, :to_s, :transpose, :uniq, :values_at, :zip,
       :|
-    ] + Enumerable.instance_methods).each do |method_sym|
+    ] + Enumerable.instance_methods).uniq.each do |method_sym|
       define_method(method_sym) do |*args, &block|
         @store.cache.cache_read(self)
         @data.send(method_sym, *args, &block)

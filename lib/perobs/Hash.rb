@@ -51,7 +51,7 @@ module PEROBS
       :inspect, :invert, :key, :key?, :keys, :length, :member?, :merge,
       :pretty_print, :pretty_print_cycle, :rassoc, :reject, :select, :size,
       :to_a, :to_h, :to_hash, :to_s, :value?, :values, :values_at
-    ] + Enumerable.instance_methods).each do |method_sym|
+    ] + Enumerable.instance_methods).uniq.each do |method_sym|
       # Create a wrapper method that passes the call to @data.
       define_method(method_sym) do |*args, &block|
         # Register the read operation with the cache.
