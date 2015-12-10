@@ -63,6 +63,14 @@ module PEROBS
       true
     end
 
+    # BasicObject provides a ==() method that prevents method_missing from
+    # being called. So we have to pass the call manually to the referenced
+    # object.
+    # @param obj object to compare this object with.
+    def ==(obj)
+      @store.object_by_id(@id) == obj
+    end
+
   end
 
   # This class is used to serialize the POXReference objects. It only holds
