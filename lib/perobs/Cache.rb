@@ -51,12 +51,24 @@ module PEROBS
     # Add an PEROBS::Object to the read cache.
     # @param obj [PEROBS::ObjectBase]
     def cache_read(obj)
+      # This is just a safety check. It can probably be disabled in the future
+      # to increase performance.
+      if obj.respond_to?(:is_poxreference?)
+        # If this condition triggers, we have a bug in the library.
+        raise RuntimeError, "POXReference objects should never be cached"
+      end
       @reads[index(obj)] = obj
     end
 
     # Add a PEROBS::Object to the write cache.
     # @param obj [PEROBS::ObjectBase]
     def cache_write(obj)
+      # This is just a safety check. It can probably be disabled in the future
+      # to increase performance.
+      if obj.respond_to?(:is_poxreference?)
+        # If this condition triggers, we have a bug in the library.
+        raise RuntimeError, "POXReference objects should never be cached"
+      end
       if @transaction_stack.empty?
         idx = index(obj)
         if (old_obj = @writes[idx]) && old_obj._id != obj._id

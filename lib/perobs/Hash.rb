@@ -122,14 +122,6 @@ module PEROBS
       merge!(other_hash, &block)
     end
 
-    # Equivalent to Hash::sort!
-    #def sort!
-    #  @store.cache.cache_write(self)
-    #  @data.sort! do |v1, v2|
-    #    yield(_dereferenced(v1), _dereferenced(v2))
-    #  end
-    #end
-
     # Return a list of all object IDs of all persistend objects that this Hash
     # is referencing.
     # @return [Array of Fixnum or Bignum] IDs of referenced objects

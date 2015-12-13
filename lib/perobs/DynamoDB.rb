@@ -87,7 +87,7 @@ module PEROBS
     # Return true if the object with given ID exists
     # @param id [Fixnum or Bignum]
     def include?(id)
-      dynamo_get_item(id.to_s)
+      !dynamo_get_item(id.to_s).nil?
     end
 
     # Store a simple Hash as a JSON encoded file into the DB directory.

@@ -51,34 +51,34 @@ describe PEROBS::Store do
 
   it 'should store simple objects' do
     store = PEROBS::Store.new(@db_name)
-    store['john'] = john = Person.new(store)
+    store['john'] = john = store.new(Person)
     john.name = 'John'
     john.zip = 4060
     john.bmi = 25.5
-    store['jane'] = jane = Person.new(store)
+    store['jane'] = jane = store.new(Person)
     jane.name = 'Jane'
     jane.related = john
     jane.married = true
     jane.relatives = 'test'
 
-    john.name.should == 'John'
-    john.zip.should == 4060
-    john.bmi.should == 25.5
-    john.married.should be_false
-    john.related.should be_nil
+    expect(john.name).to eq('John')
+    expect(john.zip).to eq(4060)
+    expect(john.bmi).to eq(25.5)
+    expect(john.married).to be false
+    expect(john.related).to be_nil
     jane = store['jane']
-    jane.name.should == 'Jane'
-    jane.related.should == john
-    jane.married.should be_true
+    expect(jane.name).to eq('Jane')
+    expect(jane.related).to eq(john)
+    expect(jane.married).to be true
   end
 
   it 'should store and retrieve simple objects' do
     store = PEROBS::Store.new(@db_name)
-    store['john'] = john = Person.new(store)
+    store['john'] = john = store.new(Person)
     john.name = 'John'
     john.zip = 4060
     john.bmi = 25.5
-    store['jane'] = jane = Person.new(store)
+    store['jane'] = jane = store.new(Person)
     jane.name = 'Jane'
     jane.related = john
     jane.married = true
@@ -88,38 +88,38 @@ describe PEROBS::Store do
 
     store = PEROBS::Store.new(@db_name)
     john = store['john']
-    john.name.should == 'John'
-    john.zip.should == 4060
-    john.bmi.should == 25.5
-    john.married.should be_false
-    john.related.should be_nil
+    expect(john.name).to eq('John')
+    expect(john.zip).to eq(4060)
+    expect(john.bmi).to eq(25.5)
+    expect(john.married).to be false
+    expect(john.related).to be_nil
     jane = store['jane']
-    jane.name.should == 'Jane'
-    jane.related.should == john
-    jane.married.should be_true
+    expect(jane.name).to eq('Jane')
+    expect(jane.related).to eq(john)
+    expect(jane.married).to be true
   end
 
   it 'should flush cached objects when necessary' do
     store = PEROBS::Store.new(@db_name, :cache_bits => 3)
     last_obj = nil
     0.upto(20) do |i|
-      store["person#{i}"] = obj = Person.new(store)
-      store["person#{i}"].should == obj
+      store["person#{i}"] = obj = store.new(Person)
+      expect(store["person#{i}"]).to eq(obj)
       obj.name = "Person #{i}"
-      obj.name.should == "Person #{i}"
+      expect(obj.name).to eq("Person #{i}")
       obj.related = last_obj
-      obj.related.should == last_obj
+      expect(obj.related).to eq(last_obj)
       last_obj = obj
     end
     0.upto(20) do |i|
-      store["person#{i}"].name.should == "Person #{i}"
+      expect(store["person#{i}"].name).to eq("Person #{i}")
     end
   end
 
   it 'should detect modification to non-working objects' do
     store = PEROBS::Store.new(@db_name, :cache_bits => 3)
     0.upto(20) do |i|
-      store["person#{i}"] = obj = Person.new(store)
+      store["person#{i}"] = obj = store.new(Person)
       obj.name = "Person #{i}"
     end
     0.upto(20) do |i|
@@ -128,25 +128,25 @@ describe PEROBS::Store do
     store.sync
     store = PEROBS::Store.new(@db_name)
     0.upto(20) do |i|
-      store["person#{i}"].name.should == "New Person #{i}"
+      expect(store["person#{i}"].name).to eq("New Person #{i}")
     end
   end
 
   it 'should garbage collect unlinked objects' do
     store = PEROBS::Store.new(@db_name)
-    store['person1'] = obj = Person.new(store)
+    store['person1'] = obj = store.new(Person)
     id1 = obj._id
-    store['person2'] = obj = Person.new(store)
+    store['person2'] = obj = store.new(Person)
     id2 = obj._id
-    obj.related = obj = Person.new(store)
+    obj.related = obj = store.new(Person)
     id3 = obj._id
     store.sync
     store['person1'] = nil
     store.gc
     store = PEROBS::Store.new(@db_name)
-    store.object_by_id(id1).should be_nil
-    store['person2']._id.should == id2
-    store['person2'].related._id.should == id3
+    expect(store.object_by_id(id1)).to be_nil
+    expect(store['person2']._id).to eq(id2)
+    expect(store['person2'].related._id).to eq(id3)
   end
 
 end

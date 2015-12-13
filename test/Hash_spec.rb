@@ -58,46 +58,46 @@ describe PEROBS::Hash do
   end
 
   it 'should store simple objects persistently' do
-    @store['h'] = h = PEROBS::Hash.new(@store)
+    @store['h'] = h = @store.new(PEROBS::Hash)
     h['a'] = 'A'
     h['b'] = 'B'
-    h['po'] = po = PO.new(@store)
+    h['po'] = po = @store.new(PO)
     po.name = 'foobar'
     h['b'] = 'B'
 
-    h['a'].should == 'A'
-    h['b'].should == 'B'
+    expect(h['a']).to eq('A')
+    expect(h['b']).to eq('B')
     @store.sync
 
     @store = PEROBS::Store.new(@db_name)
     h = @store['h']
-    h['a'].should == 'A'
-    h['b'].should == 'B'
-    h['po'].name.should == 'foobar'
+    expect(h['a']).to eq('A')
+    expect(h['b']).to eq('B')
+    expect(h['po'].name).to eq('foobar')
   end
 
   it 'should have an each method to iterate' do
-    @store['h'] = h = PEROBS::Hash.new(@store)
+    @store['h'] = h = @store.new(PEROBS::Hash)
     h['a'] = 'A'
     h['b'] = 'B'
     h['c'] = 'C'
     vs = []
     h.each { |k, v| vs << k + v }
-    vs.sort.join.should == 'aAbBcC'
+    expect(vs.sort.join).to eq('aAbBcC')
 
     @store = PEROBS::Store.new(@db_name)
-    @store['h'] = h = PEROBS::Hash.new(@store)
-    h['a'] = PO.new(@store, 'A')
-    h['b'] = PO.new(@store, 'B')
-    h['c'] = PO.new(@store, 'C')
+    @store['h'] = h = @store.new(PEROBS::Hash)
+    h['a'] = @store.new(PO, 'A')
+    h['b'] = @store.new(PO, 'B')
+    h['c'] = @store.new(PO, 'C')
     vs = []
     h.each { |k, v| vs << k + v.name }
-    vs.sort.join.should == 'aAbBcC'
+    expect(vs.sort.join).to eq('aAbBcC')
   end
 
   # Utility method to create a PEROBS::Hash from a normal Hash.
   def cph(hash = nil)
-    a = PEROBS::Hash.new(@store)
+    a = @store.new(PEROBS::Hash)
     a.replace(hash) unless hash.nil?
     @store['a'] = a
   end
@@ -110,31 +110,31 @@ describe PEROBS::Hash do
   end
 
   it 'should support reading method' do
-    cph({ [1] => [2] }).flatten.should == [ [1], [2] ]
+    expect(cph({ [1] => [2] }).flatten).to eq([ [1], [2] ])
 
     a = cph({ 1 => "one", 2 => [ 2, "two" ], 3 => [ 3, [ "three" ] ] })
-    a.flatten.should == [ 1, "one", 2, [ 2, "two" ], 3, [ 3, ["three"] ] ]
-    a.flatten(0).should == [
+    expect(a.flatten).to eq([ 1, "one", 2, [ 2, "two" ], 3, [ 3, ["three"] ] ])
+    expect(a.flatten(0)).to eq([
       [ 1, "one" ],
       [ 2, [ 2, "two" ] ],
       [ 3, [ 3, [ "three" ] ] ]
-    ]
-    a.has_key?(2).should be_true
+    ])
+    expect(a.has_key?(2)).to be true
   end
 
   it 'should support Enumberable methods' do
     h = cph({ 1 => 'a', 2 => 'b' })
-    h.first.should == [ 1, 'a' ]
+    expect(h.first).to eq([ 1, 'a' ])
   end
 
   it 'should support rewriting methods' do
     h = cph({ 1 => 'a', 2 => 'b' })
     h.clear
-    h.size.should == 0
-    h[1].should be_nil
+    expect(h.size).to eq(0)
+    expect(h[1]).to be_nil
 
     h = cph({ 1 => 'a', 2 => 'b' })
-    h.delete_if { |k, v| k == 1 }.size.should == 1
+    expect(h.delete_if { |k, v| k == 1 }.size).to eq(1)
   end
 
   it 'should support merge!' do
@@ -144,14 +144,14 @@ describe PEROBS::Hash do
     ha = { 1 => 2, 2 => 'two', 3 => 4, 4 => 'four' }
     hb = { 1 => 2, 2 => 3, 3 => 4, 4 => 'four' }
 
-    h1.update(h2).should == ha
-    pcheck { h1.should == ha }
+    expect(h1.update(h2)).to eq(ha)
+    pcheck { expect(h1).to eq(ha) }
 
     h1 = cph({ 1 => 2, 2 => 3, 3 => 4 })
     h2 = cph({ 2 => 'two', 4 => 'four' })
 
-    h2.update(h1).should == hb
-    pcheck { h2.should == hb }
+    expect(h2.update(h1)).to eq(hb)
+    pcheck { expect(h2).to eq(hb) }
   end
 
 end

@@ -41,30 +41,30 @@ describe PEROBS::ClassMap do
   end
 
   it 'should return nil for an unknown ID' do
-    @map.id_to_class(0).should be_nil
+    expect(@map.id_to_class(0)).to be_nil
   end
 
   it 'should add a class' do
-    @map.class_to_id('Foo').should == 0
+    expect(@map.class_to_id('Foo')).to eq(0)
   end
 
   it 'should find the class again' do
-    @map.id_to_class(0).should == 'Foo'
+    expect(@map.id_to_class(0)).to eq('Foo')
   end
 
   it 'should still return nil for an unknown ID' do
-    @map.id_to_class(1).should be_nil
+    expect(@map.id_to_class(1)).to be_nil
   end
 
   it 'should forget classes not in keep list' do
-    @map.class_to_id('Bar').should == 1
-    @map.class_to_id('Foobar').should == 2
+    expect(@map.class_to_id('Bar')).to eq(1)
+    expect(@map.class_to_id('Foobar')).to eq(2)
     @map.keep([ 'Bar' ])
-    @map.id_to_class(0).should be_nil
-    @map.id_to_class(1).should == 'Bar'
-    @map.id_to_class(2).should be_nil
-    @map.class_to_id('Foo1').should == 0
-    @map.class_to_id('Foo2').should == 2
+    expect(@map.id_to_class(0)).to be_nil
+    expect(@map.id_to_class(1)).to eq('Bar')
+    expect(@map.id_to_class(2)).to be_nil
+    expect(@map.class_to_id('Foo1')).to eq(0)
+    expect(@map.class_to_id('Foo2')).to eq(2)
   end
 
 end

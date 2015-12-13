@@ -169,7 +169,7 @@ module PEROBS
 
     def _set(attr, val)
       ivar = ('@' + attr.to_s).to_sym
-      if val.is_a?(ObjectBase)
+      if !val.respond_to?(:is_poxreference?) && val.is_a?(ObjectBase)
         # References to other PEROBS::Objects must be handled somewhat
         # special.
         if @store != val.store

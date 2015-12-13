@@ -76,31 +76,31 @@ describe PEROBS::Store do
   end
 
   it 'should initialize attributes with default values' do
-    @store['o1'] = o1 = O1.new(@store)
-    @store['o2'] = o2 = O2.new(@store)
-    o2.a1.should == 'a1'
-    o2.a2.should be_nil
-    o2.a3.should be_nil
-    o2.a4.should == 42
+    @store['o1'] = o1 = @store.new(O1)
+    @store['o2'] = o2 = @store.new(O2)
+    expect(o2.a1).to eq('a1')
+    expect(o2.a2).to be_nil
+    expect(o2.a3).to be_nil
+    expect(o2.a4).to eq(42)
   end
 
   it 'should assign values to attributes' do
-    @store['o1'] = o1 = O1.new(@store)
-    @store['o2'] = o2 = O2.new(@store)
+    @store['o1'] = o1 = @store.new(O1)
+    @store['o2'] = o2 = @store.new(O2)
     o1.a1 = 'a1'
     o2.a1 = nil
     o2.a3 = o1
 
-    o1.a1.should == 'a1'
-    o2.a1.should be_nil
-    o2.a3.should == o1
-    o2.a4.should == 42
+    expect(o1.a1).to eq('a1')
+    expect(o2.a1).to be_nil
+    expect(o2.a3).to eq(o1)
+    expect(o2.a4).to eq(42)
     @store.sync
   end
 
   it 'should persist assigned values' do
-    @store['o1'] = o1 = O1.new(@store)
-    @store['o2'] = o2 = O2.new(@store)
+    @store['o1'] = o1 = @store.new(O1)
+    @store['o2'] = o2 = @store.new(O2)
     o1.a1 = 'a1'
     o2.a1 = nil
     o2.a3 = o1
@@ -111,23 +111,23 @@ describe PEROBS::Store do
     @store = PEROBS::Store.new(@db_name)
     o1 = @store['o1']
     o2 = @store['o2']
-    o1.a1.should == 'a1'
-    o2.a1.should be_nil
-    o2.a3.should == o1
-    o2.a4.should == [ 0, 1, 2 ]
+    expect(o1.a1).to eq('a1')
+    expect(o2.a1).to be_nil
+    expect(o2.a3).to eq(o1)
+    expect(o2.a4).to eq([ 0, 1, 2 ])
   end
 
   it 'should transparently access a referenced object' do
-    @store['o1'] = o1 = O1.new(@store)
-    @store['o2'] = o2 = O2.new(@store)
+    @store['o1'] = o1 = @store.new(O1)
+    @store['o2'] = o2 = @store.new(O2)
     o1.a1 = 'a1'
     o2.a3 = o1
-    o2.a3_deref.should == 'a1'
+    expect(o2.a3_deref).to eq('a1')
   end
 
   it 'should raise an error when no attributes are defined' do
     @store['o3'] = O3.new(@store)
-    lambda { @store.sync }.should raise_error
+    expect { @store.sync }.to raise_error(StandardError)
   end
 
 end

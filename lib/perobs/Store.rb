@@ -25,6 +25,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+require 'set'
+
 require 'perobs/Cache'
 require 'perobs/ClassMap'
 require 'perobs/BTreeDB'
@@ -101,6 +103,18 @@ module PEROBS
       end
     end
 
+    # You need to call this method to create new PEROBS objects that belong to
+    # this Store.
+    # @param klass [Class] The class of the object you want to create. This
+    #        must be a derivative of ObjectBase.
+    # @param *args Optional list of other arguments that are passed to the
+    #        constructor of the specified class.
+    # @return [POXReference] A reference to the newly created object.
+    def new(klass, *args)
+      obj = klass.new(self, *args)
+      POXReference.new(self, obj._id)
+    end
+
     # Delete the entire store. The store is no longer usable after this
     # method was called.
     def delete_store
@@ -124,6 +138,9 @@ module PEROBS
         return nil
       end
 
+      if obj.respond_to?(:is_poxreference?)
+        obj = obj._referenced_object
+      end
       # We only allow derivatives of PEROBS::Object to be stored in the
       # store.
       unless obj.is_a?(ObjectBase)

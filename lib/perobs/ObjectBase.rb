@@ -36,7 +36,7 @@ module PEROBS
   # proxy for the objects they are referencing.
   class POXReference  < BasicObject
 
-    attr_reader :id
+    attr_reader :store, :id
 
     def initialize(store, id)
       super()
@@ -46,7 +46,11 @@ module PEROBS
 
     # Proxy all calls to unknown methods to the referenced object.
     def method_missing(method_sym, *args, &block)
-      @store.object_by_id(@id).send(method_sym, *args, &block)
+      if (obj = _referenced_object).respond_to?(:is_poxreference?)
+        raise ::RuntimeError,
+          "POXReference that references a POXReference found"
+      end
+      obj.send(method_sym, *args, &block)
     end
 
     # Proxy all calls to unknown methods to the referenced object. Calling
@@ -55,7 +59,7 @@ module PEROBS
     # proxied to the referenced object.
     def respond_to?(method_sym, include_private = false)
       (method_sym == :is_poxreference?) ||
-        @store.object_by_id(@id).respond_to?(method_sym, include_private)
+        _referenced_object.respond_to?(method_sym, include_private)
     end
 
     # Just for completeness. We don't want to be caught lying.
@@ -63,12 +67,24 @@ module PEROBS
       true
     end
 
+    # @return [ObjectBase] Return the referenced object. This method should
+    # not be used outside of the PEROBS library. Leaked references can cause
+    # data corruption.
+    def _referenced_object
+      @store.object_by_id(@id)
+    end
+
     # BasicObject provides a ==() method that prevents method_missing from
     # being called. So we have to pass the call manually to the referenced
     # object.
     # @param obj object to compare this object with.
     def ==(obj)
-      @store.object_by_id(@id) == obj
+      _referenced_object == obj
+    end
+
+    # Shortcut to access the _id() method of the referenced object.
+    def _id
+      @id
     end
 
   end
@@ -92,6 +108,13 @@ module PEROBS
 
       # Let the store know that we have a modified object.
       @store.cache.cache_write(self)
+    end
+
+    # This method can be overloaded by derived classes to do some massaging on
+    # the data after it has been restored from the database. This could either
+    # be some sanity check or code to migrate the object from one version to
+    # another.
+    def post_restore
     end
 
     # Two objects are considered equal if their object IDs are the same.
@@ -126,6 +149,7 @@ module PEROBS
       # the old one.
       obj._change_id(id)
       obj._deserialize(db_obj['data'])
+      obj.post_restore
 
       obj
     end
@@ -187,9 +211,10 @@ module PEROBS
     end
 
     def _referenced(obj)
-      if obj.is_a?(ObjectBase)
+      if !obj.respond_to?(:is_poxreference?) && obj.is_a?(ObjectBase)
         # The obj is a reference to another persistent object. Store the ID
-        # of that object in a POXReference object.
+        # of that object in a POXReference object. Don't reference another
+        # POXReference.
         if @store != obj.store
           raise ArgumentError, 'The referenced object is not part of this store'
         end

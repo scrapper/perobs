@@ -103,7 +103,7 @@ module PEROBS
     # Return true if the object with given ID exists
     # @param id [Fixnum or Bignum]
     def include?(id)
-      (blob = find_blob(id)) && blob.find(id)
+      !(blob = find_blob(id)).nil? && !blob.find(id).nil?
     end
 
     # Store a simple Hash as a JSON encoded file into the DB directory.

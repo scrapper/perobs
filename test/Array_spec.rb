@@ -57,45 +57,45 @@ describe PEROBS::Array do
   end
 
   it 'should store simple objects persistently' do
-    @store['a'] = a = PEROBS::Array.new(@store)
+    @store['a'] = a = @store.new(PEROBS::Array)
     a[0] = 'A'
     a[1] = 'B'
-    a[2] = po = PO.new(@store)
+    a[2] = po = @store.new(PO)
     po.name = 'foobar'
 
-    a[0].should == 'A'
-    a[1].should == 'B'
-    a[2].name.should == 'foobar'
+    expect(a[0]).to eq('A')
+    expect(a[1]).to eq('B')
+    expect(a[2].name).to eq('foobar')
     @store.sync
 
     @store = PEROBS::Store.new(@db_name)
     a = @store['a']
-    a[0].should == 'A'
-    a[1].should == 'B'
-    a[2].name.should == 'foobar'
+    expect(a[0]).to eq('A')
+    expect(a[1]).to eq('B')
+    expect(a[2].name).to eq('foobar')
   end
 
   it 'should have an each method to iterate' do
-    @store['a'] = a = PEROBS::Array.new(@store)
+    @store['a'] = a = @store.new(PEROBS::Array)
     a[0] = 'A'
     a[1] = 'B'
     a[2] = 'C'
     vs = ''
     a.each { |v| vs << v }
-    vs.should == 'ABC'
+    expect(vs).to eq('ABC')
     @store.sync
 
     @store = PEROBS::Store.new(@db_name)
     a = @store['a']
     vs = ''
-    a[3] = PO.new(@store, 'D')
+    a[3] = @store.new(PO, 'D')
     a.each { |v| vs << (v.is_a?(String) ? v : v.name) }
-    vs.should == 'ABCD'
+    expect(vs).to eq('ABCD')
   end
 
   # Utility method to create a PEROBS::Array from a normal Array.
   def cpa(ary = nil)
-    a = PEROBS::Array.new(@store)
+    a = @store.new(PEROBS::Array)
     a.replace(ary) unless ary.nil?
     @store['a'] = a
   end
@@ -111,67 +111,67 @@ describe PEROBS::Array do
     (cpa([ 1, 1, 3, 5 ]) & cpa([ 1, 2, 3 ])).should == [ 1, 3 ]
     (cpa & cpa([ 1, 2, 3 ])).should == []
 
-    cpa.empty?.should be_true
-    cpa([ 0 ]).empty?.should be_false
+    expect(cpa.empty?).to be true
+    expect(cpa([ 0 ]).empty?).to be false
 
-    x = cpa(["it", "came", "to", "pass", "that", "..."])
-    x = x.sort.join(" ")
-    x.should == "... came it pass that to"
+    x = cpa([ 'it', 'came', 'to', 'pass', 'that', '...'])
+    x = x.sort.join(' ')
+    expect(x).to eq('... came it pass that to')
   end
 
   it 'should support Enumberable methods' do
     x = cpa([ 2, 5, 3, 1, 7 ])
-    x.find { |e| e == 4 }.should be_nil
-    x.find { |e| e == 3 }.should == 3
+    expect(x.find { |e| e == 4 }).to be_nil
+    expect(x.find { |e| e == 3 }).to eq(3)
   end
 
   it 'should support re-writing methods' do
     x = cpa([2, 5, 3, 1, 7])
     x.sort!{ |a, b| a <=> b }
-    pcheck { x.should == [1,2,3,5,7] }
+    pcheck { expect(x).to eq([ 1, 2, 3, 5, 7 ]) }
     x.sort!{ |a, b| b - a }
-    pcheck { x.should == [7,5,3,2,1]}
+    pcheck { expect(x).to eq([ 7, 5, 3, 2, 1 ]) }
 
     x.clear
-    pcheck { x.should == [] }
+    pcheck { expect(x).to eq([]) }
   end
 
   it 'should support <<()' do
     a = cpa([ 0, 1, 2 ])
     a << 4
-    pcheck { a.should == [ 0, 1, 2, 4 ] }
+    pcheck { expect(a).to eq([ 0, 1, 2, 4 ]) }
   end
 
   it 'should support []=' do
     a = cpa([ 0, nil, 2 ])
     a[1] = 1
-    pcheck { a.should == [ 0, 1, 2 ] }
+    pcheck { expect(a).to eq([ 0, 1, 2 ]) }
   end
 
   it 'should support collect!()' do
     a = cpa([ 1, 'cat', 1..1 ])
-    a.collect! { |e| e.class }.should == [ Fixnum, String, Range ]
-    pcheck { a.should == [ Fixnum, String, Range ] }
+    expect(a.collect! { |e| e.class }).to eq([ Fixnum, String, Range ])
+    pcheck { expect(a).to eq([ Fixnum, String, Range ]) }
 
     a = cpa([ 1, 'cat', 1..1 ])
-    a.collect! { 99 }.should == [ 99, 99, 99]
-    pcheck { a.should == [ 99, 99, 99] }
+    expect(a.collect! { 99 }).to eq([ 99, 99, 99])
+    pcheck { expect(a).to eq([ 99, 99, 99]) }
   end
 
   it 'should support map!()' do
     a = cpa([ 1, 'cat', 1..1 ])
-    a.map! { |e| e.class }.should == [ Fixnum, String, Range ]
-    pcheck { a.should == [ Fixnum, String, Range ] }
+    expect(a.map! { |e| e.class }).to eq([ Fixnum, String, Range ])
+    pcheck { expect(a).to eq([ Fixnum, String, Range ]) }
 
     a = cpa([ 1, 'cat', 1..1 ])
-    a.map! { 99 }.should == [ 99, 99, 99]
-    pcheck { a.should == [ 99, 99, 99] }
+    expect(a.map! { 99 }).to eq([ 99, 99, 99])
+    pcheck { expect(a).to eq ([ 99, 99, 99]) }
   end
 
   it 'should support fill()' do
-    pcheck { cpa([]).fill(99).should == [] }
-    pcheck { cpa([]).fill(99, 0).should == [] }
-    pcheck { cpa([]).fill(99, 0, 1).should == [ 99 ] }
+    pcheck { expect(cpa([]).fill(99)).to eq([]) }
+    pcheck { expect(cpa([]).fill(99, 0)).to eq([]) }
+    pcheck { expect(cpa([]).fill(99, 0, 1)).to eq([ 99 ]) }
   end
 
   it 'should support flatten!()' do
@@ -179,30 +179,30 @@ describe PEROBS::Array do
     a2 = cpa([ 5, 6 ])
     a3 = cpa([ 4, a2 ])
     a4 = cpa([ a1, a3 ])
-    pcheck { a4.flatten.should == [1, 2, 3, 4, 5, 6] }
+    pcheck { expect(a4.flatten).to eq([ 1, 2, 3, 4, 5, 6 ]) }
   end
 
   it 'should support replace()' do
     a = cpa([ 1, 2, 3])
     a_id = a.__id__
-    a.replace(cpa([4, 5, 6])).should == [ 4, 5, 6 ]
-    pcheck { a.should == [ 4, 5, 6] }
+    expect(a.replace(cpa([4, 5, 6]))).to eq([ 4, 5, 6 ])
+    pcheck { expect(a).to eq ([ 4, 5, 6 ]) }
   end
 
   it 'should support insert()' do
     a = cpa([ 0 ])
     a.insert(1)
-    pcheck { a.should == [ 0 ] }
+    pcheck { expect(a).to eq([ 0 ]) }
     a.insert(1, 1)
-    pcheck { a.should == [ 0, 1] }
+    pcheck { expect(a).to eq([ 0, 1]) }
   end
 
   it 'should support push()' do
     a = cpa([ 1, 2, 3 ])
     a.push(4, 5)
-    pcheck { a.should == [ 1, 2, 3, 4, 5 ] }
+    pcheck { expect(a).to eq([ 1, 2, 3, 4, 5 ]) }
     a.push(nil)
-    pcheck { a.should == [ 1, 2, 3, 4, 5, nil ] }
+    pcheck { expect(a).to eq([ 1, 2, 3, 4, 5, nil ]) }
   end
 
 end

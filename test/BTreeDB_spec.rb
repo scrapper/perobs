@@ -40,20 +40,20 @@ describe PEROBS::BTreeDB do
 
   it 'should create database' do
     @db = PEROBS::BTreeDB.new('fs_test')
-    Dir.exists?('fs_test').should be_true
+    expect(Dir.exists?('fs_test')).to be true
   end
 
   it 'should write and read a simple Hash' do
     @db = PEROBS::BTreeDB.new('fs_test')
-    @db.get_hash('test').should == {}
+    expect(@db.get_hash('test')).to eq({})
     h = { 'A' => 1, 'B' => 2, 'D' => 4 }
     @db.put_hash('test', h)
-    @db.get_hash('test').should == h
+    expect(@db.get_hash('test')).to eq(h)
   end
 
   it 'should support object insertion and retrieval' do
     @db = PEROBS::BTreeDB.new('fs_test')
-    @db.include?(0).should be_false
+    expect(@db.include?(0)).to be false
     h = {
           'String' => 'What god has wrought',
           'Fixnum' => 42,
@@ -64,15 +64,15 @@ describe PEROBS::BTreeDB do
           'Array' => [ 0, 1, 2, 3 ]
         }
     @db.put_object(h, 0)
-    @db.include?(0).should be_true
-    @db.check(0, false).should be_true
-    @db.get_object(0).should == h
+    expect(@db.include?(0)).to be true
+    expect(@db.check(0, false)).to be true
+    expect(@db.get_object(0)).to eq(h)
   end
 
   it 'should support most Ruby objects types' do
     [ :marshal, :yaml ].each do |serializer|
       @db = PEROBS::BTreeDB.new('fs_test', { :serializer => serializer })
-      @db.include?(0).should be_false
+      expect(@db.include?(0)).to be false
       h = {
         'String' => 'What god has wrought',
         'Fixnum' => 42,
@@ -85,9 +85,9 @@ describe PEROBS::BTreeDB do
         'Struct' => UStruct.new("Where's", 'your', 'towel?')
       }
       @db.put_object(h, 0)
-      @db.include?(0).should be_true
-      @db.check(0, false).should be_true
-      @db.get_object(0).should == h
+      expect(@db.include?(0)).to be true
+      expect(@db.check(0, false)).to be true
+      expect(@db.get_object(0)).to eq(h)
       PEROBS::BTreeDB::delete_db('fs_test')
     end
   end
@@ -98,7 +98,7 @@ describe PEROBS::BTreeDB do
       @db.put_object({ "foo #{i}" => i }, i)
     end
     0.upto(10) do |i|
-      @db.get_object(i)["foo #{i}"].should == i
+      expect(@db.get_object(i)["foo #{i}"]).to eq(i)
     end
   end
 
@@ -119,12 +119,12 @@ describe PEROBS::BTreeDB do
     @db.put_object({ 'C' => 'c' * 129 }, 6)
     @db.put_object({ 'D' => 'd' * 1025 }, 7)
 
-    @db.get_object(0).should == { 'a' => 'a' * 257 }
-    @db.get_object(2).should == { 'c' => 'c' * 129 }
-    @db.get_object(4).should == { 'A' => 'a' * 257 }
-    @db.get_object(5).should == { 'B' => 'b' * 513 }
-    @db.get_object(6).should == { 'C' => 'c' * 129 }
-    @db.get_object(7).should == { 'D' => 'd' * 1025 }
+    expect(@db.get_object(0)).to eq({ 'a' => 'a' * 257 })
+    expect(@db.get_object(2)).to eq({ 'c' => 'c' * 129 })
+    expect(@db.get_object(4)).to eq({ 'A' => 'a' * 257 })
+    expect(@db.get_object(5)).to eq({ 'B' => 'b' * 513 })
+    expect(@db.get_object(6)).to eq({ 'C' => 'c' * 129 })
+    expect(@db.get_object(7)).to eq({ 'D' => 'd' * 1025 })
   end
 
   it 'should mark objects and detect markings' do
@@ -133,14 +133,14 @@ describe PEROBS::BTreeDB do
     @db.put_object(h, 1)
     @db.put_object(h, 2)
     @db.clear_marks
-    @db.is_marked?(1).should be_false
+    expect(@db.is_marked?(1)).to be false
     @db.mark(1)
-    @db.is_marked?(1).should be_true
+    expect(@db.is_marked?(1)).to be true
 
-    @db.include?(2).should be_true
+    expect(@db.include?(2)).to be true
     @db.delete_unmarked_objects
-    @db.include?(1).should be_true
-    @db.include?(2).should be_false
+    expect(@db.include?(1)).to be true
+    expect(@db.include?(2)).to be false
   end
 
 end

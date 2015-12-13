@@ -71,9 +71,9 @@ class Person < PEROBS::Object
 end
 
 store = PEROBS::Store.new('family')
-store['grandpa'] = joe = Person.new(store, 'Joe')
-store['grandma'] = jane = Person.new(store, 'Jane')
-jim = Person.new(store, 'Jim')
+store['grandpa'] = joe = store.new(Person, 'Joe')
+store['grandma'] = jane = store.new(Person, 'Jane')
+jim = store.new(Person, 'Jim')
 jim.father = joe
 joe.kids << jim
 jim.mother = jane
