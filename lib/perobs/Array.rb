@@ -63,12 +63,12 @@ module PEROBS
       end
     end
 
-    # These methods mutate the Array but do not introduce any new elements
-    # that potentially need to be converted into POXReference objects.
+    # These methods mutate the Array.
     [
-      :clear, :compact!, :delete, :delete_at, :delete_if, :keep_if, :pop,
-      :reject!, :select!, :reverse!, :rotate!, :shift, :shuffle!, :slice!,
-      :sort!, :sort_by!, :uniq!
+      :<<, :[]=, :clear, :collect!, :compact!, :concat, :delete, :delete_at,
+      :delete_if, :fill, :flatten!, :insert, :keep_if, :map!, :pop, :push,
+      :reject!, :replace, :select!, :reverse!, :rotate!, :shift, :shuffle!,
+      :slice!, :sort!, :sort_by!, :uniq!, :unshift
     ].each do |method_sym|
       define_method(method_sym) do |*args, &block|
         @store.cache.cache_write(self)
@@ -84,78 +84,6 @@ module PEROBS
     def initialize(store, size = 0, default = nil)
       super(store)
       @data = ::Array.new(size, default)
-    end
-
-    # Equivalent to Array::<<
-    def <<(obj)
-      @store.cache.cache_write(self)
-      @data << _referenced(obj)
-    end
-
-    # Equivalent to Array::[]=
-    def []=(index, obj)
-      @store.cache.cache_write(self)
-      @data[index] = _referenced(obj)
-    end
-
-    # Equivalent to Array::collect!
-    def collect!(&block)
-      if block_given?
-        @store.cache.cache_write(self)
-        @data = @data.collect { |item| _referenced(yield(item)) }
-      else
-        # We don't really know what's being done with the enumerator. We treat
-        # it like a read.
-        @store.cache.cache_read(self)
-        @data.collect
-      end
-    end
-
-    # Equivalent to Array::concat
-    def concat(other_ary)
-      @store.cache.cache_write(self)
-      @data.concat(other_ary.map { |item| _referenced(item) })
-    end
-
-    # Equivalent to Array::fill
-    def fill(*args)
-      @store.cache.cache_write(self)
-      @data = @data.fill(*args).map { |item| _referenced(item) }
-    end
-
-    # Eqivalent to Array::flatten!
-    def flatten!(level = -1)
-      @store.cache.cache_write(self)
-      @data = @data.flatten(level).map { |item| _referenced(item) }
-    end
-
-    # Equivalent to Array::insert
-    def insert(index, *obj)
-      @store.cache.cache_write(self)
-      @data.insert(index, *obj.map{ |item| _referenced(item) })
-    end
-
-    # Equivalent to Array::map!
-    def map!(&block)
-      collect!(&block)
-    end
-
-    # Equivalent to Array::push
-    def push(*args)
-      @store.cache.cache_write(self)
-      args.each { |obj| @data.push(_referenced(obj)) }
-    end
-
-    # Equivalent to Array::replace
-    def replace(other_ary)
-      @store.cache.cache_write(self)
-      @data = other_ary.map { |item| _referenced(item) }
-    end
-
-    # Equivalent to Array::unshift
-    def unshift(obj)
-      @store.cache.cache_write(self)
-      @data.unshift(_referenced(obj))
     end
 
     # Return a list of all object IDs of all persistend objects that this Array

@@ -108,8 +108,8 @@ describe PEROBS::Array do
   end
 
   it 'should support reading methods' do
-    (cpa([ 1, 1, 3, 5 ]) & cpa([ 1, 2, 3 ])).should == [ 1, 3 ]
-    (cpa & cpa([ 1, 2, 3 ])).should == []
+    expect(cpa([ 1, 1, 3, 5 ]) & cpa([ 1, 2, 3 ])).to eq([ 1, 3 ])
+    expect(cpa & cpa([ 1, 2, 3 ])).to eq([])
 
     expect(cpa.empty?).to be true
     expect(cpa([ 0 ]).empty?).to be false

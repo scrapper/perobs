@@ -40,15 +40,52 @@ module PEROBS
   # PEROBS::Store is a persistent storage system for Ruby objects. Regular
   # Ruby objects are transparently stored in a back-end storage and retrieved
   # when needed. It features a garbage collector that removes all objects that
-  # are no longer in use.  A build-in cache keeps access latencies to recently
+  # are no longer in use. A build-in cache keeps access latencies to recently
   # used objects low and lazily flushes modified objects into the persistend
-  # back-end. Currently only filesystems are supported but it can easily be
-  # extended to any key/value database.
+  # back-end. The default back-end is a filesystem based database.
+  # Alternatively, an Amazon DynamoDB can be used as well. Adding support for
+  # other key/value stores is fairly trivial to do. See PEROBS::DynamoDB for
+  # an example
   #
-  # Persistent objects must be created by deriving your class from
-  # PEROBS::Object. Only instance variables that are declared via
-  # po_attr will be persistent. It is recommended that references to other
-  # objects are all going to persistent objects again.
+  # Persistent objects must be defined by deriving your class from
+  # PEROBS::Object, PERBOS::Array or PEROBS::Hash. Only instance variables
+  # that are declared via po_attr will be persistent. It is recommended that
+  # references to other objects are all going to persistent objects again. TO
+  # create a new persistent object you must call Store.new(). Don't use the
+  # constructors of persistent classes directly. Store.new() will return a
+  # proxy or delegator object that can be used like the actual object. By
+  # using delegators we can disconnect the actual object from the delegator
+  # handle.
+  #
+  # require 'perobs'
+  #
+  # class Person < PEROBS::Object
+  #
+  #   po_attr :name, :mother, :father, :kids
+  #
+  #   def initialize(store, name)
+  #     super
+  #     attr_init(:name, name)
+  #     attr_init(:kids, @store.new(PEROBS::Array))
+  #   end
+  #
+  #   def to_s
+  #     "#{@name} is the child of #{self.mother ? self.mother.name : 'unknown'} " +
+  #     "and #{self.father ? self.father.name : 'unknown'}.
+  #   end
+  #
+  # end
+  #
+  # store = PEROBS::Store.new('family')
+  # store['grandpa'] = joe = store.new(Person, 'Joe')
+  # store['grandma'] = jane = store.new(Person, 'Jane')
+  # jim = store.new(Person, 'Jim')
+  # jim.father = joe
+  # joe.kids << jim
+  # jim.mother = jane
+  # jane.kids << jim
+  # store.sync
+  #
   class Store
 
     attr_reader :db, :cache, :class_map

@@ -60,11 +60,11 @@ module PEROBS
       end
     end
 
-    # These methods mutate the Hash but do not introduce any new elements
-    # that potentially need to be converted into POXReference objects.
+    # These methods mutate the Hash.
     [
-      :clear, :default=, :default_proc=, :delete, :delete_if, :keep_if,
-      :rehash, :reject!, :select!, :shift
+      :[]=, :clear, :default=, :default_proc=, :delete, :delete_if,
+      :initialize_copy, :keep_if, :merge!, :rehash, :reject!, :replace,
+      :select!, :shift, :update
     ].each do |method_sym|
       # Create a wrapper method that passes the call to @data.
       define_method(method_sym) do |*args, &block|
@@ -82,44 +82,6 @@ module PEROBS
       super(store)
       @default = nil
       @data = {}
-    end
-
-    # Associates the value given by value with the key given by key.
-    # @param key [String] The key
-    # @param value [Any] The value to store
-    def []=(key, value)
-      @store.cache.cache_write(self)
-      @data[key] = _referenced(value)
-
-      value
-    end
-
-    # Equivalent to Hash.initialize_copy
-    def initialize_copy(hash)
-      @store.cache.cache_write(self)
-      @data.clear
-      @data.default = hash.default
-      @data.default_proc = hash.default_proc
-      hash.each { |k, v| @data[k] = _referenced(v) }
-      @data
-    end
-
-    # Equivalent to Hash.merge!
-    def merge!(other_hash, &block)
-      @store.cache.cache_write(self)
-      hsh = {}
-      other_hash.each { |k, v| hsh[k] = _referenced(v) }
-      @data.merge!(hsh, &block)
-    end
-
-    # Equivalent to Hash.replace
-    def replace(hash)
-      initialize_copy(hash)
-    end
-
-    # Equivalent to Hash.update
-    def update(other_hash, &block)
-      merge!(other_hash, &block)
     end
 
     # Return a list of all object IDs of all persistend objects that this Hash

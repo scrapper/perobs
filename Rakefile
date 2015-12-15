@@ -16,11 +16,5 @@ Dir.glob( 'tasks/*.rake').each do |fn|
   end
 end
 
-RSpec::Core::RakeTask.new(:spec) do |task|
-  task.pattern = Dir.glob('test/*_spec.rb')
-  task.rspec_opts = "-I #{File.join(File.dirname(__FILE__), "test")}"
-end
-
-task :default  => :spec
-task :test => :spec
-desc 'Run all unit and spec tests'
+task :default  => :test
+desc 'Run all tests'

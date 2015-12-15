@@ -204,26 +204,6 @@ module PEROBS
       @_id = id
     end
 
-    private
-
-    def _dereferenced(v)
-      v.respond_to?(:is_poxreference?) ? @store.object_by_id(v.id) : v
-    end
-
-    def _referenced(obj)
-      if !obj.respond_to?(:is_poxreference?) && obj.is_a?(ObjectBase)
-        # The obj is a reference to another persistent object. Store the ID
-        # of that object in a POXReference object. Don't reference another
-        # POXReference.
-        if @store != obj.store
-          raise ArgumentError, 'The referenced object is not part of this store'
-        end
-        POXReference.new(@store, obj._id)
-      else
-        obj
-      end
-    end
-
   end
 
 end

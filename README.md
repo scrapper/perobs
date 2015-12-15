@@ -60,7 +60,7 @@ class Person < PEROBS::Object
   def initialize(store, name)
     super
     attr_init(:name, name)
-    attr_init(:kids, PEROBS::Array.new(store))
+    attr_init(:kids, store.new(PEROBS::Array))
   end
 
   def to_s
