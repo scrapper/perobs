@@ -76,7 +76,9 @@ module PEROBS
 
     attr_reader :attributes
 
-    # Create a new PEROBS::Object object.
+    # New PEROBS objects must always be created by calling # Store.new().
+    # PEROBS users should never call this method or equivalents of derived
+    # methods directly.
     def initialize(store)
       super
     end

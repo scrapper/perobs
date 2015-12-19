@@ -74,7 +74,9 @@ module PEROBS
       end
     end
 
-    # Create a new PersistentHash object.
+    # New PEROBS objects must always be created by calling # Store.new().
+    # PEROBS users should never call this method or equivalents of derived
+    # methods directly.
     # @param store [Store] The Store this hash is stored in
     # @param default [Any] The default value that is returned when no value is
     #        stored for a specific key.

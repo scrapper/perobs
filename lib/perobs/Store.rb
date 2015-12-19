@@ -88,7 +88,7 @@ module PEROBS
   #
   class Store
 
-    attr_reader :db, :cache, :class_map
+    attr_reader :db, :cache, :class_map, :object_creation_in_progress
 
     # Create a new Store.
     # @param data_base [String] the name of the database
@@ -124,6 +124,9 @@ module PEROBS
       # Create a map that can translate classes to numerical IDs and vice
       # versa.
       @class_map = ClassMap.new(@db)
+      # This flag is used to check that PEROBS objects are only created via
+      # the Store.new() call by PEROBS users.
+      @object_creation_in_progress = false
 
       # The Cache reduces read and write latencies by keeping a subset of the
       # objects in memory.
@@ -131,7 +134,8 @@ module PEROBS
 
       # The named (global) objects IDs hashed by their name
       unless (@root_objects = object_by_id(0))
-        @root_objects = Hash.new(self)
+        @root_objects = construct_po(Hash)
+
         # The root object hash always has the object ID 0.
         @root_objects._change_id(0)
         # The ID change removes it from the write cache. We need to add it
@@ -148,9 +152,17 @@ module PEROBS
     #        constructor of the specified class.
     # @return [POXReference] A reference to the newly created object.
     def new(klass, *args)
-      obj = klass.new(self, *args)
-      POXReference.new(self, obj._id)
+      POXReference.new(self, construct_po(klass, *args)._id)
     end
+
+    # For library internal use only!
+    def construct_po(klass, *args)
+      @object_creation_in_progress = true
+      obj = klass.new(self, *args)
+      @object_creation_in_progress = false
+      obj
+    end
+
 
     # Delete the entire store. The store is no longer usable after this
     # method was called.

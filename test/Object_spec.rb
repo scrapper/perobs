@@ -104,7 +104,7 @@ describe PEROBS::Store do
     o1.a1 = 'a1'
     o2.a1 = nil
     o2.a3 = o1
-    o2.a4 = PEROBS::Array.new(@store)
+    o2.a4 = @store.new(PEROBS::Array)
     o2.a4 += [ 0, 1, 2 ]
     @store.sync
 
@@ -126,7 +126,7 @@ describe PEROBS::Store do
   end
 
   it 'should raise an error when no attributes are defined' do
-    @store['o3'] = O3.new(@store)
+    @store['o3'] = @store.new(O3)
     expect { @store.sync }.to raise_error(StandardError)
   end
 

@@ -104,15 +104,24 @@ module PEROBS
 
     attr_reader :_id, :store
 
-    # Create a new PEROBS::ObjectBase object.
+    # New PEROBS objects must always be created by calling # Store.new().
+    # PEROBS users should never call this method or equivalents of derived
+    # methods directly.
     def initialize(store)
       @store = store
+      unless @store.object_creation_in_progress
+        raise ::RuntimeError,
+          "All PEROBS objects must exclusively be created by calling " +
+          "Store.new(). Never call the object constructor directly."
+      end
       @_id = @store.db.new_id
       @_stash_map = nil
 
       # Let the store know that we have a modified object.
       @store.cache.cache_write(self)
     end
+
+    public
 
     # This method can be overloaded by derived classes to do some massaging on
     # the data after it has been restored from the database. This could either
@@ -148,7 +157,7 @@ module PEROBS
 
       klass = store.class_map.id_to_class(db_obj['class_id'])
       # Call the constructor of the specified class.
-      obj = Object.const_get(klass).new(store)
+      obj = store.construct_po(Object.const_get(klass))
       # The object gets created with a new ID by default. We need to restore
       # the old one.
       obj._change_id(id)

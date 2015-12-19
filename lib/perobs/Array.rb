@@ -76,7 +76,9 @@ module PEROBS
       end
     end
 
-    # Create a new PersistentArray object.
+    # New PEROBS objects must always be created by calling # Store.new().
+    # PEROBS users should never call this method or equivalents of derived
+    # methods directly.
     # @param store [Store] The Store this hash is stored in
     # @param size [Fixnum] The requested size of the Array
     # @param default [Any] The default value that is returned when no value is

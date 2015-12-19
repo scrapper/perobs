@@ -124,6 +124,11 @@ describe PEROBS::Store do
     end
   end
 
+  it 'should not allow calls to BasicObject.new()' do
+    @store = PEROBS::Store.new(@db_file)
+    expect { Person.new(@store) }.to raise_error RuntimeError
+  end
+
   it 'should flush cached objects when necessary' do
     @store = PEROBS::Store.new(@db_file, :cache_bits => 3)
     last_obj = nil
