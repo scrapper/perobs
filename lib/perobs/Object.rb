@@ -2,7 +2,7 @@
 #
 # = Object.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -99,6 +99,21 @@ module PEROBS
       false
     end
 
+    # Call this method to manually mark the object as modified. This is
+    # necessary if you are using the '@' notation to access instance variables
+    # during assignment operations (=, +=, -=, etc.). To avoid having to call
+    # this method you can use the self. notation.
+    #
+    #   @foo = 42      # faster but requires call to mark_as_modified()
+    #   self.foo = 42  # somewhat slower
+    #
+    # IMPORTANT: If you use @foo = ... and forget to call mark_as_modified()
+    # your data will only be modified in memory but might not be persisted
+    # into the database!
+    def mark_as_modified
+      @store.cache.cache_write(self)
+    end
+
     # Return a list of all object IDs that the attributes of this instance are
     # referencing.
     # @return [Array of Fixnum or Bignum] IDs of referenced objects
@@ -142,7 +157,11 @@ module PEROBS
       "{\n" +
       _all_attributes.map do |attr|
         ivar = ('@' + attr.to_s).to_sym
-        "  #{attr.inspect}=>#{instance_variable_get(ivar).inspect}"
+        if (value = instance_variable_get(ivar)).respond_to?('is_poxreference?')
+          "  #{attr}=>#{value.class}:#{value._id}"
+        else
+          "  #{attr}=>#{value}"
+        end
       end.join(",\n") +
       "\n}\n"
     end
