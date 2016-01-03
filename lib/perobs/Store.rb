@@ -171,7 +171,6 @@ module PEROBS
       @class_map = @cache = @root_objects = nil
     end
 
-
     # Store the provided object under the given name. Use this to make the
     # object a root or top-level object (think global variable). Each store
     # should have at least one root object. Objects that are not directly or
@@ -187,9 +186,6 @@ module PEROBS
         return nil
       end
 
-      if obj.respond_to?(:is_poxreference?)
-        obj = obj._referenced_object
-      end
       # We only allow derivatives of PEROBS::Object to be stored in the
       # store.
       unless obj.is_a?(ObjectBase)
@@ -203,8 +199,6 @@ module PEROBS
 
       # Store the name and mark the name list as modified.
       @root_objects[name] = obj._id
-      # Add the object to the in-memory storage list.
-      @cache.cache_write(obj)
 
       obj
     end
@@ -217,7 +211,7 @@ module PEROBS
       # Return nil if there is no object with that name.
       return nil unless (id = @root_objects[name])
 
-      object_by_id(id)
+      POXReference.new(self, id)
     end
 
     # Flush out all modified objects to disk and shrink the in-memory list if
@@ -339,7 +333,7 @@ module PEROBS
       while !stack.empty?
         # Get an object index from the stack.
         obj = object_by_id(id = stack.pop)
-        yield(obj) if block_given?
+        yield(POXReference.new(self, id)) if block_given?
         obj._referenced_object_ids.each do |id|
           unless @db.is_marked?(id)
             @db.mark(id)

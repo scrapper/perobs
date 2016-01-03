@@ -40,6 +40,10 @@ class PO < PEROBS::Object
     _set(:name, name)
   end
 
+  def get_self
+    self # Never do this in real user code!
+  end
+
 end
 
 describe PEROBS::Array do
@@ -203,6 +207,21 @@ describe PEROBS::Array do
     pcheck { expect(a).to eq([ 1, 2, 3, 4, 5 ]) }
     a.push(nil)
     pcheck { expect(a).to eq([ 1, 2, 3, 4, 5, nil ]) }
+  end
+
+  it 'should only provide POXReference objects' do
+    a = cpa([ @store.new(PO), @store.new(PO) ])
+    expect(a[0].respond_to?(:is_poxreference?)).to be true
+    a.each do |a|
+      expect(a.respond_to?(:is_poxreference?)).to be true
+    end
+  end
+
+  it 'should catch a leaked PEROBS::ObjectBase object' do
+    @store['a'] = a = @store.new(PEROBS::Array)
+    o = @store.new(PO)
+    a[0] = o.get_self
+    expect { @store.sync }.to raise_error(RuntimeError)
   end
 
 end

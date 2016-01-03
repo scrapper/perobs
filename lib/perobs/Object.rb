@@ -175,13 +175,6 @@ module PEROBS
       _all_attributes.each do |attr|
         ivar = ('@' + attr.to_s).to_sym
         value = instance_variable_get(ivar)
-        #if (value = instance_variable_get(ivar)).is_a?(ObjectBase)
-        #  raise ArgumentError, "The instance variable #{ivar} contains a " +
-        #                       "reference to a PEROBS::ObjectBase object! " +
-        #                       "This is not allowed. You must use the " +
-        #                       "accessor method to assign a reference to " +
-        #                       "another PEROBS object."
-        #end
         attributes[attr.to_s] = value.respond_to?(:is_poxreference?) ?
           POReference.new(value.id) : value
       end
@@ -189,33 +182,28 @@ module PEROBS
     end
 
     def _set(attr, val)
-      ivar = ('@' + attr.to_s).to_sym
-      if !val.respond_to?(:is_poxreference?) && val.is_a?(ObjectBase)
+      if val.is_a?(ObjectBase)
         # References to other PEROBS::Objects must be handled somewhat
         # special.
         if @store != val.store
           raise ArgumentError, 'The referenced object is not part of this store'
         end
-        # To release the object from the Ruby object list later, we store the
-        # PEROBS::Store ID of the referenced object instead of the actual
-        # reference.
-        instance_variable_set(ivar, POXReference.new(@store, val._id))
-      else
-        instance_variable_set(ivar, val)
+        unless val.respond_to?(:is_poxreference?)
+          raise ArgumentError, 'A PEROBS::ObjectBase object escaped! ' +
+                               'Have you used self() instead of myself() to' +
+                               'get the reference of the PEROBS object that ' +
+                               'you are trying to assign here?'
+        end
       end
+      instance_variable_set(('@' + attr.to_s).to_sym, val)
       # Let the store know that we have a modified object.
-      @store.cache.cache_write(self)
+      mark_as_modified
 
       val
     end
 
     def _get(attr)
-      value = instance_variable_get(('@' + attr.to_s).to_sym)
-      if value.respond_to?(:is_poxreference?)
-        @store.object_by_id(value.id)
-      else
-        value
-      end
+      instance_variable_get(('@' + attr.to_s).to_sym)
     end
 
     def _all_attributes

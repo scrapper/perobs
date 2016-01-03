@@ -51,6 +51,10 @@ class O2 < PEROBS::Object
     @a3.a1
   end
 
+  def get_self
+    self # Never do this in real user code!
+  end
+
 end
 
 class O3 < PEROBS::Object
@@ -123,6 +127,19 @@ describe PEROBS::Store do
     o1.a1 = 'a1'
     o2.a3 = o1
     expect(o2.a3_deref).to eq('a1')
+  end
+
+  it 'should always return a POXReference for a PEROBS object' do
+    @store['o1'] = o1 = @store.new(O1)
+    o1.a1 = @store.new(O2)
+    expect(@store['o1'].respond_to?(:is_poxreference?)).to be true
+    expect(o1.a1.respond_to?(:is_poxreference?)).to be true
+  end
+
+  it 'should catch a leaked PEROBS::ObjectBase object' do
+    @store['a'] = a = @store.new(O1)
+    o = @store.new(O2)
+    expect { a.a1 = o.get_self }.to raise_error(ArgumentError)
   end
 
   it 'should raise an error when no attributes are defined' do

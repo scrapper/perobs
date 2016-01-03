@@ -41,6 +41,10 @@ class PO < PEROBS::Object
     @name = name
   end
 
+  def get_self
+    self # Never do this in real user code!
+  end
+
 end
 
 describe PEROBS::Hash do
@@ -152,6 +156,13 @@ describe PEROBS::Hash do
 
     expect(h2.update(h1)).to eq(hb)
     pcheck { expect(h2).to eq(hb) }
+  end
+
+  it 'should catch a leaked PEROBS::ObjectBase object' do
+    @store['a'] = a = @store.new(PEROBS::Hash)
+    o = @store.new(PO)
+    a['a'] = o.get_self
+    expect { @store.sync }.to raise_error(RuntimeError)
   end
 
 end

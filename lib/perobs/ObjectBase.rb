@@ -86,6 +86,18 @@ module PEROBS
       _referenced_object == obj
     end
 
+    # BasicObject provides a equal?() method that prevents method_missing from
+    # being called. So we have to pass the call manually to the referenced
+    # object.
+    # @param obj object to compare this object with.
+    def equal?(obj)
+      if obj.respond_to?(:is_poxreference?)
+        _referenced_object.equal?(obj._referenced_object)
+      else
+        _referenced_object.equal?(obj)
+      end
+    end
+
     # Shortcut to access the _id() method of the referenced object.
     def _id
       @id
@@ -119,6 +131,14 @@ module PEROBS
 
       # Let the store know that we have a modified object.
       @store.cache.cache_write(self)
+    end
+
+    # If you want another persistent object to reference this object from
+    # inside a member method you must call myself() instead of self().
+    # myself() will return a proxy object instead of the real object so it can
+    # be garbage collected when necessary.
+    def myself
+      POXReference.new(@store, @_id)
     end
 
     public

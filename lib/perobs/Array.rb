@@ -119,7 +119,21 @@ module PEROBS
 
     def _serialize
       @data.map do |v|
-        v.respond_to?(:is_poxreference?) ? POReference.new(v.id) : v
+        if v.respond_to?(:is_poxreference?)
+          POReference.new(v.id)
+        else
+          # Outside of the PEROBS library all PEROBS::ObjectBase derived
+          # objects should not be used directly. The library only exposes them
+          # via POXReference proxy objects.
+          if v.is_a?(ObjectBase)
+            raise RuntimeError, 'A PEROBS::ObjectBase object escaped! ' +
+              "It is stored in a PEROBS::Array at index #{@data.index(v)}. " +
+              'Have you used self() instead of myself() to' +
+              "get the reference of this PEROBS object?\n" +
+              v.inspect
+          end
+          v
+        end
       end
     end
 
