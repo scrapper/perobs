@@ -218,19 +218,23 @@ describe PEROBS::Store do
     p1.related = p2
     p2.related = p1
     p0.related = p1
-    @store.sync
-    @store.gc
+    expect(@store.check).to eq(0)
+    expect(@store.gc).to eq(0)
+    p0 = p1 = p2 = nil
+    GC.start
     @store = PEROBS::Store.new(@db_file)
     expect(@store['person0']._id).to eq(id0)
     expect(@store['person0'].related._id).to eq(id1)
     expect(@store['person0'].related.related._id).to eq(id2)
 
     @store['person0'].related = nil
-    @store.gc
+    expect(@store.gc).to eq(2)
+    GC.start
     expect(@store.object_by_id(id1)).to be_nil
     expect(@store.object_by_id(id2)).to be_nil
 
     @store = PEROBS::Store.new(@db_file)
+    expect(@store.check).to eq(0)
     expect(@store.object_by_id(id1)).to be_nil
     expect(@store.object_by_id(id2)).to be_nil
   end
@@ -448,7 +452,7 @@ describe PEROBS::Store do
       when 6
         if rand(50) == 0
           @store.sync
-          @store.check(false)
+          expect(@store.check(false)).to eq(0)
         end
       when 7
         index = rand(i)

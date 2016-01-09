@@ -244,6 +244,7 @@ module PEROBS
     # from the back-end storage. The garbage collector is not invoked
     # automatically. Depending on your usage pattern, you need to call this
     # method periodically.
+    # @return [Fixnum] The number of collected objects
     def gc
       sync
       mark
@@ -285,48 +286,24 @@ module PEROBS
     # unreadable object is found, the reference will simply be deleted.
     # @param repair [TrueClass/FalseClass] true if a repair attempt should be
     #        made.
+    # @return [Fixnum] The number of references to bad objects found.
     def check(repair = true)
-      # FIXME: This does not work with cyclic references!
+      # All objects must have in-db version.
+      sync
       # Run basic consistency checks first.
       @db.check_db(repair)
 
+      # We will use the mark to mark all objects that we have checked already.
+      # Before we start, we need to clear all marks.
       @db.clear_marks
-      # A buffer to hold a working set of object IDs.
-      stack = []
-      # First we check the top-level objects. They are only added to the
-      # working set if they are OK.
-      @root_objects.each do |name, id|
-        unless @db.check(id, repair)
-          stack << id
-        end
-      end
-      if repair
-        # Delete any top-level object that is defective.
-        stack.each { |id| @root_objects.delete(id) }
-        # The remaining top-level objects are the initial working set.
-        stack = @root_objects.values
-      else
-        # The initial working set must only be OK objects.
-        stack = @root_objects.values - stack
-      end
-      stack.each { |id| @db.mark(id) }
 
-      while !stack.empty?
-        id = stack.pop
-        (obj = object_by_id(id))._referenced_object_ids.each do |id|
-          # Add all found references that have passed the check to the working
-          # list for the next iterations.
-          if @db.check(id, repair)
-            unless @db.is_marked?(id)
-              stack << id
-              @db.mark(id)
-            end
-          elsif repair
-            # Remove references to bad objects.
-            obj._delete_reference_to_id(id)
-          end
-        end
+      errors = 0
+      @root_objects.each do |name, id|
+        errors += check_object(id, repair)
       end
+      @root_objects.delete_if { |name, id| !@db.check(id, false) }
+
+      errors
     end
 
     # This method will execute the provided block as an atomic transaction
@@ -404,8 +381,46 @@ module PEROBS
     # Sweep phase of a mark-and-sweep garbage collector. It will remove all
     # unmarked objects from the store.
     def sweep
-      @db.delete_unmarked_objects.each { |id| _collect(id, true) }
+      cntr = @db.delete_unmarked_objects.length
       @cache.reset
+      cntr
+    end
+
+    # Check the object with the given start_id and all other objects that are
+    # somehow reachable from the start object.
+    # @param start_id [Fixnum or Bignum] ID of the top-level object to start
+    #        with
+    # @param repair [Boolean] Delete refernces to broken objects if true
+    # @return [Fixnum] The number of references to bad objects.
+    def check_object(start_id, repair)
+      errors = 0
+      @db.mark(start_id)
+      # The todo list holds a touple for each object that still needs to be
+      # checked. The first item is the referring object and the second is the
+      # ID of the object to check.
+      todo_list = [ [ nil, start_id ] ]
+
+      while !todo_list.empty?
+        # Get the next PEROBS object to check
+        ref_obj, id = todo_list.pop
+
+        if (obj = object_by_id(id)) && @db.check(id, repair)
+          # The object exists and is OK. Mark is as checked.
+          @db.mark(id)
+          # Now look at all other objects referenced by this object.
+          obj._referenced_object_ids.each do |refd_id|
+            # Push them onto the todo list unless they have been marked
+            # already.
+            todo_list << [ obj, refd_id ] unless @db.is_marked?(refd_id)
+          end
+        else
+          # Remove references to bad objects.
+          ref_obj._delete_reference_to_id(id) if ref_obj && repair
+          errors += 1
+        end
+      end
+
+      errors
     end
 
   end
