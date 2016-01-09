@@ -2,7 +2,7 @@
 #
 # = Store.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -26,6 +26,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 require 'set'
+require 'weakref'
 
 require 'perobs/Cache'
 require 'perobs/ClassMap'
@@ -128,16 +129,18 @@ module PEROBS
       # the Store.new() call by PEROBS users.
       @object_creation_in_progress = false
 
+      # List of PEROBS objects that are currently available as Ruby objects
+      # hashed by their ID.
+      @in_memory_objects = {}
+
       # The Cache reduces read and write latencies by keeping a subset of the
       # objects in memory.
       @cache = Cache.new(options[:cache_bits] || 16)
 
       # The named (global) objects IDs hashed by their name
       unless (@root_objects = object_by_id(0))
-        @root_objects = construct_po(Hash)
-
         # The root object hash always has the object ID 0.
-        @root_objects._change_id(0)
+        @root_objects = _construct_po(Hash, 0)
         # The ID change removes it from the write cache. We need to add it
         # again.
         @cache.cache_write(@root_objects)
@@ -152,23 +155,37 @@ module PEROBS
     #        constructor of the specified class.
     # @return [POXReference] A reference to the newly created object.
     def new(klass, *args)
-      POXReference.new(self, construct_po(klass, *args)._id)
+      _construct_po(klass, nil, *args).myself
     end
 
     # For library internal use only!
-    def construct_po(klass, *args)
+    # This method will create a new PEROBS object.
+    # @param klass [BasicObject] Class of the object to create
+    # @param id [Fixnum, Bignum or nil] Requested object ID or nil
+    # @param *args [Array] Arguments to pass to the object constructor.
+    # @return [BasicObject] Newly constructed PEROBS object
+    def _construct_po(klass, id, *args)
+      unless klass.is_a?(BasicObject)
+        raise ArgumentError, "#{klass} is not a BasicObject derivative"
+      end
       @object_creation_in_progress = true
       obj = klass.new(self, *args)
       @object_creation_in_progress = false
+      # If a specific object ID was requested we need to set it now.
+      obj._change_id(id) if id
+      # Add the new object to the in-memory list. We only store a weak
+      # reference to the object so it can be garbage collected. When this
+      # happens the object finalizer is triggered and calls _forget() to
+      # remove the object from this hash again.
+      @in_memory_objects[obj._id] = WeakRef.new(obj)
       obj
     end
-
 
     # Delete the entire store. The store is no longer usable after this
     # method was called.
     def delete_store
       @db.delete_database
-      @class_map = @cache = @root_objects = nil
+      @db = @class_map = @cache = @root_objects = nil
     end
 
     # Store the provided object under the given name. Use this to make the
@@ -189,7 +206,7 @@ module PEROBS
       # We only allow derivatives of PEROBS::Object to be stored in the
       # store.
       unless obj.is_a?(ObjectBase)
-        raise ArgumentError, "Object must be of class PEROBS::Object but "
+        raise ArgumentError, 'Object must be of class PEROBS::Object but ' +
                              "is of class #{obj.class}"
       end
 
@@ -237,19 +254,25 @@ module PEROBS
     # public API and should never be called by outside users. It's purely
     # intended for internal use.
     def object_by_id(id)
-      if (obj = @cache.object_by_id(id))
+      if (obj = @in_memory_objects[id])
         # We have the object in memory so we can just return it.
-        return obj
-      else
-        # We don't have the object in memory. Let's find it in the storage.
-        if @db.include?(id)
-          # Great, object found. Read it into memory and return it.
-          obj = ObjectBase::read(self, id)
-          # Add the object to the in-memory storage list.
-          @cache.cache_read(obj)
-
-          return obj
+        begin
+          return obj.__getobj__
+        rescue WeakRef::RefError
+          # Due to a race condition the object can still be in the
+          # @in_memory_objects list but has been collected already by the Ruby
+          # GC. In that case we need to load it again.
         end
+      end
+
+      # We don't have the object in memory. Let's find it in the storage.
+      if @db.include?(id)
+        # Great, object found. Read it into memory and return it.
+        obj = ObjectBase::read(self, id)
+        # Add the object to the in-memory storage list.
+        @cache.cache_read(obj)
+
+        return obj
       end
 
       # The requested object does not exist. Return nil.
@@ -263,6 +286,7 @@ module PEROBS
     # @param repair [TrueClass/FalseClass] true if a repair attempt should be
     #        made.
     def check(repair = true)
+      # FIXME: This does not work with cyclic references!
       # Run basic consistency checks first.
       @db.check_db(repair)
 
@@ -349,6 +373,24 @@ module PEROBS
       @class_map.rename(rename_map)
     end
 
+    # Remove the object from the in-memory list. This is an internal method
+    # and should never be called from user code.
+    # @param id [Fixnum or Bignum] Object ID of object to remove from the list
+    def _collect(id, ignore_errors = false)
+      unless ignore_errors || @in_memory_objects.include?(id)
+        raise RuntimeError, "Object with id #{id} is currently not in memory"
+      end
+      @in_memory_objects.delete(id)
+    end
+
+    # This method returns a Hash with some statistics about this store.
+    def statistics
+      {
+        :in_memory_objects => @in_memory_objects.length,
+        :root_objects => 0 #@root_objects.length
+      }
+    end
+
     private
 
     # Mark phase of a mark-and-sweep garbage collector. It will mark all
@@ -362,7 +404,7 @@ module PEROBS
     # Sweep phase of a mark-and-sweep garbage collector. It will remove all
     # unmarked objects from the store.
     def sweep
-      @db.delete_unmarked_objects
+      @db.delete_unmarked_objects.each { |id| _collect(id, true) }
       @cache.reset
     end
 

@@ -2,7 +2,7 @@
 #
 # = ObjectBase.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -34,7 +34,7 @@ module PEROBS
   # since it's no longer referenced once it has been evicted from the
   # PEROBS::Store cache. The POXReference objects function as a transparent
   # proxy for the objects they are referencing.
-  class POXReference  < BasicObject
+  class POXReference < BasicObject
 
     attr_reader :store, :id
 
@@ -47,12 +47,13 @@ module PEROBS
     # Proxy all calls to unknown methods to the referenced object.
     def method_missing(method_sym, *args, &block)
       unless (obj = _referenced_object)
-        raise ::RuntimeError, "Internal consistency error. No object with " +
-          "ID #{@id} found in the store"
+        ::Kernel.raise ::RuntimeError,
+          "Internal consistency error. No object with ID #{@id} found in " +
+          'the store.'
       end
       if obj.respond_to?(:is_poxreference?)
-        raise ::RuntimeError,
-          "POXReference that references a POXReference found"
+        ::Kernel.raise ::RuntimeError,
+          "POXReference that references a POXReference found."
       end
       obj.send(method_sym, *args, &block)
     end
@@ -114,7 +115,7 @@ module PEROBS
   # common to all classes of persistent objects.
   class ObjectBase
 
-    attr_reader :_id, :store
+    attr_reader :_id, :store, :myself
 
     # New PEROBS objects must always be created by calling # Store.new().
     # PEROBS users should never call this method or equivalents of derived
@@ -122,23 +123,27 @@ module PEROBS
     def initialize(store)
       @store = store
       unless @store.object_creation_in_progress
-        raise ::RuntimeError,
+        ::Kernel.raise ::RuntimeError,
           "All PEROBS objects must exclusively be created by calling " +
           "Store.new(). Never call the object constructor directly."
       end
       @_id = @store.db.new_id
+      ObjectSpace.define_finalizer(self, ObjectBase._finalize(@store, @_id))
       @_stash_map = nil
+      # Allocate a proxy object for this object. User code should only operate
+      # on this proxy, never on self.
+      @myself = POXReference.new(@store, @_id)
 
       # Let the store know that we have a modified object.
       @store.cache.cache_write(self)
     end
 
-    # If you want another persistent object to reference this object from
-    # inside a member method you must call myself() instead of self().
-    # myself() will return a proxy object instead of the real object so it can
-    # be garbage collected when necessary.
-    def myself
-      POXReference.new(@store, @_id)
+    # This method generates the destructor for the objects of this class. It
+    # is done this way to prevent the Proc object hanging on to a reference to
+    # self which would prevent the object from being collected. This internal
+    # method is not intended for users to call.
+    def ObjectBase._finalize(store, id)
+      proc { store._collect(id) }
     end
 
     public
@@ -177,10 +182,7 @@ module PEROBS
 
       klass = store.class_map.id_to_class(db_obj['class_id'])
       # Call the constructor of the specified class.
-      obj = store.construct_po(Object.const_get(klass))
-      # The object gets created with a new ID by default. We need to restore
-      # the old one.
-      obj._change_id(id)
+      obj = store._construct_po(Object.const_get(klass), id)
       obj._deserialize(db_obj['data'])
       obj.post_restore
 

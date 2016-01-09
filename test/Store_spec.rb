@@ -1,6 +1,6 @@
 # encoding: UTF-8
 #
-# Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -390,6 +390,17 @@ describe PEROBS::Store do
     expect(@store['person0'].name).to eq('Jimmy')
     expect(@store['person1'].name).to eq('Jane')
     expect(@store['person2']).to be_nil
+  end
+
+  it 'should track in-memory objects properly' do
+    @store = PEROBS::Store.new(@db_file)
+    @store['person'] = @store.new(Person)
+    # We have the root hash and the Person object.
+    expect(@store.statistics[:in_memory_objects]).to eq(2)
+    @store.sync
+    GC.start
+    # Now the Person should be gone from memory.
+    expect(@store.statistics[:in_memory_objects]).to eq(1)
   end
 
   it 'should survive a real world usage test' do

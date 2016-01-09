@@ -2,7 +2,7 @@
 #
 # = Cache.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -31,7 +31,7 @@ module PEROBS
 
   # The Cache provides two functions for the PEROBS Store. It keeps some
   # amount of objects in memory to substantially reduce read access latencies.
-  # It # also stores a list of objects that haven't been synced to the
+  # It also stores a list of objects that haven't been synced to the
   # permanent store yet to accelerate object writes.
   class Cache
 
