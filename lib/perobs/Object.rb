@@ -182,18 +182,17 @@ module PEROBS
     end
 
     def _set(attr, val)
-      if val.is_a?(ObjectBase)
+      if val.respond_to?(:is_poxreference?)
         # References to other PEROBS::Objects must be handled somewhat
         # special.
         if @store != val.store
           raise ArgumentError, 'The referenced object is not part of this store'
         end
-        unless val.respond_to?(:is_poxreference?)
-          raise ArgumentError, 'A PEROBS::ObjectBase object escaped! ' +
-                               'Have you used self() instead of myself() to' +
-                               'get the reference of the PEROBS object that ' +
-                               'you are trying to assign here?'
-        end
+      elsif val.is_a?(ObjectBase)
+        raise ArgumentError, 'A PEROBS::ObjectBase object escaped! ' +
+                             'Have you used self() instead of myself() to' +
+                             'get the reference of the PEROBS object that ' +
+                             'you are trying to assign here?'
       end
       instance_variable_set(('@' + attr.to_s).to_sym, val)
       # Let the store know that we have a modified object.
