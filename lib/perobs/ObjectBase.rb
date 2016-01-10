@@ -128,6 +128,7 @@ module PEROBS
           "Store.new(). Never call the object constructor directly."
       end
       @_id = @store.db.new_id
+      @store._register_in_memory(self, @_id)
       ObjectSpace.define_finalizer(self, ObjectBase._finalize(@store, @_id))
       @_stash_map = nil
       # Allocate a proxy object for this object. User code should only operate
@@ -145,8 +146,6 @@ module PEROBS
     def ObjectBase._finalize(store, id)
       proc { store._collect(id) }
     end
-
-    public
 
     # This method can be overloaded by derived classes to do some massaging on
     # the data after it has been restored from the database. This could either
@@ -236,6 +235,8 @@ module PEROBS
       # Unregister the object with the old ID from the write cache to prevent
       # cache corruption. The objects are index by ID in the cache.
       @store.cache.unwrite(self)
+      @store._collect(@_id)
+      @store._register_in_memory(self, id)
       @_id = id
     end
 

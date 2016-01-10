@@ -173,11 +173,6 @@ module PEROBS
       @object_creation_in_progress = false
       # If a specific object ID was requested we need to set it now.
       obj._change_id(id) if id
-      # Add the new object to the in-memory list. We only store a weak
-      # reference to the object so it can be garbage collected. When this
-      # happens the object finalizer is triggered and calls _forget() to
-      # remove the object from this hash again.
-      @in_memory_objects[obj._id] = WeakRef.new(obj)
       obj
     end
 
@@ -348,6 +343,17 @@ module PEROBS
     # @param rename_map [Hash] Hash that maps the old name to the new name
     def rename_classes(rename_map)
       @class_map.rename(rename_map)
+    end
+
+    # Internal method. Don't use this outside of this library!
+    # Add the new object to the in-memory list. We only store a weak
+    # reference to the object so it can be garbage collected. When this
+    # happens the object finalizer is triggered and calls _forget() to
+    # remove the object from this hash again.
+    # @param obj [BasicObject] Object to register
+    # @param id [Fixnum or Bignum] object ID
+    def _register_in_memory(obj, id)
+      @in_memory_objects[id] = WeakRef.new(obj)
     end
 
     # Remove the object from the in-memory list. This is an internal method

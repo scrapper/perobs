@@ -55,6 +55,27 @@ class PersonN < PEROBS::Object
 
 end
 
+class O0 < PEROBS::Object
+
+  po_attr :r
+
+  def initialize(store)
+    super
+    r = @store.new(O1, myself)
+  end
+
+end
+class O1 < PEROBS::Object
+
+  po_attr :p
+
+  def initialize(store, p = nil)
+    super(store)
+    parent = p
+  end
+
+end
+
 describe PEROBS::Store do
 
   before(:all) do
@@ -398,6 +419,7 @@ describe PEROBS::Store do
 
   it 'should track in-memory objects properly' do
     @store = PEROBS::Store.new(@db_file)
+    expect(@store.statistics[:in_memory_objects]).to eq(1)
     @store['person'] = @store.new(Person)
     # We have the root hash and the Person object.
     expect(@store.statistics[:in_memory_objects]).to eq(2)
@@ -405,6 +427,15 @@ describe PEROBS::Store do
     GC.start
     # Now the Person should be gone from memory.
     expect(@store.statistics[:in_memory_objects]).to eq(1)
+  end
+
+  it 'should handle nested constructors' do
+    @store = PEROBS::Store.new(@db_file)
+    @store['r'] = @store.new(O0)
+    @store.sync
+    expect(@store.check).to eq(0)
+    @store = PEROBS::Store.new(@db_file)
+    expect(@store.check).to eq(0)
   end
 
   it 'should survive a real world usage test' do
