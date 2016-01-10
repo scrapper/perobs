@@ -253,6 +253,7 @@ module PEROBS
       if (obj = @in_memory_objects[id])
         # We have the object in memory so we can just return it.
         begin
+          $stderr.puts "Found in-memory object #{id}"
           return obj.__getobj__
         rescue WeakRef::RefError
           # Due to a race condition the object can still be in the
@@ -268,6 +269,7 @@ module PEROBS
         # Add the object to the in-memory storage list.
         @cache.cache_read(obj)
 
+        $stderr.puts "Found on-disk object #{id}"
         return obj
       end
 
@@ -355,6 +357,7 @@ module PEROBS
         id = rand(2**64)
         # Ensure that we don't have already another object with this ID.
       end while @in_memory_objects.include?(id) || @db.include?(id)
+      $stderr.puts "Creating new object with id #{id}"
 
       id
     end
@@ -367,6 +370,7 @@ module PEROBS
     # @param obj [BasicObject] Object to register
     # @param id [Fixnum or Bignum] object ID
     def _register_in_memory(obj, id)
+      $stderr.puts "Registering object #{id}"
       @in_memory_objects[id] = WeakRef.new(obj)
     end
 
@@ -374,6 +378,7 @@ module PEROBS
     # and should never be called from user code.
     # @param id [Fixnum or Bignum] Object ID of object to remove from the list
     def _collect(id, ignore_errors = false)
+      $stderr.puts "Collecting object #{id}"
       unless ignore_errors || @in_memory_objects.include?(id)
         raise RuntimeError, "Object with id #{id} is currently not in memory"
       end
