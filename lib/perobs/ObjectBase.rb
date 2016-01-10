@@ -127,7 +127,7 @@ module PEROBS
           "All PEROBS objects must exclusively be created by calling " +
           "Store.new(). Never call the object constructor directly."
       end
-      @_id = @store.db.new_id
+      @_id = @store._new_id
       @store._register_in_memory(self, @_id)
       ObjectSpace.define_finalizer(self, ObjectBase._finalize(@store, @_id))
       @_stash_map = nil
@@ -225,7 +225,7 @@ module PEROBS
       }
       @_stash_map = [] unless @_stash_map
       # Get a new ID to store this version of the object.
-      @_stash_map[level] = stash_id = @store.db.new_id
+      @_stash_map[level] = stash_id = @store._new_id
       @store.db.put_object(db_obj, stash_id)
     end
 

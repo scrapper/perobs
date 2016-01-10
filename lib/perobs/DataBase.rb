@@ -83,20 +83,6 @@ module PEROBS
       end
     end
 
-    # Generate a new unique ID. It uses random numbers between 0 and 2**64 -
-    # 1.
-    # @return [Fixnum or Bignum]
-    def new_id
-      begin
-        # Generate a random number. It's recommended to not store more than
-        # 2**62 objects in the same store.
-        id = rand(2**64)
-        # Ensure that we don't have already another object with this ID.
-      end while include?(id)
-
-      id
-    end
-
     # Check a config option and adjust it if needed.
     # @param name [String] Name of the config option.
     def check_option(name)

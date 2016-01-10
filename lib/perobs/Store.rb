@@ -344,6 +344,20 @@ module PEROBS
     def rename_classes(rename_map)
       @class_map.rename(rename_map)
     end
+    # Internal method. Don't use this outside of this library!
+    # Generate a new unique ID that is not used by any other object. It uses
+    # random numbers between 0 and 2**64 - 1.
+    # @return [Fixnum or Bignum]
+    def _new_id
+      begin
+        # Generate a random number. It's recommended to not store more than
+        # 2**62 objects in the same store.
+        id = rand(2**64)
+        # Ensure that we don't have already another object with this ID.
+      end while @in_memory_objects.include?(id) || @db.include?(id)
+
+      id
+    end
 
     # Internal method. Don't use this outside of this library!
     # Add the new object to the in-memory list. We only store a weak
