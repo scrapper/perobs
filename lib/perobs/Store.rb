@@ -151,7 +151,7 @@ module PEROBS
     # this Store.
     # @param klass [Class] The class of the object you want to create. This
     #        must be a derivative of ObjectBase.
-    # @param *args Optional list of other arguments that are passed to the
+    # @param args Optional list of other arguments that are passed to the
     #        constructor of the specified class.
     # @return [POXReference] A reference to the newly created object.
     def new(klass, *args)
@@ -162,7 +162,7 @@ module PEROBS
     # This method will create a new PEROBS object.
     # @param klass [BasicObject] Class of the object to create
     # @param id [Fixnum, Bignum or nil] Requested object ID or nil
-    # @param *args [Array] Arguments to pass to the object constructor.
+    # @param args [Array] Arguments to pass to the object constructor.
     # @return [BasicObject] Newly constructed PEROBS object
     def _construct_po(klass, id, *args)
       unless klass.is_a?(BasicObject)
