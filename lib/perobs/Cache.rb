@@ -89,23 +89,6 @@ module PEROBS
       end
     end
 
-    # Remove an object from the write cache. This will prevent a modified
-    # object from being written to the back-end store.
-    def unwrite(obj)
-      if @transaction_stack.empty?
-        idx = index(obj)
-        if (old_obj = @writes[idx]).nil? || old_obj._id != obj._id
-          raise RuntimeError, "Object to unwrite is not in cache"
-        end
-        @writes[idx] = nil
-      else
-        unless @transaction_stack.last.include?(obj)
-          raise RuntimeError, 'unwrite failed'
-        end
-        @transaction_stack.last.delete(obj)
-      end
-    end
-
     # Return the PEROBS::Object with the specified ID or nil if not found.
     # @param id [Fixnum or Bignum] ID of the cached PEROBS::ObjectBase
     def object_by_id(id)

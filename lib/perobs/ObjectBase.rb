@@ -134,9 +134,6 @@ module PEROBS
       # Allocate a proxy object for this object. User code should only operate
       # on this proxy, never on self.
       @myself = POXReference.new(@store, @_id)
-
-      # Let the store know that we have a modified object.
-      @store.cache.cache_write(self)
     end
 
     # This method generates the destructor for the objects of this class. It
@@ -227,17 +224,6 @@ module PEROBS
       # Get a new ID to store this version of the object.
       @_stash_map[level] = stash_id = @store._new_id
       @store.db.put_object(db_obj, stash_id)
-    end
-
-    # Library internal method. Do not use outside of this library.
-    # @private
-    def _change_id(id)
-      # Unregister the object with the old ID from the write cache to prevent
-      # cache corruption. The objects are index by ID in the cache.
-      @store.cache.unwrite(self)
-      @store._collect(@_id)
-      @store._register_in_memory(self, id)
-      @_id = id
     end
 
   end

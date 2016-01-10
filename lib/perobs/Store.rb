@@ -128,6 +128,10 @@ module PEROBS
       # This flag is used to check that PEROBS objects are only created via
       # the Store.new() call by PEROBS users.
       @object_creation_in_progress = false
+      # This stack is used when restoring objects from the database. If the
+      # top of the stack is not nil _new_id() will return that ID instead of
+      # generating a new random one.
+      @next_new_id = []
 
       # List of PEROBS objects that are currently available as Ruby objects
       # hashed by their ID.
@@ -141,8 +145,7 @@ module PEROBS
       unless (@root_objects = object_by_id(0))
         # The root object hash always has the object ID 0.
         @root_objects = _construct_po(Hash, 0)
-        # The ID change removes it from the write cache. We need to add it
-        # again.
+        # Mark the root_objects object as modified.
         @cache.cache_write(@root_objects)
       end
     end
@@ -155,7 +158,11 @@ module PEROBS
     #        constructor of the specified class.
     # @return [POXReference] A reference to the newly created object.
     def new(klass, *args)
-      _construct_po(klass, nil, *args).myself
+      obj = _construct_po(klass, nil, *args)
+      # Mark the new object as modified so it gets pushed into the database.
+      @cache.cache_write(obj)
+      # Return a POXReference proxy for the newly created object.
+      obj.myself
     end
 
     # For library internal use only!
@@ -168,11 +175,11 @@ module PEROBS
       unless klass.is_a?(BasicObject)
         raise ArgumentError, "#{klass} is not a BasicObject derivative"
       end
+      @next_new_id.push(id)
       @object_creation_in_progress = true
       obj = klass.new(self, *args)
       @object_creation_in_progress = false
-      # If a specific object ID was requested we need to set it now.
-      obj._change_id(id) if id
+      @next_new_id.pop
       obj
     end
 
@@ -253,7 +260,6 @@ module PEROBS
       if (obj = @in_memory_objects[id])
         # We have the object in memory so we can just return it.
         begin
-          $stderr.puts "Found in-memory object #{id}"
           return obj.__getobj__
         rescue WeakRef::RefError
           # Due to a race condition the object can still be in the
@@ -269,7 +275,6 @@ module PEROBS
         # Add the object to the in-memory storage list.
         @cache.cache_read(obj)
 
-        $stderr.puts "Found on-disk object #{id}"
         return obj
       end
 
@@ -351,13 +356,18 @@ module PEROBS
     # random numbers between 0 and 2**64 - 1.
     # @return [Fixnum or Bignum]
     def _new_id
+      # During object restore from database we already have the ID for the
+      # object. The top of the stack is the ID to use.
+      if (id = @next_new_id.last)
+        return id
+      end
+
       begin
         # Generate a random number. It's recommended to not store more than
         # 2**62 objects in the same store.
         id = rand(2**64)
         # Ensure that we don't have already another object with this ID.
       end while @in_memory_objects.include?(id) || @db.include?(id)
-      $stderr.puts "Creating new object with id #{id}"
 
       id
     end
@@ -370,7 +380,6 @@ module PEROBS
     # @param obj [BasicObject] Object to register
     # @param id [Fixnum or Bignum] object ID
     def _register_in_memory(obj, id)
-      $stderr.puts "Registering object #{id}"
       @in_memory_objects[id] = WeakRef.new(obj)
     end
 
@@ -378,7 +387,6 @@ module PEROBS
     # and should never be called from user code.
     # @param id [Fixnum or Bignum] Object ID of object to remove from the list
     def _collect(id, ignore_errors = false)
-      $stderr.puts "Collecting object #{id}"
       unless ignore_errors || @in_memory_objects.include?(id)
         raise RuntimeError, "Object with id #{id} is currently not in memory"
       end
