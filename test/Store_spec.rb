@@ -57,21 +57,21 @@ end
 
 class O0 < PEROBS::Object
 
-  po_attr :r
+  po_attr :child
 
   def initialize(store)
     super
-    r = @store.new(O1, myself)
+    self.child = @store.new(O1, myself)
   end
 
 end
 class O1 < PEROBS::Object
 
-  po_attr :p
+  po_attr :parent
 
   def initialize(store, p = nil)
     super(store)
-    parent = p
+    self.parent = p
   end
 
 end
@@ -431,11 +431,13 @@ describe PEROBS::Store do
 
   it 'should handle nested constructors' do
     @store = PEROBS::Store.new(@db_file)
-    @store['r'] = @store.new(O0)
+    @store['root'] = @store.new(O0)
     @store.sync
     expect(@store.check).to eq(0)
+
     @store = PEROBS::Store.new(@db_file)
     expect(@store.check).to eq(0)
+    expect(@store['root'].child.parent).to eq(@store['root'])
   end
 
   it 'should survive a real world usage test' do
