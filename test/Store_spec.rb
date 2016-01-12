@@ -145,11 +145,6 @@ describe PEROBS::Store do
     end
   end
 
-  it 'should not allow calls to BasicObject.new()' do
-    @store = PEROBS::Store.new(@db_file)
-    expect { Person.new(@store) }.to raise_error RuntimeError
-  end
-
   it 'should flush cached objects when necessary' do
     @store = PEROBS::Store.new(@db_file, :cache_bits => 3)
     last_obj = nil
@@ -445,57 +440,69 @@ describe PEROBS::Store do
     @store = PEROBS::Store.new(@db_file, options)
     ref = {}
 
-    0.upto(2000) do |i|
+    deletions_since_last_gc = 0
+    0.upto(5000) do |i|
       key = "o#{i}"
-      case i % 8
+      case rand(8)
       when 0
+        # Add 'A' person
         value = 'A' * rand(512)
         @store[key] = p = @store.new(Person)
         p.name = value
         ref[key] = value
-        @store.sync
       when 1
+        # Add 'B' person
         value = 'B' * rand(128)
         @store[key] = p = @store.new(Person)
         p.name = value
         ref[key] = value
       when 2
-        index = i - rand(20)
-        if index >= 0
-          key = "o#{i - rand(20)}"
+        # Delete a root entry
+        if ref.keys.length > 11
+          key = ref.keys[(ref.keys.length / 11).to_i]
+          expect(@store[key]).not_to be_nil
           @store[key] = nil
           ref.delete(key)
+          deletions_since_last_gc += 1
         end
       when 3
-        @store.gc if rand(30) == 0
+        # Call garbage collector
+        if rand(30) == 0
+          @store.gc
+          stats = @store.statistics
+          expect(stats.marked_objects).to eq(ref.length)
+          expect(stats.swept_objects).to eq(deletions_since_last_gc)
+          deletions_since_last_gc = 0
+          expect(@store.gc).to eq(deletions_since_last_gc)
+        end
       when 4
+        # Sync store and reload
         if rand(15) == 0
           @store.sync
           @store = PEROBS::Store.new(@db_file, options)
         end
       when 5
-        index = i - rand(10)
-        if rand(3) == 0 && index >= 0
-          key = "o#{i - rand(10)}"
+        # Replace an entry with 'C' person
+        if ref.keys.length > 13
+          key = ref.keys[(ref.keys.length / 13).to_i]
           value = 'C' * rand(1024)
           @store[key] = p = @store.new(Person)
           p.name = value
           ref[key] = value
+          deletions_since_last_gc += 1
         end
       when 6
+        # Sync and check store
         if rand(50) == 0
           @store.sync
           expect(@store.check(false)).to eq(0)
         end
       when 7
-        index = rand(i)
-        if ref[key]
+        # Compare a random entry with reference entry
+        if ref.keys.length > 0
+          key = ref.keys[rand(ref.keys.length - 1)]
           expect(@store[key].name).to eq(ref[key])
         end
-      end
-
-      if ref[key]
-        expect(@store[key].name).to eq(ref[key])
       end
     end
 

@@ -118,7 +118,7 @@ module PEROBS
 
       unless found
         raise ArgumentError,
-              "Cannot find an entry for ID #{'%016X' % id} to mark"
+              "Cannot find an entry for ID #{'%016X' % id} #{id} to mark"
       end
 
       write_index

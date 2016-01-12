@@ -120,14 +120,18 @@ module PEROBS
     # New PEROBS objects must always be created by calling # Store.new().
     # PEROBS users should never call this method or equivalents of derived
     # methods directly.
-    def initialize(store)
+    # @param cf [ConstructorForm] PEROBS internal object
+    def initialize(cf)
+      _initialize(cf.store, cf.id)
+    end
+
+    # This is the real code for initialize. It is called from initialize() but
+    # also when we restore objects from the database. In the later case, we
+    # don't call the regular constructors. But this code must be exercised on
+    # object creation with new() and on restore from DB.
+    def _initialize(store, id)
       @store = store
-      unless @store.object_creation_in_progress
-        ::Kernel.raise ::RuntimeError,
-          "All PEROBS objects must exclusively be created by calling " +
-          "Store.new(). Never call the object constructor directly."
-      end
-      @_id = @store._new_id
+      @_id = id
       @store._register_in_memory(self, @_id)
       ObjectSpace.define_finalizer(self, ObjectBase._finalize(@store, @_id))
       @_stash_map = nil
@@ -178,7 +182,8 @@ module PEROBS
 
       klass = store.class_map.id_to_class(db_obj['class_id'])
       # Call the constructor of the specified class.
-      obj = store._construct_po(Object.const_get(klass), id)
+      obj = Object.const_get(klass).allocate
+      obj._initialize(store, id)
       obj._deserialize(db_obj['data'])
       obj.post_restore
 

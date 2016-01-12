@@ -79,14 +79,14 @@ module PEROBS
     # New PEROBS objects must always be created by calling # Store.new().
     # PEROBS users should never call this method or equivalents of derived
     # methods directly.
-    def initialize(store)
+    # @param cf [ConstructorForm] PEROBS internal object
+    def initialize(cf)
       super
     end
 
-    # Initialize the specified attribute _attr_ with the value _val_ unless
-    # the attribute has been initialized already. Use this method in the class
-    # constructor to avoid overwriting values that have been set when the
-    # object was reconstructed from the store.
+    # This method is deprecated. It will be removed in future versions. Please
+    # use ObjectBase.post_restore() to massage objects that are restored from
+    # the database.
     # @param attr [Symbol] Name of the attribute
     # @param val [Any] Value to be set
     # @return [true|false] True if the value was initialized, otherwise false.
@@ -195,7 +195,8 @@ module PEROBS
                              'you are trying to assign here?'
       end
       instance_variable_set(('@' + attr.to_s).to_sym, val)
-      # Let the store know that we have a modified object.
+      # Let the store know that we have a modified object. If we restored the
+      # object from the DB, we don't mark it as modified.
       mark_as_modified
 
       val

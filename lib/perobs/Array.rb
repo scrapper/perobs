@@ -79,12 +79,12 @@ module PEROBS
     # New PEROBS objects must always be created by calling # Store.new().
     # PEROBS users should never call this method or equivalents of derived
     # methods directly.
-    # @param store [Store] The Store this hash is stored in
+    # @param cf [ConstructorForm] PEROBS internal object
     # @param size [Fixnum] The requested size of the Array
     # @param default [Any] The default value that is returned when no value is
     #        stored for a specific key.
-    def initialize(store, size = 0, default = nil)
-      super(store)
+    def initialize(cf, size = 0, default = nil)
+      super(cf)
       @data = ::Array.new(size, default)
     end
 

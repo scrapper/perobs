@@ -32,8 +32,16 @@ When you derive your own class from PEROBS::Object you need to
 specify which instance variables should be persistent. By using
 po_attr you can provide a list of symbols that describe the instance
 variables to persist. This will also create getter and setter methods
-for these instance varables.  You can use attr_init in the constructor
-to define default values for your persistent objects.
+for these instance varables.  You can set default values in the
+constructor . The constructor of PEROBS::ObjectBase derived objects
+must have at least one argument. The first argument is a PEROBS
+internal object that must be passed to super() as first thing in
+initialize(). You can have other arguments if needed. Be aware that the
+constructor is not used to restore objects from the database. New
+objects are created via Store.new() so you cannot call the constructor
+directly in your code. You can define a post_restore() method to deal
+with object initialization or modification after restore from
+database.
 
 To start off you must create at least one PEROBS::Store object that
 owns your persistent objects. The store provides the persistent
@@ -52,10 +60,10 @@ almost every Ruby data type. YAML is much slower than JSON and Marshal
 is not guaranteed to be compatible between Ruby versions.
 
 Once you have created a store you can assign objects to it. All
-persistent objects must be created with @store.new(). This is
+persistent objects must be created with Store.new(). This is
 necessary as you will only deal with proxy objects in your code.
 Except for the member methods, you will never deal with the objects
-directly. Instead @store.new() returns a POXReference object that acts
+directly. Instead Store.new() returns a POXReference object that acts
 as a transparent proxy. This proxy is needed as your code never knows
 if the actual object is really loaded into the memory or not. PEROBS
 will handle this transparently for you.
@@ -85,8 +93,8 @@ class Person < PEROBS::Object
 
   po_attr :name, :mother, :father, :kids, :spouse, :status
 
-  def initialize(store, name)
-    super
+  def initialize(p, name)
+    super(p)
     attr_init(:name, name)
     attr_init(:kids, store.new(PEROBS::Array))
     attr_init(:status, :single)

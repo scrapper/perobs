@@ -38,6 +38,10 @@ require 'perobs/Array'
 # PErsistent Ruby OBject Store
 module PEROBS
 
+  ConstructorForm = Struct.new(:store, :id)
+  Statistics = Struct.new(:in_memory_objects, :root_objects,
+                          :marked_objects, :swept_objects)
+
   # PEROBS::Store is a persistent storage system for Ruby objects. Regular
   # Ruby objects are transparently stored in a back-end storage and retrieved
   # when needed. It features a garbage collector that removes all objects that
@@ -64,8 +68,8 @@ module PEROBS
   #
   #   po_attr :name, :mother, :father, :kids
   #
-  #   def initialize(store, name)
-  #     super
+  #   def initialize(cf, name)
+  #     super(cf)
   #     attr_init(:name, name)
   #     attr_init(:kids, @store.new(PEROBS::Array))
   #   end
@@ -89,7 +93,7 @@ module PEROBS
   #
   class Store
 
-    attr_reader :db, :cache, :class_map, :object_creation_in_progress
+    attr_reader :db, :cache, :class_map
 
     # Create a new Store.
     # @param data_base [String] the name of the database
@@ -125,17 +129,13 @@ module PEROBS
       # Create a map that can translate classes to numerical IDs and vice
       # versa.
       @class_map = ClassMap.new(@db)
-      # This flag is used to check that PEROBS objects are only created via
-      # the Store.new() call by PEROBS users.
-      @object_creation_in_progress = false
-      # This stack is used when restoring objects from the database. If the
-      # top of the stack is not nil _new_id() will return that ID instead of
-      # generating a new random one.
-      @next_new_id = []
 
       # List of PEROBS objects that are currently available as Ruby objects
       # hashed by their ID.
       @in_memory_objects = {}
+
+      # This objects keeps some counters of interest.
+      @stats = Statistics.new
 
       # The Cache reduces read and write latencies by keeping a subset of the
       # objects in memory.
@@ -158,7 +158,11 @@ module PEROBS
     #        constructor of the specified class.
     # @return [POXReference] A reference to the newly created object.
     def new(klass, *args)
-      obj = _construct_po(klass, nil, *args)
+      unless klass.is_a?(BasicObject)
+        raise ArgumentError, "#{klass} is not a BasicObject derivative"
+      end
+
+      obj = _construct_po(klass, _new_id, *args)
       # Mark the new object as modified so it gets pushed into the database.
       @cache.cache_write(obj)
       # Return a POXReference proxy for the newly created object.
@@ -168,19 +172,11 @@ module PEROBS
     # For library internal use only!
     # This method will create a new PEROBS object.
     # @param klass [BasicObject] Class of the object to create
-    # @param id [Fixnum, Bignum or nil] Requested object ID or nil
+    # @param id [Fixnum, Bignum] Requested object ID
     # @param args [Array] Arguments to pass to the object constructor.
     # @return [BasicObject] Newly constructed PEROBS object
     def _construct_po(klass, id, *args)
-      unless klass.is_a?(BasicObject)
-        raise ArgumentError, "#{klass} is not a BasicObject derivative"
-      end
-      @next_new_id.push(id)
-      @object_creation_in_progress = true
-      obj = klass.new(self, *args)
-      @object_creation_in_progress = false
-      @next_new_id.pop
-      obj
+      klass.new(ConstructorForm.new(self, id), *args)
     end
 
     # Delete the entire store. The store is no longer usable after this
@@ -332,16 +328,15 @@ module PEROBS
       # Start with the object 0 and the indexes of the root objects. Push them
       # onto the work stack.
       stack = [ 0 ] + @root_objects.values
-      stack.each { |id| @db.mark(id) }
       while !stack.empty?
         # Get an object index from the stack.
         obj = object_by_id(id = stack.pop)
-        yield(POXReference.new(self, id)) if block_given?
-        obj._referenced_object_ids.each do |id|
-          unless @db.is_marked?(id)
-            @db.mark(id)
-            stack << id
-          end
+        # Mark the object so it will never be pushed to the stack again.
+        @db.mark(id)
+        yield(obj.myself) if block_given?
+        # Push the IDs of all unmarked referenced objects onto the stack
+        obj._referenced_object_ids.each do |r_id|
+          stack << r_id unless @db.is_marked?(r_id)
         end
       end
     end
@@ -356,12 +351,6 @@ module PEROBS
     # random numbers between 0 and 2**64 - 1.
     # @return [Fixnum or Bignum]
     def _new_id
-      # During object restore from database we already have the ID for the
-      # object. The top of the stack is the ID to use.
-      if (id = @next_new_id.last)
-        return id
-      end
-
       begin
         # Generate a random number. It's recommended to not store more than
         # 2**62 objects in the same store.
@@ -395,10 +384,10 @@ module PEROBS
 
     # This method returns a Hash with some statistics about this store.
     def statistics
-      {
-        :in_memory_objects => @in_memory_objects.length,
-        :root_objects => 0 #@root_objects.length
-      }
+      @stats.in_memory_objects = @in_memory_objects.length
+      @stats.root_objects = @root_objects.length
+
+      @stats
     end
 
     private
@@ -407,16 +396,21 @@ module PEROBS
     # objects that are reachable from the root objects.
     def mark
       classes = Set.new
-      each { |obj| classes.add(obj.class) }
+      marked_objects = 0
+      each { |obj| classes.add(obj.class); marked_objects += 1 }
       @class_map.keep(classes.map { |c| c.to_s })
+
+      # The root_objects object is included in the count, but we only want to
+      # count user objects here.
+      @stats.marked_objects = marked_objects - 1
     end
 
     # Sweep phase of a mark-and-sweep garbage collector. It will remove all
     # unmarked objects from the store.
     def sweep
-      cntr = @db.delete_unmarked_objects.length
+      @stats.swept_objects = @db.delete_unmarked_objects.length
       @cache.reset
-      cntr
+      @stats.swept_objects
     end
 
     # Check the object with the given start_id and all other objects that are
