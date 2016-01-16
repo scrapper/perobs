@@ -28,6 +28,7 @@
 require 'set'
 require 'weakref'
 
+require 'perobs/Handle'
 require 'perobs/Cache'
 require 'perobs/ClassMap'
 require 'perobs/BTreeDB'
@@ -38,7 +39,6 @@ require 'perobs/Array'
 # PErsistent Ruby OBject Store
 module PEROBS
 
-  ConstructorForm = Struct.new(:store, :id)
   Statistics = Struct.new(:in_memory_objects, :root_objects,
                           :marked_objects, :swept_objects)
 
@@ -176,7 +176,7 @@ module PEROBS
     # @param args [Array] Arguments to pass to the object constructor.
     # @return [BasicObject] Newly constructed PEROBS object
     def _construct_po(klass, id, *args)
-      klass.new(ConstructorForm.new(self, id), *args)
+      klass.new(Handle.new(self, id), *args)
     end
 
     # Delete the entire store. The store is no longer usable after this

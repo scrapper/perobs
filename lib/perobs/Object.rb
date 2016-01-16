@@ -79,13 +79,13 @@ module PEROBS
     # New PEROBS objects must always be created by calling # Store.new().
     # PEROBS users should never call this method or equivalents of derived
     # methods directly.
-    # @param cf [ConstructorForm] PEROBS internal object
-    def initialize(cf)
-      super
+    # @param p [PEROBS::Handle] PEROBS handle
+    def initialize(p)
+      super(p)
     end
 
     # This method is deprecated. It will be removed in future versions. Please
-    # use ObjectBase.restore() to massage objects that are restored from
+    # use attr_init() instead.
     # the database.
     # @param attr [Symbol] Name of the attribute
     # @param val [Any] Value to be set
@@ -94,6 +94,26 @@ module PEROBS
       if _all_attributes.include?(attr)
         _set(attr, val)
         return true
+      end
+
+      false
+    end
+
+    # Use this method to initialize persistent attributes in the restore()
+    # method that have not yet been initialized. This is the case when the
+    # object was saved with an earlier version of the program that did not yet
+    # have the instance variable. If you want to assign another PEROBS object
+    # to the variable you should use the block variant to avoid unnecessary
+    # creation of PEROBS object that later need to be collected again.
+    def attr_init(attr, val = nil, &block)
+      if _all_attributes.include?(attr)
+        unless instance_variable_defined?('@' + attr.to_s)
+          _set(attr, block_given? ? yield : val)
+        end
+        return true
+      else
+        raise ArgumentError, "'#{attr}' is not a defined persistent " +
+                             "attribute of class #{self.class}"
       end
 
       false

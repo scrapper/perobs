@@ -32,9 +32,9 @@ class Person < PEROBS::Object
 
   def initialize(store)
     super
-    init_attr(:name, '')
-    init_attr(:bmi, 22.2)
-    init_attr(:married, false)
+    attr_init(:name, '')
+    attr_init(:bmi, 22.2)
+    attr_init(:married, false)
   end
 
 end

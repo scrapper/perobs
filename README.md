@@ -101,6 +101,12 @@ class Person < PEROBS::Object
     attr_init(:status, :single)
   end
 
+  def restore
+    # Use block version of attr_init() to avoid creating unneded
+    # objects. The block is only called when @father doesn't exist yet.
+    attr_init(:father) do { store.new(Person, 'Dad') }
+  end
+
   def merry(spouse)
     self.spouse = spouse
     self.status = :married

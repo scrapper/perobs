@@ -42,9 +42,9 @@ class O2 < PEROBS::Object
 
   def initialize(store)
     super
-    init_attr(:a1, 'a1')
-    init_attr(:a2, nil)
-    init_attr(:a4, 42)
+    attr_init(:a1, 'a1')
+    attr_init(:a2, nil)
+    attr_init(:a4, 42)
   end
 
   def a3_deref
