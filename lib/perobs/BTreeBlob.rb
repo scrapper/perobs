@@ -266,7 +266,10 @@ module PEROBS
 
       # Create a new entry and insert it. The order must match the above
       # defined constants!
-      entry = [ id, bytes, best_fit_start || end_of_last_entry, 0 ]
+      # Object reads can trigger creation of new objects. As the marking
+      # process triggers reads as well, all newly created objects are always
+      # marked to prevent them from being collected right after creation.
+      entry = [ id, bytes, best_fit_start || end_of_last_entry, 1 ]
       @entries.insert(best_fit_index, entry)
       @entries_by_id[id] = entry
 
