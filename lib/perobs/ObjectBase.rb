@@ -151,8 +151,10 @@ module PEROBS
     # This method can be overloaded by derived classes to do some massaging on
     # the data after it has been restored from the database. This could either
     # be some sanity check or code to migrate the object from one version to
-    # another.
-    def post_restore
+    # another. It is also the right place to initialize non-persistent
+    # instance variables as initialize() will only be called when objects are
+    # created for the first time.
+    def restore
     end
 
     # Two objects are considered equal if their object IDs are the same.
@@ -185,7 +187,7 @@ module PEROBS
       obj = Object.const_get(klass).allocate
       obj._initialize(store, id)
       obj._deserialize(db_obj['data'])
-      obj.post_restore
+      obj.restore
 
       obj
     end

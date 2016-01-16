@@ -36,12 +36,13 @@ for these instance varables.  You can set default values in the
 constructor . The constructor of PEROBS::ObjectBase derived objects
 must have at least one argument. The first argument is a PEROBS
 internal object that must be passed to super() as first thing in
-initialize(). You can have other arguments if needed. Be aware that the
-constructor is not used to restore objects from the database. New
-objects are created via Store.new() so you cannot call the constructor
-directly in your code. You can define a post_restore() method to deal
-with object initialization or modification after restore from
-database.
+initialize(). You can have other arguments if needed. Be aware that
+initialize() is not called when objects are restored from the
+database! You can define a restore() method to deal with object
+initialization or modification after restore from database. restore()
+is also the proper place to initialize non-persistent instance
+variables.  New objects are created via Store.new() so you cannot call
+the constructor directly in your code.
 
 To start off you must create at least one PEROBS::Store object that
 owns your persistent objects. The store provides the persistent

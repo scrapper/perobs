@@ -85,7 +85,7 @@ module PEROBS
     end
 
     # This method is deprecated. It will be removed in future versions. Please
-    # use ObjectBase.post_restore() to massage objects that are restored from
+    # use ObjectBase.restore() to massage objects that are restored from
     # the database.
     # @param attr [Symbol] Name of the attribute
     # @param val [Any] Value to be set
