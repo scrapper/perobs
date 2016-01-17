@@ -163,6 +163,12 @@ when it detects such objects. Just remember to use myself() instead of
 self() if you want to pass a reference to the current persistent
 object to another object.
 
+### Caveats and known issues
+
+PEROBS is currently not thread-safe. You cannot simultaneously access
+the database from multiple application. You must provide your own
+locking mechanism to prevent this from happening.
+
 ## Installation
 
 Add this line to your application's Gemfile:

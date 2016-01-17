@@ -69,7 +69,9 @@ module PEROBS
         # If this condition triggers, we have a bug in the library.
         raise RuntimeError, "POXReference objects should never be cached"
       end
+
       if @transaction_stack.empty?
+        # We are not in transaction mode.
         idx = index(obj)
         if (old_obj = @writes[idx]) && old_obj._id != obj._id
           # There is another old object using this cache slot. Before we can
@@ -123,10 +125,12 @@ module PEROBS
     # active, the write cached is flushed before the transaction is started.
     def begin_transaction
       if @transaction_stack.empty?
-        # This is the top-level transaction. Flush the write buffer to save
-        # the current state of all objects.
+        # The new transaction is the top-level transaction. Flush the write
+        # buffer to save the current state of all objects.
         flush
       else
+        # Save a copy of all objects that were modified during the enclosing
+        # transaction.
         @transaction_stack.last.each do |o|
           o._stash(@transaction_stack.length - 1)
         end

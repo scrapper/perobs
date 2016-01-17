@@ -200,22 +200,21 @@ module PEROBS
       # any previous stash level or in the regular object DB. If the object
       # was created during the transaction, there is not previous state to
       # restore to.
-      id = nil
+      data = nil
       if @_stash_map
         (level - 1).downto(0) do |lvl|
           if @_stash_map[lvl]
-            id = @_stash_map[lvl]
+            data = @_stash_map[lvl]
             break
           end
         end
       end
-      unless id
-        if @store.db.include?(@_id)
-          id = @_id
-        end
-      end
-      if id
-        db_obj = store.db.get_object(id)
+      if data
+        # We have a stashed version that we can restore from.
+        _deserialize(data)
+      elsif @store.db.include?(@_id)
+        # We have no stashed version but can restore from the database.
+        db_obj = store.db.get_object(@_id)
         _deserialize(db_obj['data'])
       end
     end
@@ -224,14 +223,9 @@ module PEROBS
     # back-end. The object gets a new ID that is stored in @_stash_map to map
     # the stash ID back to the original data.
     def _stash(level)
-      db_obj = {
-        'class' => self.class.to_s,
-        'data' => _serialize
-      }
-      @_stash_map = [] unless @_stash_map
+      @_stash_map ||= ::Array.new
       # Get a new ID to store this version of the object.
-      @_stash_map[level] = stash_id = @store._new_id
-      @store.db.put_object(db_obj, stash_id)
+      @_stash_map[level] = _serialize
     end
 
   end

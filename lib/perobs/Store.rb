@@ -233,7 +233,7 @@ module PEROBS
     # needed.
     def sync
       if @cache.in_transaction?
-        raise RuntimeError, 'You cannot call sync during a transaction'
+        raise RuntimeError, 'You cannot call sync() during a transaction'
       end
       @cache.flush
     end
@@ -244,6 +244,9 @@ module PEROBS
     # method periodically.
     # @return [Fixnum] The number of collected objects
     def gc
+      if @cache.in_transaction?
+        raise RuntimeError, 'You cannot call gc() during a transaction'
+      end
       sync
       mark
       sweep
