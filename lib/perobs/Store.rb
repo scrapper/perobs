@@ -288,7 +288,7 @@ module PEROBS
     # @param repair [TrueClass/FalseClass] true if a repair attempt should be
     #        made.
     # @return [Fixnum] The number of references to bad objects found.
-    def check(repair = true)
+    def check(repair = false)
       # All objects must have in-db version.
       sync
       # Run basic consistency checks first.
@@ -333,7 +333,10 @@ module PEROBS
       stack = [ 0 ] + @root_objects.values
       while !stack.empty?
         # Get an object index from the stack.
-        obj = object_by_id(id = stack.pop)
+        unless (obj = object_by_id(id = stack.pop))
+          raise RuntimeError, "Database is corrupted. Object with ID #{id} " +
+                              "not found."
+        end
         # Mark the object so it will never be pushed to the stack again.
         @db.mark(id)
         yield(obj.myself) if block_given?
@@ -441,11 +444,19 @@ module PEROBS
           obj._referenced_object_ids.each do |refd_id|
             # Push them onto the todo list unless they have been marked
             # already.
-            todo_list << [ obj, refd_id ] unless @db.is_marked?(refd_id)
+            todo_list << [ obj, refd_id ] unless @db.is_marked?(refd_id, true)
           end
         else
           # Remove references to bad objects.
-          ref_obj._delete_reference_to_id(id) if ref_obj && repair
+          if ref_obj && repair
+            $stderr.puts "Fixing broken reference to #{id} in\n" +
+                         ref_obj.inspect
+            ref_obj._delete_reference_to_id(id)
+          else
+            raise RuntimeError,
+              "The following object references a non-existing object #{id}:\n" +
+              ref_obj.inspect
+          end
           errors += 1
         end
       end

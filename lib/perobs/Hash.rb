@@ -84,6 +84,9 @@ module PEROBS
       super(p)
       @default = nil
       @data = {}
+
+      # Ensure that the newly created object will be pushed into the database.
+      @store.cache.cache_write(self)
     end
 
     # Return a list of all object IDs of all persistend objects that this Hash

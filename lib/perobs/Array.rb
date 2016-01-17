@@ -86,6 +86,9 @@ module PEROBS
     def initialize(p, size = 0, default = nil)
       super(p)
       @data = ::Array.new(size, default)
+
+      # Ensure that the newly created object will be pushed into the database.
+      @store.cache.cache_write(self)
     end
 
     # Return a list of all object IDs of all persistend objects that this Array

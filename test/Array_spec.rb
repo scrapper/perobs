@@ -60,6 +60,21 @@ describe PEROBS::Array do
     @store.delete_store
   end
 
+  it 'should store an empty Array persistently' do
+    @store['a'] = @store.new(PEROBS::Array)
+    @store.transaction do
+      @store['b'] = @store.new(PEROBS::Array)
+    end
+    @store.sync
+    @store = nil
+    GC.start
+
+    @store = PEROBS::Store.new(@db_name)
+    a = @store['a']
+    expect(a.length).to eq(0)
+    expect(@store['b'].length).to eq(0)
+  end
+
   it 'should store simple objects persistently' do
     @store['a'] = a = @store.new(PEROBS::Array)
     a[0] = 'A'

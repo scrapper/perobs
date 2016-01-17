@@ -85,28 +85,29 @@ module PEROBS
         cache_read(obj)
         # Push the reference of the modified object into the write buffer for
         # this transaction level.
-        unless @transaction_stack.last.include?(obj)
-          @transaction_stack.last << obj
+        unless @transaction_stack.last.include?(obj._id)
+          @transaction_stack.last << obj._id
+          @transaction_objects[obj._id] = obj
         end
       end
     end
 
     # Return the PEROBS::Object with the specified ID or nil if not found.
     # @param id [Fixnum or Bignum] ID of the cached PEROBS::ObjectBase
-    def object_by_id(id)
-      idx = id & @mask
-      # The index is just a hash. We still need to check if the object IDs are
-      # actually the same before we can return the object.
-      if (obj = @writes[idx]) && obj._id == id
-        # The object was in the write cache.
-        return obj
-      elsif (obj = @reads[idx]) && obj._id == id
-        # The object was in the read cache.
-        return obj
-      end
+    #def object_by_id(id)
+    #  idx = id & @mask
+    #  # The index is just a hash. We still need to check if the object IDs are
+    #  # actually the same before we can return the object.
+    #  if (obj = @writes[idx]) && obj._id == id
+    #    # The object was in the write cache.
+    #    return obj
+    #  elsif (obj = @reads[idx]) && obj._id == id
+    #    # The object was in the read cache.
+    #    return obj
+    #  end
 
-      nil
-    end
+    #  nil
+    #end
 
     # Flush all pending writes to the persistant storage back-end.
     def flush
@@ -131,8 +132,8 @@ module PEROBS
       else
         # Save a copy of all objects that were modified during the enclosing
         # transaction.
-        @transaction_stack.last.each do |o|
-          o._stash(@transaction_stack.length - 1)
+        @transaction_stack.last.each do |id|
+          @transaction_objects[id]._stash(@transaction_stack.length - 1)
         end
       end
       # Push a transaction buffer onto the transaction stack. This buffer will
@@ -150,7 +151,8 @@ module PEROBS
       when 1
         # All transactions completed successfully. Write all modified objects
         # into the backend storage.
-        @transaction_stack.pop.each { |o| o._sync }
+        @transaction_stack.pop.each { |id| @transaction_objects[id]._sync }
+        @transaction_objects = ::Hash.new
       else
         # A nested transaction completed successfully. We add the list of
         # modified objects to the list of the enclosing transaction.
@@ -169,7 +171,9 @@ module PEROBS
       if @transaction_stack.empty?
         raise RuntimeError, 'No ongoing transaction to abort'
       end
-      @transaction_stack.pop.each { |o| o._restore(@transaction_stack.length) }
+      @transaction_stack.pop.each do |id|
+        @transaction_objects[id]._restore(@transaction_stack.length)
+      end
     end
 
     # Clear all cached entries. You must call flush before calling this
@@ -180,7 +184,8 @@ module PEROBS
       # the read or write cache Arrays.
       @reads = ::Array.new(2 ** @bits)
       @writes = ::Array.new(2 ** @bits)
-      @transaction_stack = []
+      @transaction_stack = ::Array.new
+      @transaction_objects = ::Hash.new
     end
 
     # Don't include the cache buffers in output of other objects that

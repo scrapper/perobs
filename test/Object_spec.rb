@@ -110,15 +110,23 @@ describe PEROBS::Store do
     o2.a3 = o1
     o2.a4 = @store.new(PEROBS::Array)
     o2.a4 += [ 0, 1, 2 ]
+    @store.transaction do
+      @store['o3'] = o3 = @store.new(O1)
+      o3.a1 = @store.new(PEROBS::Array)
+    end
     @store.sync
+    @store = nil
+    GC.start
 
     @store = PEROBS::Store.new(@db_name)
     o1 = @store['o1']
     o2 = @store['o2']
+    o3 = @store['o3']
     expect(o1.a1).to eq('a1')
     expect(o2.a1).to be_nil
     expect(o2.a3).to eq(o1)
     expect(o2.a4).to eq([ 0, 1, 2 ])
+    expect(o3.a1).to eq([])
   end
 
   it 'should transparently access a referenced object' do

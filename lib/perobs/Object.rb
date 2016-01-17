@@ -82,6 +82,9 @@ module PEROBS
     # @param p [PEROBS::Handle] PEROBS handle
     def initialize(p)
       super(p)
+
+      # Ensure that the newly created object will be pushed into the database.
+      @store.cache.cache_write(self)
     end
 
     # This method is deprecated. It will be removed in future versions. Please
@@ -174,13 +177,13 @@ module PEROBS
     # Textual dump for debugging purposes
     # @return [String]
     def inspect
-      "{\n" +
+      "#{to_s}:#{@_id}\n{\n" +
       _all_attributes.map do |attr|
         ivar = ('@' + attr.to_s).to_sym
-        if (value = instance_variable_get(ivar)).respond_to?('is_poxreference?')
-          "  #{attr}=>#{value.class}:#{value._id}"
+        if (value = instance_variable_get(ivar)).respond_to?(:is_poxreference?)
+          "  #{attr} => <PEROBS::ObjectBase:#{value._id}>"
         else
-          "  #{attr}=>#{value}"
+          "  #{attr} => #{value.inspect}"
         end
       end.join(",\n") +
       "\n}\n"

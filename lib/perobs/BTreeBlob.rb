@@ -126,12 +126,15 @@ module PEROBS
 
     # Check if the entry for a given ID is marked.
     # @param id [Fixnum or Bignum] ID of the entry
+    # @param ignore_errors [Boolean] If set to true no errors will be raised
+    #        for non-existing objects.
     # @return [TrueClass or FalseClass] true if marked, false otherwise
-    def is_marked?(id)
+    def is_marked?(id, ignore_errors = false)
       @entries.each do |entry|
         return entry[MARKED] != 0 if entry[ID] == id
       end
 
+      return false if ignore_errors
       raise ArgumentError,
             "Cannot find an entry for ID #{'%016X' % id} to check"
     end

@@ -173,8 +173,10 @@ module PEROBS
 
     # Check if the object is marked.
     # @param id [Fixnum or Bignum] ID of the object to check
-    def is_marked?(id)
-      (blob = find_blob(id)) && blob.is_marked?(id)
+    # @param ignore_errors [Boolean] If set to true no errors will be raised
+    #        for non-existing objects.
+    def is_marked?(id, ignore_errors = false)
+      (blob = find_blob(id)) && blob.is_marked?(id, ignore_errors)
     end
 
     # Basic consistency check.
