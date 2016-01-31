@@ -25,12 +25,16 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+require 'zlib'
 
 module PEROBS
 
   # This class manages the usage of the data blobs in the corresponding
   # HashedBlobsDB object.
   class BTreeBlob
+
+    # Magic number used for index files.
+    PEROBS_MAGIC = 0xB78EEDB
 
     # For performance reasons we use an Array for the entries instead of a
     # Hash. These constants specify the Array index for the corresponding
@@ -42,6 +46,8 @@ module PEROBS
     START = 2
     # Mark/Unmarked flag
     MARKED = 3
+    # CRC Checksum of the data blobA
+    CRC = 4
 
     # Create a new BTreeBlob object.
     # @param dir [String] Fully qualified directory name
@@ -68,7 +74,8 @@ module PEROBS
         @btreedb.put_raw_object(raw, id)
       else
         bytes = raw.bytesize
-        start_address = reserve_bytes(id, bytes)
+        crc32 = Zlib.crc32(raw, 0)
+        start_address = reserve_bytes(id, bytes, crc32)
         if write_to_blobs_file(raw, start_address) != bytes
           raise RuntimeError, 'Object length does not match written bytes'
         end
@@ -80,22 +87,16 @@ module PEROBS
     # @param id [Fixnum or Bignum] ID
     # @return [String] sequence of bytes or nil if ID is unknown
     def read_object(id)
-      return nil unless (bytes_and_start = find(id))
-      read_from_blobs_file(*bytes_and_start)
+      return nil unless (index_entry = find(id))
+      read_from_blobs_file(index_entry)
     end
-
 
     # Find the data for the object with given id.
     # @param id [Fixnum or Bignum] Object ID
-    # @return [Array] Returns an Array with two Fixnum entries. The first is
-    #         the number of bytes and the second is the starting offset in the
-    #         blob storage file.
+    # @return [Array] Returns an Array that represents the index entry for the
+    #         given object.
     def find(id)
-      if (entry = @entries_by_id[id])
-        return [ entry[BYTES], entry[START] ]
-      end
-
-      nil
+      @entries_by_id[id]
     end
 
     # Clear the mark on all entries in the index.
@@ -214,15 +215,22 @@ module PEROBS
     end
 
     # Read _bytes_ bytes from the file starting at offset _address_.
-    # @param bytes [Fixnum] number of bytes to read
-    # @param address [Fixnum] offset in the file
-    def read_from_blobs_file(bytes, address)
+    # @param entry [Array] Index entry for the object
+    # @return [String] Raw bytes of the blob.
+    def read_from_blobs_file(entry)
       begin
-        File.read(@blobs_file_name, bytes, address)
+        raw = File.read(@blobs_file_name, entry[BYTES], entry[START])
       rescue => e
         raise IOError,
               "Cannot read blobs file #{@blobs_file_name}: #{e.message}"
       end
+      if Zlib.crc32(raw, 0) != entry[CRC]
+        raise RuntimeError,
+              "BTreeBlob for object #{entry[ID]} has been corrupted: " +
+              "Checksum mismatch"
+      end
+
+      raw
     end
 
     # Reserve the bytes needed for the specified number of bytes with the
@@ -230,7 +238,7 @@ module PEROBS
     # @param id [Fixnum or Bignum] ID of the entry
     # @param bytes [Fixnum] number of bytes for this entry
     # @return [Fixnum] the start address of the reserved blob
-    def reserve_bytes(id, bytes)
+    def reserve_bytes(id, bytes, crc32)
       # index of first blob after the last seen entry
       end_of_last_entry = 0
       # blob index of best fit segment
@@ -272,7 +280,7 @@ module PEROBS
       # Object reads can trigger creation of new objects. As the marking
       # process triggers reads as well, all newly created objects are always
       # marked to prevent them from being collected right after creation.
-      entry = [ id, bytes, best_fit_start || end_of_last_entry, 1 ]
+      entry = [ id, bytes, best_fit_start || end_of_last_entry, 1, crc32 ]
       @entries.insert(best_fit_index, entry)
       @entries_by_id[id] = entry
 
@@ -285,17 +293,57 @@ module PEROBS
       # a plan Array. @entries_by_id stores them hashed by their ID.
       @entries = []
       @entries_by_id = {}
+      entry_bytes = 29
+      entry_format = 'QQQCL'
+      restore_crc = false
       if File.exists?(@index_file_name)
         begin
           File.open(@index_file_name, 'rb') do |f|
-            # The index is a binary format. Each entry has exactly 25 bytes.
+            # Since version 2.3.0, all index files start with a header.
+            # Earlier versions did not yet have this header. The header is 24
+            # bytes long. The 2nd set of 8 bytes must be 0 to distinguish the
+            # header from regular entries. The first 8 bytes are a magic
+            # number and the 3rd 8 bytes mark the schema version. We are
+            # currently at version 1.
+            if f.size >= 24
+              header = f.read(24).unpack('QQQ')
+              if header[0] != PEROBS_MAGIC && header[1] != 0
+                # These are the settings for the pre 2.3.0 entry format.
+                entry_bytes = 25
+                entry_format = 'QQQC'
+                restore_crc = true
+                # Rewind to start as we have an older version index file that
+                # has no header.
+                f.seek(0)
+              end
+            end
+
+            # The index is a binary format. Each entry has exactly 29 bytes.
+            # Version 2.2.0 and earlier did not have the CRC field. To ensure
+            # backwards compatibility with older databases, we reconstruct the
+            # CRC for older index files and convert it to the new format on
+            # the next index write.
+            #
             # Bytes
             #  0 -  7 : 64 bits, little endian : ID
             #  8 - 15 : 64 bits, little endian : Entry length in bytes
             # 16 - 23 : 64 bits, little endian : Start address in data file
             # 24      : 8 bits : 0 if unmarked, 1 if marked
-            while (bytes = f.read(25))
-              @entries << (e = bytes.unpack('QQQC'))
+            # 25 - 29 : 32 bits, CRC32 checksum of the data blob
+            while (bytes = f.read(entry_bytes))
+              e = bytes.unpack(entry_format)
+              if restore_crc
+                # If the index file was written with version <= 2.2.0 we have
+                # to compute the CRC from the data blob.
+                begin
+                  raw = File.read(@blobs_file_name, e[BYTES], e[START])
+                rescue => e
+                  raise IOError,
+                    "Cannot read blobs file #{@blobs_file_name}: #{e.message}"
+                end
+                e[CRC] = Zlib.crc32(raw)
+              end
+              @entries << e
               @entries_by_id[e[ID]] = e
             end
           end
@@ -310,8 +358,9 @@ module PEROBS
       begin
         File.open(@index_file_name, 'wb') do |f|
           # See read_index for data format documentation.
+          f.write([ PEROBS_MAGIC, 0, 1].pack('QQQ'))
           @entries.each do |entry|
-            f.write(entry.pack('QQQC'))
+            f.write(entry.pack('QQQCL'))
           end
         end
       rescue => e
@@ -329,7 +378,7 @@ module PEROBS
       # already created the new BTree node, so these entries will be
       # distributed into new leaf blobs of this new node.
       @entries.each do |entry|
-        raw = read_from_blobs_file(entry[BYTES], entry[START])
+        raw = read_from_blobs_file(entry)
         @btreedb.put_raw_object(raw, entry[ID])
       end
 
