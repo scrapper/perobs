@@ -2,7 +2,7 @@
 #
 # = Hash.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -48,7 +48,7 @@ module PEROBS
       :==, :[], :assoc, :compare_by_identity, :compare_by_identity?, :default,
       :default_proc, :each, :each_key, :each_pair, :each_value, :empty?,
       :eql?, :fetch, :flatten, :has_key?, :has_value?, :hash, :include?,
-      :inspect, :invert, :key, :key?, :keys, :length, :member?, :merge,
+      :invert, :key, :key?, :keys, :length, :member?, :merge,
       :pretty_print, :pretty_print_cycle, :rassoc, :reject, :select, :size,
       :to_a, :to_h, :to_hash, :to_s, :value?, :values, :values_at
     ] + Enumerable.instance_methods).uniq.each do |method_sym|
@@ -104,6 +104,7 @@ module PEROBS
       @data.delete_if do |k, v|
         v && v.respond_to?(:is_poxreference?) && v.id == id
       end
+      @store.cache.cache_write(self)
     end
 
     # Restore the persistent data from a single data structure.
@@ -115,6 +116,17 @@ module PEROBS
       data.each { |k, v| @data[k] = v.is_a?(POReference) ?
                                     POXReference.new(@store, v.id) : v }
       @data
+    end
+
+    # Textual dump for debugging purposes
+    # @return [String]
+    def inspect
+      "<#{self.class}:#{@_id}>\n{\n" +
+      @data.map do |k, v|
+        "  #{k.inspect} => " + (v.respond_to?(:is_poxreference?) ?
+                "<PEROBS::ObjectBase:#{v._id}>" : v.inspect)
+      end.join(",\n") +
+      "\n}\n"
     end
 
     private

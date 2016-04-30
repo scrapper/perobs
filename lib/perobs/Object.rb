@@ -177,7 +177,7 @@ module PEROBS
     # Textual dump for debugging purposes
     # @return [String]
     def inspect
-      "#{to_s}:#{@_id}\n{\n" +
+      "<#{self.class}:#{@_id}>\n{\n" +
       _all_attributes.map do |attr|
         ivar = ('@' + attr.to_s).to_sym
         if (value = instance_variable_get(ivar)).respond_to?(:is_poxreference?)

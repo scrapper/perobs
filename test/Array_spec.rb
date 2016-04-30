@@ -1,6 +1,6 @@
 # encoding: UTF-8
 #
-# Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # This file contains tests for Array that are similar to the tests for the
 # Array implementation in MRI. The ideas of these tests were replicated in
@@ -222,6 +222,13 @@ describe PEROBS::Array do
     pcheck { expect(a).to eq([ 1, 2, 3, 4, 5 ]) }
     a.push(nil)
     pcheck { expect(a).to eq([ 1, 2, 3, 4, 5, nil ]) }
+  end
+
+  it 'should support inspect' do
+    a1 = cpa([ 1 ])
+    a2 = cpa([ 1, a1 ])
+    expect(a1.inspect).to eq("<PEROBS::Array:#{a1._id}>\n[\n  1\n]\n")
+    expect(a2.inspect).to eq("<PEROBS::Array:#{a2._id}>\n[\n  1,\n  <PEROBS::ObjectBase:#{a1._id}>\n]\n")
   end
 
   it 'should only provide POXReference objects' do

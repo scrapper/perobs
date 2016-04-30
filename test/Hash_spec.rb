@@ -1,6 +1,6 @@
 # encoding: UTF-8
 #
-# Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # This file contains tests for Hash that are similar to the tests for the
 # Hash implementation in MRI. The ideas of these tests were replicated in
@@ -156,6 +156,13 @@ describe PEROBS::Hash do
 
     expect(h2.update(h1)).to eq(hb)
     pcheck { expect(h2).to eq(hb) }
+  end
+
+  it 'should support inspect' do
+    h1 = cph({ 1 => 2 })
+    h2 = cph({ 1 => 2, 'h1' => h1 })
+    expect(h1.inspect).to eq("<PEROBS::Hash:#{h1._id}>\n{\n  1 => 2\n}\n")
+    expect(h2.inspect).to eq("<PEROBS::Hash:#{h2._id}>\n{\n  1 => 2,\n  \"h1\" => <PEROBS::ObjectBase:#{h1._id}>\n}\n")
   end
 
   it 'should catch a leaked PEROBS::ObjectBase object' do

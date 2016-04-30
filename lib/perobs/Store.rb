@@ -304,6 +304,9 @@ module PEROBS
       end
       @root_objects.delete_if { |name, id| !@db.check(id, false) }
 
+      # Ensure that any fixes are written into the DB.
+      sync
+
       errors
     end
 
@@ -449,8 +452,8 @@ module PEROBS
         else
           # Remove references to bad objects.
           if ref_obj && repair
-            $stderr.puts "Fixing broken reference to #{id} in\n" +
-                         ref_obj.inspect
+            $stderr.puts "Fixing broken reference to object #{id} in " +
+                         "object #{ref_obj._id}:\n" + ref_obj.inspect
             ref_obj._delete_reference_to_id(id)
           else
             raise RuntimeError,

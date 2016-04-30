@@ -129,6 +129,14 @@ describe PEROBS::Store do
     expect(o3.a1).to eq([])
   end
 
+  it 'should support inspect' do
+    o1 = @store.new(O1)
+    o2 = @store.new(O2)
+    o2.a1 = o1
+    expect(o1.inspect).to eq("<O1:#{o1._id}>\n{\n  a1 => nil\n}\n")
+    expect(o2.inspect).to eq("<O2:#{o2._id}>\n{\n  a1 => <PEROBS::ObjectBase:#{o1._id}>,\n  a2 => nil,\n  a3 => nil,\n  a4 => 42\n}\n")
+  end
+
   it 'should transparently access a referenced object' do
     @store['o1'] = o1 = @store.new(O1)
     @store['o2'] = o2 = @store.new(O2)
