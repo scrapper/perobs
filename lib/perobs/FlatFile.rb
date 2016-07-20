@@ -44,7 +44,9 @@ module PEROBS
   # empty. Only of bit 0 is set then entry is valid.
   class FlatFile
 
+    # The 'pack()' format of the header.
     BLOB_HEADER_FORMAT = 'CQQL'
+    # The length of the header in bytes.
     BLOB_HEADER_LENGTH = 21
 
     # Create a new FlatFile object for a database in the given path.
@@ -82,7 +84,8 @@ module PEROBS
     def delete_obj_by_id(id)
       each_blob_header do |pos, mark, length, blob_id, crc|
         if (mark & 1 == 1) && blob_id == id
-          return delete_obj_by_address(pos, id)
+          delete_obj_by_address(pos, id)
+          return true
         end
       end
 
@@ -105,24 +108,36 @@ module PEROBS
     # @param id [Integer] ID of the object
     # @param raw_obj [String] Raw object as String
     def write_obj_by_id(id, raw_obj)
-      addr = find_free_blob(raw_obj.length)
-      write_obj_by_address(addr, id, raw_obj)
-    end
-
-    # Write the given object into the file at the specified address.
-    # @param addr [Integer] Offset in the flat file
-    # @param id [Integer] ID of the object
-    # @param raw_obj [String] Object as String
-    def write_obj_by_address(addr, id, raw_obj)
+      addr, length = find_free_blob(raw_obj.length)
       begin
         @f.seek(addr)
         @f.write([ 1, raw_obj.length, id, checksum(raw_obj)].
                  pack(BLOB_HEADER_FORMAT))
         @f.write(raw_obj)
+        if length > 0 && raw_obj.length != length
+          # The new object was not appended and it did not completely fill the
+          # free space. So we have to write a new header to mark the remaining
+          # empty space.
+          @f.write([ 0, length - BLOB_HEADER_LENGTH - raw_obj.length, 0, 0 ].
+                   pack(BLOB_HEADER_FORMAT))
+        end
       rescue => e
         raise IOError, "Cannot write blob for ID #{id} to FlatFileDB: " +
           e.message
       end
+    end
+
+    # Find the address of the object with the given ID.
+    # @param id [Integer] ID of the object
+    # @return [Integer] Offset in the flat file or nil if not found
+    def find_obj_addr_by_id(id)
+      each_blob_header do |pos, mark, length, blob_id, crc|
+        if (mark & 1 == 1) && (blob_id == id)
+          return pos
+        end
+      end
+
+      nil
     end
 
     # Read the object with the given ID.
@@ -158,15 +173,54 @@ module PEROBS
       end
     end
 
+    # Eliminate all the wholes in the file. This is an in-place
+    # implementation. No additional space will be needed on the file system.
+    def defragmentize
+      distance = 0
+      # Iterate over all entries.
+      each_blob_header do |pos, mark, length, blob_id, crc|
+        # Total size of the current entry
+        entry_bytes = BLOB_HEADER_LENGTH + length
+        if (mark & 1 == 1)
+          # We have found a valid entry.
+          if distance > 0
+            begin
+              # Read current entry into a buffer
+              @f.seek(pos)
+              buf = @f.read(entry_bytes)
+              # Write the buffer right after the end of the previous entry.
+              @f.seek(pos - distance)
+              @f.write(buf)
+              # Mark the space between the relocated current entry and the
+              # next valid entry as deleted space.
+              @f.write([ 0, distance - BLOB_HEADER_LENGTH, 0, 0 ].
+                       pack(BLOB_HEADER_FORMAT))
+              @f.sync
+            end
+          end
+        else
+          distance += entry_bytes
+        end
+      end
+
+      @f.truncate(@f.size - distance)
+      @f.sync
+    end
 
     private
 
     def find_free_blob(bytes)
       each_blob_header do |pos, mark, length, id, crc|
-        return pos if (mark & 1) == 0 && length <= bytes
+        # The unused space must either be exactly 'bytes' long or it must be
+        # smaller than 'bytes' plus the new header that marks the smaller
+        # empty space.
+        if (mark & 1) == 0 &&
+           (length == bytes || (bytes + BLOB_HEADER_LENGTH <= length))
+          return [ pos, length ]
+        end
       end
 
-      @f.size
+      [ @f.size, -1 ]
     end
 
     def checksum(raw_obj)
