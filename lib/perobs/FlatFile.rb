@@ -35,7 +35,8 @@ module PEROBS
   #
   # 1 Byte:  Mark byte.
   #          Bit 0: 0 deleted entry, 1 valid entry
-  #          Bit 1 - 7: reserved
+  #          Bit 1: 0 unmarked, 1 marked
+  #          Bit 2 - 7: reserved
   # 8 bytes: Length of the data blob in bytes
   # 8 bytes: ID of the value in the data blob
   # 4 bytes: CRC32 checksum of the data blob
@@ -60,7 +61,7 @@ module PEROBS
     def open
       file_name = File.join(@db_dir, 'database.blobs')
       begin
-        @f = File.open(file_name, 'wb+')
+        @f = File.open(file_name, 'w+')
       rescue => e
         raise IOError, "Cannot open flat file database #{file_name}: " +
           e.message
@@ -104,6 +105,19 @@ module PEROBS
       end
     end
 
+    # Delete all unmarked objects.
+    def delete_unmarked_objects
+      deleted_ids = []
+      each_blob_header do |pos, mark, length, blob_id, crc|
+        if (mark & 3 == 1)
+          delete_obj_by_address(pos, blob_id)
+          deleted_ids << blob_id
+        end
+      end
+
+      deleted_ids
+    end
+
     # Write the given object into the file.
     # @param id [Integer] ID of the object
     # @param raw_obj [String] Raw object as String
@@ -120,6 +134,7 @@ module PEROBS
           # empty space.
           @f.write([ 0, length - BLOB_HEADER_LENGTH - raw_obj.length, 0, 0 ].
                    pack(BLOB_HEADER_FORMAT))
+          @f.sync
         end
       rescue => e
         raise IOError, "Cannot write blob for ID #{id} to FlatFileDB: " +
@@ -173,6 +188,57 @@ module PEROBS
       end
     end
 
+    # Mark the object with the given ID.
+    # @param id [Integer] ID of the object
+    def mark_obj_by_id(id)
+      each_blob_header do |pos, mark, length, blob_id, crc|
+        if (mark & 1 == 1) && (blob_id == id)
+          mark_obj_by_address(pos, mark, id)
+        end
+      end
+    end
+
+    # Mark the object at the specified address.
+    # @param addr [Integer] Offset in the file
+    # @param mark [Fixnum] Current value of the mark byte
+    # @param id [Integer] ID of the object
+    def mark_obj_by_address(addr, mark, id)
+      begin
+        @f.seek(addr)
+        @f.write([ mark | 2 ].pack('C'))
+      rescue => e
+        raise IOError, "Marking of FlatFile blob with ID #{id} " +
+          "failed: #{e.message}"
+      end
+    end
+
+    # Return true if the object with the given ID is marked, false otherwise.
+    # @param id [Integer] ID of the object
+    def is_marked_by_id?(id)
+      each_blob_header do |pos, mark, length, blob_id, crc|
+        if (mark & 1 == 1) && (blob_id == id)
+          return (mark & 2) == 2
+        end
+      end
+
+      false
+    end
+
+    # Clear alls marks.
+    def clear_all_marks
+      each_blob_header do |pos, mark, length, blob_id, crc|
+        if (mark & 1 == 1)
+          begin
+            @f.seek(pos)
+            @f.write([ mark & 0b11111101 ].pack('C'))
+          rescue => e
+            raise IOError, "Unmarking of FlatFile blob with ID #{blob_id} " +
+                           "failed: #{e.message}"
+          end
+        end
+      end
+    end
+
     # Eliminate all the wholes in the file. This is an in-place
     # implementation. No additional space will be needed on the file system.
     def defragmentize
@@ -196,6 +262,9 @@ module PEROBS
               @f.write([ 0, distance - BLOB_HEADER_LENGTH, 0, 0 ].
                        pack(BLOB_HEADER_FORMAT))
               @f.sync
+            rescue => e
+              raise IOError, "Error while moving blob for ID #{blob_id}: " +
+                e.message
             end
           end
         else
@@ -206,6 +275,29 @@ module PEROBS
       @f.truncate(@f.size - distance)
       @f.sync
     end
+
+    def check(repair)
+      each_blob_header do |pos, mark, length, blob_id, crc|
+        if (mark & 1 == 1)
+          begin
+            @f.seek(pos + BLOB_HEADER_LENGTH)
+            buf = @f.read(length)
+            if crc && checksum(buf) != crc
+              if repair
+                delete_obj_by_address(pos, blob_id)
+              else
+                raise RuntimeError,
+                  "Checksum failure while checking blob with ID #{id}"
+              end
+            end
+          rescue => e
+            raise IOError, "Check of blob with ID #{blob_id} failed: " +
+              e.message
+          end
+        end
+      end
+    end
+
 
     private
 

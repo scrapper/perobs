@@ -127,6 +127,37 @@ describe PEROBS::FlatFile do
     expect(@ff.find_obj_addr_by_id(5)).to eql(90)
   end
 
+  it 'should mark an object' do
+    expect(@ff.is_marked_by_id?(0)).to be false
+    @ff.mark_obj_by_id(0)
+    expect(@ff.is_marked_by_id?(0)).to be true
+    expect(@ff.is_marked_by_id?(5)).to be false
+    @ff.mark_obj_by_id(5)
+    expect(@ff.is_marked_by_id?(5)).to be true
+  end
+
+  it 'should clear all marks' do
+    @ff.clear_all_marks
+    expect(@ff.is_marked_by_id?(0)).to be false
+    expect(@ff.is_marked_by_id?(5)).to be false
+    expect(@ff.read_obj_by_id(0)).to eql('Object 0')
+    expect(@ff.read_obj_by_id(2)).to eql('Object Zwei')
+    expect(@ff.read_obj_by_id(1)).to eql('Object 1')
+    expect(@ff.read_obj_by_id(4)).to eql('Object 4')
+    expect(@ff.read_obj_by_id(5)).to eql('Object 5')
+  end
+
+  it 'should delete all unmarked objects' do
+    @ff.mark_obj_by_id(2)
+    @ff.mark_obj_by_id(4)
+    @ff.delete_unmarked_objects
+    expect(@ff.read_obj_by_id(0)).to be_nil
+    expect(@ff.read_obj_by_id(2)).to eql('Object Zwei')
+    expect(@ff.read_obj_by_id(1)).to be_nil
+    expect(@ff.read_obj_by_id(4)).to eql('Object 4')
+    expect(@ff.read_obj_by_id(5)).to be_nil
+  end
+
   it 'should close the DB' do
     @ff.close
   end
