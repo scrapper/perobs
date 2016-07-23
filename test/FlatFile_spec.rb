@@ -60,6 +60,18 @@ describe PEROBS::FlatFile do
     expect(@ff.read_obj_by_id(0)).to eql('Object 0')
   end
 
+  it 'should close the DB' do
+    @ff.close
+  end
+
+  it 'should re-open the DB' do
+    @ff.open
+  end
+
+  it 'should read the first blob again after reopen' do
+    expect(@ff.read_obj_by_id(0)).to eql('Object 0')
+  end
+
   it 'should store the 2nd blob' do
     @ff.write_obj_by_id(1, 'Object One')
     expect(@ff.find_obj_addr_by_id(1)).to eql(29)
@@ -90,7 +102,7 @@ describe PEROBS::FlatFile do
     expect(@ff.read_obj_by_id(1)).to be_nil
   end
 
-  it 'should store a blob in the whole between 0 and 2' do
+  it 'should store a blob in the hole between 0 and 2' do
     @ff.write_obj_by_id(1, 'Object One')
     expect(@ff.read_obj_by_id(0)).to eql('Object 0')
     expect(@ff.read_obj_by_id(1)).to eql('Object One')
@@ -98,14 +110,14 @@ describe PEROBS::FlatFile do
     expect(@ff.find_obj_addr_by_id(1)).to eql(29)
   end
 
-  it 'should not store a blob that is slightly smaller in the whole' do
+  it 'should not store a blob that is slightly smaller in the hole' do
     expect(@ff.delete_obj_by_id(1)).to be true
     @ff.write_obj_by_id(1, 'Object 1')
     expect(@ff.read_obj_by_id(1)).to eql('Object 1')
     expect(@ff.find_obj_addr_by_id(1)).to eql(92)
   end
 
-  it 'should store a small blob in a big existing whole' do
+  it 'should store a small blob in a big existing hole' do
     @ff.write_obj_by_id(3, 'Object 3333333333333333333333')
     expect(@ff.find_obj_addr_by_id(3)).to eql(121)
     @ff.write_obj_by_id(4, 'Object 4')

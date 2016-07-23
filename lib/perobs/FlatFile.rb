@@ -61,7 +61,11 @@ module PEROBS
     def open
       file_name = File.join(@db_dir, 'database.blobs')
       begin
-        @f = File.open(file_name, 'w+')
+        if File.exists?(file_name)
+          @f = File.open(file_name, 'rb+')
+        else
+          @f = File.open(file_name, 'wb+')
+        end
       rescue => e
         raise IOError, "Cannot open flat file database #{file_name}: " +
           e.message
@@ -76,7 +80,7 @@ module PEROBS
 
     # Force outstanding data to be written to the filesystem.
     def sync
-      @f.sync
+      @f.flush
     end
 
     # Delete the blob for the specified ID.
@@ -100,6 +104,7 @@ module PEROBS
       begin
         @f.seek(addr)
         @f.write([ 0 ].pack('C'))
+        @f.flush
       rescue => e
         raise IOError, "Cannot erase blob for ID #{id}: #{e.message}"
       end
@@ -134,8 +139,8 @@ module PEROBS
           # empty space.
           @f.write([ 0, length - BLOB_HEADER_LENGTH - raw_obj.length, 0, 0 ].
                    pack(BLOB_HEADER_FORMAT))
-          @f.sync
         end
+        @f.flush
       rescue => e
         raise IOError, "Cannot write blob for ID #{id} to FlatFileDB: " +
           e.message
@@ -206,6 +211,7 @@ module PEROBS
       begin
         @f.seek(addr)
         @f.write([ mark | 2 ].pack('C'))
+        @f.flush
       rescue => e
         raise IOError, "Marking of FlatFile blob with ID #{id} " +
           "failed: #{e.message}"
@@ -231,6 +237,7 @@ module PEROBS
           begin
             @f.seek(pos)
             @f.write([ mark & 0b11111101 ].pack('C'))
+            @f.flush
           rescue => e
             raise IOError, "Unmarking of FlatFile blob with ID #{blob_id} " +
                            "failed: #{e.message}"
@@ -239,7 +246,7 @@ module PEROBS
       end
     end
 
-    # Eliminate all the wholes in the file. This is an in-place
+    # Eliminate all the holes in the file. This is an in-place
     # implementation. No additional space will be needed on the file system.
     def defragmentize
       distance = 0
@@ -261,7 +268,7 @@ module PEROBS
               # next valid entry as deleted space.
               @f.write([ 0, distance - BLOB_HEADER_LENGTH, 0, 0 ].
                        pack(BLOB_HEADER_FORMAT))
-              @f.sync
+              @f.flush
             rescue => e
               raise IOError, "Error while moving blob for ID #{blob_id}: " +
                 e.message
@@ -272,8 +279,9 @@ module PEROBS
         end
       end
 
+      @f.flush
       @f.truncate(@f.size - distance)
-      @f.sync
+      @f.flush
     end
 
     def check(repair)
