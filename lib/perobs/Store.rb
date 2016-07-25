@@ -127,6 +127,7 @@ module PEROBS
     def initialize(data_base, options = {})
       # Create a backing store handler
       @db = (options[:engine] || BTreeDB).new(data_base, options)
+      @db.open
       # Create a map that can translate classes to numerical IDs and vice
       # versa.
       @class_map = ClassMap.new(@db)
@@ -150,6 +151,20 @@ module PEROBS
         @cache.cache_write(@root_objects)
       end
     end
+
+    # Close the store and ensure that all in-memory objects are written out to
+    # the storage backend. The Store object is no longer usable after this
+    # method was called.
+    def exit
+      if @cache.in_transaction?
+        raise RuntimeError, 'You cannot call exit() during a transaction'
+      end
+      @cache.flush
+      @db.close
+      @db = @class_map = @in_memory_objects = @stats = @cache = @root_objects =
+        nil
+    end
+
 
     # You need to call this method to create new PEROBS objects that belong to
     # this Store.

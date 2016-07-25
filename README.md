@@ -127,7 +127,7 @@ jim.father = joe
 joe.kids << jim
 jim.mother = jane
 jane.kids << jim
-store.sync
+store.exit
 ```
 
 When you run this script, a folder named 'family' will be created. It

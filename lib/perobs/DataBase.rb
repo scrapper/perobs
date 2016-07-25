@@ -39,9 +39,21 @@ module PEROBS
   # Base class for all storage back-ends.
   class DataBase
 
+    # Create a new DataBase object. This method must be overwritten by the
+    # deriving classes and then called via their constructor.
     def initialize(serializer = :json)
       @serializer = serializer
       @config = {}
+    end
+
+    # A dummy open method. Deriving classes must overload them to insert their
+    # open/close semantics.
+    def open
+    end
+
+    # A dummy close method. Deriving classes must overload them to insert their
+    # open/close semantics.
+    def close
     end
 
     # Serialize the given object using the object serializer.

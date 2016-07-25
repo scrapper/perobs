@@ -26,7 +26,7 @@
 require 'spec_helper'
 require 'perobs'
 
-class O1 < PEROBS::Object
+class O1_Object < PEROBS::Object
 
   po_attr :a1
 
@@ -36,7 +36,7 @@ class O1 < PEROBS::Object
 
 end
 
-class O2 < PEROBS::Object
+class O2_Object < PEROBS::Object
 
   po_attr :a1, :a2, :a3, :a4
 
@@ -80,8 +80,8 @@ describe PEROBS::Store do
   end
 
   it 'should initialize attributes with default values' do
-    @store['o1'] = o1 = @store.new(O1)
-    @store['o2'] = o2 = @store.new(O2)
+    @store['o1'] = o1 = @store.new(O1_Object)
+    @store['o2'] = o2 = @store.new(O2_Object)
     expect(o2.a1).to eq('a1')
     expect(o2.a2).to be_nil
     expect(o2.a3).to be_nil
@@ -89,8 +89,8 @@ describe PEROBS::Store do
   end
 
   it 'should assign values to attributes' do
-    @store['o1'] = o1 = @store.new(O1)
-    @store['o2'] = o2 = @store.new(O2)
+    @store['o1'] = o1 = @store.new(O1_Object)
+    @store['o2'] = o2 = @store.new(O2_Object)
     o1.a1 = 'a1'
     o2.a1 = nil
     o2.a3 = o1
@@ -103,15 +103,15 @@ describe PEROBS::Store do
   end
 
   it 'should persist assigned values' do
-    @store['o1'] = o1 = @store.new(O1)
-    @store['o2'] = o2 = @store.new(O2)
+    @store['o1'] = o1 = @store.new(O1_Object)
+    @store['o2'] = o2 = @store.new(O2_Object)
     o1.a1 = 'a1'
     o2.a1 = nil
     o2.a3 = o1
     o2.a4 = @store.new(PEROBS::Array)
     o2.a4 += [ 0, 1, 2 ]
     @store.transaction do
-      @store['o3'] = o3 = @store.new(O1)
+      @store['o3'] = o3 = @store.new(O1_Object)
       o3.a1 = @store.new(PEROBS::Array)
     end
     @store.sync
@@ -130,31 +130,31 @@ describe PEROBS::Store do
   end
 
   it 'should support inspect' do
-    o1 = @store.new(O1)
-    o2 = @store.new(O2)
+    o1 = @store.new(O1_Object)
+    o2 = @store.new(O2_Object)
     o2.a1 = o1
-    expect(o1.inspect).to eq("<O1:#{o1._id}>\n{\n  a1 => nil\n}\n")
-    expect(o2.inspect).to eq("<O2:#{o2._id}>\n{\n  a1 => <PEROBS::ObjectBase:#{o1._id}>,\n  a2 => nil,\n  a3 => nil,\n  a4 => 42\n}\n")
+    expect(o1.inspect).to eq("<O1_Object:#{o1._id}>\n{\n  a1 => nil\n}\n")
+    expect(o2.inspect).to eq("<O2_Object:#{o2._id}>\n{\n  a1 => <PEROBS::ObjectBase:#{o1._id}>,\n  a2 => nil,\n  a3 => nil,\n  a4 => 42\n}\n")
   end
 
   it 'should transparently access a referenced object' do
-    @store['o1'] = o1 = @store.new(O1)
-    @store['o2'] = o2 = @store.new(O2)
+    @store['o1'] = o1 = @store.new(O1_Object)
+    @store['o2'] = o2 = @store.new(O2_Object)
     o1.a1 = 'a1'
     o2.a3 = o1
     expect(o2.a3_deref).to eq('a1')
   end
 
   it 'should always return a POXReference for a PEROBS object' do
-    @store['o1'] = o1 = @store.new(O1)
-    o1.a1 = @store.new(O2)
+    @store['o1'] = o1 = @store.new(O1_Object)
+    o1.a1 = @store.new(O2_Object)
     expect(@store['o1'].respond_to?(:is_poxreference?)).to be true
     expect(o1.a1.respond_to?(:is_poxreference?)).to be true
   end
 
   it 'should catch a leaked PEROBS::ObjectBase object' do
-    @store['a'] = a = @store.new(O1)
-    o = @store.new(O2)
+    @store['a'] = a = @store.new(O1_Object)
+    o = @store.new(O2_Object)
     expect { a.a1 = o.get_self }.to raise_error(ArgumentError)
   end
 

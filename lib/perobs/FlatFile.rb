@@ -75,6 +75,7 @@ module PEROBS
     # Close the flat file. This method must be called to ensure that all data
     # is really written into the filesystem.
     def close
+      @f.flush
       @f.close
     end
 

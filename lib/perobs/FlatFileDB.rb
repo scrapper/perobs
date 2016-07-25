@@ -55,8 +55,18 @@ module PEROBS
       check_option('serializer')
 
       put_hash('config', @config)
+    end
+
+    # Open the FlatFileDB for transactions.
+    def open
       @flat_file = FlatFile.new(@db_dir)
       @flat_file.open
+    end
+
+    # Close the FlatFileDB.
+    def close
+      @flat_file.close
+      @flat_file = nil
     end
 
     # Delete the entire database. The database is no longer usable after this
