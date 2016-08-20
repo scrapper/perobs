@@ -45,6 +45,10 @@ module PEROBS
   # empty. Only of bit 0 is set then entry is valid.
   class FlatFile
 
+    # Utility class to hold all the data that is stored in a blob header.
+    class Header < Struct.new(:mark, :length, :id, :crc)
+    end
+
     # The 'pack()' format of the header.
     BLOB_HEADER_FORMAT = 'CQQL'
     # The length of the header in bytes.
@@ -88,11 +92,9 @@ module PEROBS
     # @param id [Integer] ID of the object to be deleted
     # @return [Boolean] True if object was deleted, false otherwise
     def delete_obj_by_id(id)
-      each_blob_header do |pos, mark, length, blob_id, crc|
-        if (mark & 1 == 1) && blob_id == id
-          delete_obj_by_address(pos, id)
-          return true
-        end
+      if (pos = find_obj_addr_by_id(id))
+        delete_obj_by_address(pos, id)
+        return true
       end
 
       return false
@@ -102,12 +104,13 @@ module PEROBS
     # @param addr [Integer] Address of the blob to delete
     # @param id [Integer] ID of the blob to delete
     def delete_obj_by_address(addr, id)
+      header = read_blob_header(addr, id)
       begin
         @f.seek(addr)
         @f.write([ 0 ].pack('C'))
         @f.flush
       rescue => e
-        raise IOError, "Cannot erase blob for ID #{id}: #{e.message}"
+        raise IOError, "Cannot erase blob for ID #{header.id}: #{e.message}"
       end
     end
 
@@ -124,9 +127,11 @@ module PEROBS
       deleted_ids
     end
 
-    # Write the given object into the file.
+    # Write the given object into the file. This method assumes that no other
+    # entry with the given ID exists already in the file.
     # @param id [Integer] ID of the object
     # @param raw_obj [String] Raw object as String
+    # @return [Integer] position of the written blob in the blob file
     def write_obj_by_id(id, raw_obj)
       addr, length = find_free_blob(raw_obj.length)
       begin
@@ -146,6 +151,8 @@ module PEROBS
         raise IOError, "Cannot write blob for ID #{id} to FlatFileDB: " +
           e.message
       end
+
+      addr
     end
 
     # Find the address of the object with the given ID.
@@ -165,10 +172,8 @@ module PEROBS
     # @param id [Integer] ID of the object
     # @return [String or nil] Raw object data if found, otherwise nil
     def read_obj_by_id(id)
-      each_blob_header do |pos, mark, length, blob_id, crc|
-        if (mark & 1 == 1) && (blob_id == id)
-          return read_obj_by_address(pos, length, blob_id, crc)
-        end
+      if (addr = find_obj_addr_by_id(id))
+        return read_obj_by_address(addr, id)
       end
 
       nil
@@ -176,15 +181,14 @@ module PEROBS
 
     # Read the object at the specified address.
     # @param addr [Integer] Offset in the flat file
-    # @param length [Integer] Length of the data blob in bytes
     # @param id [Integer] ID of the data blob
-    # @param crc [Fixnum] CRC32 checksum of the data blob
     # @return [String] Raw object data
-    def read_obj_by_address(addr, length, id, crc = nil)
+    def read_obj_by_address(addr, id)
+      header = read_blob_header(addr, id)
       begin
         @f.seek(addr + BLOB_HEADER_LENGTH)
-        buf = @f.read(length)
-        if crc && checksum(buf) != crc
+        buf = @f.read(header.length)
+        if checksum(buf) != header.crc
           raise RuntimeError,
             "Checksum failure while reading blob ID #{id}"
         end
@@ -197,21 +201,19 @@ module PEROBS
     # Mark the object with the given ID.
     # @param id [Integer] ID of the object
     def mark_obj_by_id(id)
-      each_blob_header do |pos, mark, length, blob_id, crc|
-        if (mark & 1 == 1) && (blob_id == id)
-          mark_obj_by_address(pos, mark, id)
-        end
+      if (addr = find_obj_addr_by_id(id))
+        mark_obj_by_address(addr, id)
       end
     end
 
     # Mark the object at the specified address.
     # @param addr [Integer] Offset in the file
-    # @param mark [Fixnum] Current value of the mark byte
     # @param id [Integer] ID of the object
-    def mark_obj_by_address(addr, mark, id)
+    def mark_obj_by_address(addr, id)
+      header = read_blob_header(addr, id)
       begin
         @f.seek(addr)
-        @f.write([ mark | 2 ].pack('C'))
+        @f.write([ header.mark | 2 ].pack('C'))
         @f.flush
       rescue => e
         raise IOError, "Marking of FlatFile blob with ID #{id} " +
@@ -222,10 +224,9 @@ module PEROBS
     # Return true if the object with the given ID is marked, false otherwise.
     # @param id [Integer] ID of the object
     def is_marked_by_id?(id)
-      each_blob_header do |pos, mark, length, blob_id, crc|
-        if (mark & 1 == 1) && (blob_id == id)
-          return (mark & 2) == 2
-        end
+      if (addr = find_obj_addr_by_id(id))
+        header = read_blob_header(addr, id)
+        return (header.mark & 2) == 2
       end
 
       false
@@ -309,6 +310,23 @@ module PEROBS
 
 
     private
+
+    def read_blob_header(addr, id)
+      buf = nil
+      begin
+        @f.seek(addr)
+        buf = @f.read(BLOB_HEADER_LENGTH)
+      rescue => e
+        raise IOError, "Cannot read blob in flat file DB: #{e.message}"
+      end
+      header = Header.new(*buf.unpack(BLOB_HEADER_FORMAT))
+      if header.id != id
+        raise RuntimeError, "Mismatch between FlatFile index and blob file " +
+                            "found for entry with ID #{id}/#{header.id}"
+      end
+
+      return header
+    end
 
     def find_free_blob(bytes)
       each_blob_header do |pos, mark, length, id, crc|
