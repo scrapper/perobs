@@ -27,6 +27,9 @@
 
 require 'zlib'
 
+require 'perobs/IndexTree'
+require 'perobs/FreeSpaceManager'
+
 module PEROBS
 
   # The FlatFile class manages the storage file of the FlatFileDB. It contains
@@ -59,6 +62,8 @@ module PEROBS
     def initialize(dir)
       @db_dir = dir
       @f = nil
+      @index = IndexTree.new(dir)
+      @space_list = FreeSpaceManager.new(dir)
     end
 
     # Open the flat file for reading and writing.
@@ -74,11 +79,15 @@ module PEROBS
         raise IOError, "Cannot open flat file database #{file_name}: " +
           e.message
       end
+      @index.open
+      @space_list.open
     end
 
     # Close the flat file. This method must be called to ensure that all data
     # is really written into the filesystem.
     def close
+      @space_list.close
+      @index.close
       @f.flush
       @f.close
     end
@@ -104,11 +113,13 @@ module PEROBS
     # @param addr [Integer] Address of the blob to delete
     # @param id [Integer] ID of the blob to delete
     def delete_obj_by_address(addr, id)
+      @index.delete_value(id)
       header = read_blob_header(addr, id)
       begin
         @f.seek(addr)
         @f.write([ 0 ].pack('C'))
         @f.flush
+        @space_list.add_space(addr, header.length)
       rescue => e
         raise IOError, "Cannot erase blob for ID #{header.id}: #{e.message}"
       end
@@ -147,6 +158,7 @@ module PEROBS
                    pack(BLOB_HEADER_FORMAT))
         end
         @f.flush
+        @index.put_value(id, addr)
       rescue => e
         raise IOError, "Cannot write blob for ID #{id} to FlatFileDB: " +
           e.message
@@ -159,13 +171,14 @@ module PEROBS
     # @param id [Integer] ID of the object
     # @return [Integer] Offset in the flat file or nil if not found
     def find_obj_addr_by_id(id)
-      each_blob_header do |pos, mark, length, blob_id, crc|
-        if (mark & 1 == 1) && (blob_id == id)
-          return pos
-        end
-      end
+      @index.get_value(id)
+      #each_blob_header do |pos, mark, length, blob_id, crc|
+      #  if (mark & 1 == 1) && (blob_id == id)
+      #    return pos
+      #  end
+      #end
 
-      nil
+      #nil
     end
 
     # Read the object with the given ID.
@@ -266,6 +279,8 @@ module PEROBS
               # Write the buffer right after the end of the previous entry.
               @f.seek(pos - distance)
               @f.write(buf)
+              # Update the index with the new position
+              @index.put_value(blob_id, pos - distance)
               # Mark the space between the relocated current entry and the
               # next valid entry as deleted space.
               @f.write([ 0, distance - BLOB_HEADER_LENGTH, 0, 0 ].
@@ -284,6 +299,7 @@ module PEROBS
       @f.flush
       @f.truncate(@f.size - distance)
       @f.flush
+      @space_list.clear
     end
 
     def check(repair)
@@ -329,17 +345,7 @@ module PEROBS
     end
 
     def find_free_blob(bytes)
-      each_blob_header do |pos, mark, length, id, crc|
-        # The unused space must either be exactly 'bytes' long or it must be
-        # smaller than 'bytes' plus the new header that marks the smaller
-        # empty space.
-        if (mark & 1) == 0 &&
-           (length == bytes || (bytes + BLOB_HEADER_LENGTH <= length))
-          return [ pos, length ]
-        end
-      end
-
-      [ @f.size, -1 ]
+      @space_list.get_space(bytes) || [ @f.size, -1 ]
     end
 
     def checksum(raw_obj)

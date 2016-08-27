@@ -81,7 +81,7 @@ module PEROBS
           # store the existing value and the new value in it.
           # First get the exiting value of the entry and the corresponding ID.
           # Create a new node.
-          node = IndexTreeNode.new(@tree, @nibble + 1)
+          node = @tree.get_node(@nibble + 1)
           # The entry of the current node is now a reference to the new node.
           set_entry_type(index, 2)
           @entries[index] = node.address
@@ -92,7 +92,7 @@ module PEROBS
         write_node
       when 2
         # The entry is a reference to another node.
-        node = IndexTreeNode.new(@tree, @nibble + 1, @entries[index])
+        node = @tree.get_node(@nibble + 1, @entries[index])
         node.put_value(id, value)
       else
         raise RuntimError, "Illegal node type #{get_entry_type(index)}"
@@ -123,7 +123,7 @@ module PEROBS
       when 2
         # The entry is a reference to another node. Just follow it and look at
         # the next nibble.
-        return IndexTreeNode.new(@tree, @nibble + 1, @entries[index]).
+        return @tree.get_node(@nibble + 1, @entries[index]).
           get_value(id)
       else
         raise RuntimError, "Illegal node type #{get_entry_type(index)}"
@@ -154,12 +154,12 @@ module PEROBS
         end
       when 2
         # The entry is a reference to another node.
-        node = IndexTreeNode.new(@tree, @nibble + 1, @entries[index])
+        node = @tree.get_node(@nibble + 1, @entries[index])
         result = node.delete_value(id)
         if node.empty?
           # If the sub-node is empty after the delete we delete the whole
           # sub-node.
-          @tree.nodes.delete_blob(@entries[index])
+          @tree.delete_node(@nibble + 1, @entries[index])
           # Eliminate the reference to the sub-node and update this node in
           # the file.
           set_entry_type(index, 0)
@@ -182,7 +182,7 @@ module PEROBS
           id, address = get_id_and_address(@entries[i])
           str += "  #{id} => #{address},\n"
         when 2
-          str += "  " + IndexTreeNode.new(@tree, @nibble + 1, @entries[i]).
+          str += "  " + @tree.get_node(@nibble + 1, @entries[i]).
             inspect.gsub(/\n/, "\n  ")
         end
       end
