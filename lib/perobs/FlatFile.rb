@@ -146,16 +146,38 @@ module PEROBS
     def write_obj_by_id(id, raw_obj)
       addr, length = find_free_blob(raw_obj.length)
       begin
+        if addr < @f.size
+          # Just a safeguard so we don't overwrite current data.
+          header = read_blob_header(addr, id, false)
+          if header.length != length
+            raise RuntimeError, "Length in free list (#{length}) and header " +
+              "(#{header.length}) don't match."
+          end
+          if raw_obj.length > header.length
+            raise RuntimeError, "Object (#{raw_obj.length}) is longer than " +
+              "blob space (#{header.length})."
+          end
+          if header.mark != 0
+            raise RuntimeError, "Mark (#{header.mark}) is not 0."
+          end
+        end
         @f.seek(addr)
         @f.write([ 1, raw_obj.length, id, checksum(raw_obj)].
                  pack(BLOB_HEADER_FORMAT))
         @f.write(raw_obj)
-        if length > 0 && raw_obj.length != length
+        if raw_obj.length < length
+          if length - raw_obj.length < BLOB_HEADER_LENGTH
+            raise RuntimeError, "Not enough space to append the empty space " +
+              "header."
+          end
           # The new object was not appended and it did not completely fill the
           # free space. So we have to write a new header to mark the remaining
           # empty space.
-          @f.write([ 0, length - BLOB_HEADER_LENGTH - raw_obj.length, 0, 0 ].
-                   pack(BLOB_HEADER_FORMAT))
+          space_address = @f.pos
+          space_length = length - BLOB_HEADER_LENGTH - raw_obj.length
+          @f.write([ 0, space_length, 0, 0 ].pack(BLOB_HEADER_FORMAT))
+          # Register the new space with the space list.
+          @space_list.add_space(space_address, space_length)
         end
         @f.flush
         @index.put_value(id, addr)
@@ -327,7 +349,7 @@ module PEROBS
 
     private
 
-    def read_blob_header(addr, id)
+    def read_blob_header(addr, id, check_id = true)
       buf = nil
       begin
         @f.seek(addr)
@@ -336,7 +358,7 @@ module PEROBS
         raise IOError, "Cannot read blob in flat file DB: #{e.message}"
       end
       header = Header.new(*buf.unpack(BLOB_HEADER_FORMAT))
-      if header.id != id
+      if check_id && header.id != id
         raise RuntimeError, "Mismatch between FlatFile index and blob file " +
                             "found for entry with ID #{id}/#{header.id}"
       end
@@ -345,7 +367,22 @@ module PEROBS
     end
 
     def find_free_blob(bytes)
-      @space_list.get_space(bytes) || [ @f.size, -1 ]
+      address, size = @space_list.get_space(bytes)
+      unless address
+        # We have not found any suitable space. Return the end of the file.
+        return [ @f.size, -1 ]
+      end
+      if size == bytes || size - BLOB_HEADER_LENGTH >= bytes
+        return [ address, size ]
+      end
+
+      # Return the found space again. It's too small for the new content plus
+      # the gap header.
+      @space_list.add_space(address, size)
+
+      # We need a space that is large enough to hold the bytes and the gap
+      # header.
+      @space_list.get_space(bytes + BLOB_HEADER_LENGTH) || [ @f.size, -1 ]
     end
 
     def checksum(raw_obj)

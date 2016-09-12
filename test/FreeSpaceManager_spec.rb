@@ -42,37 +42,49 @@ describe PEROBS::FreeSpaceManager do
 
   it 'should open the space manager' do
     @m.open
+    expect(@m.inspect).to eql('[]')
   end
 
   it 'should support adding and removing space' do
-    @m.add_space(1, 42)
-    expect(@m.get_space(32)).to eql([ 1, 42 ])
+    @m.add_space(1, 7)
+    expect(@m.inspect).to eql('[nil, nil, [[1, 7]]]')
+    expect(@m.get_space(4)).to eql([ 1, 7 ])
+    expect(@m.inspect).to eql('[nil, nil, []]')
   end
 
   it 'should no longer provide that space' do
-    expect(@m.get_space(32)).to be_nil
+    expect(@m.get_space(4)).to be_nil
   end
 
-  it 'should add various spaces' do
-    s = [2952, 2253, 1659, 2875, 1909, 2355, 166, 3276, 2698, 1197, 1473, 4087, 1724, 275, 1670, 64, 839, 1479, 2365, 4044, 3740, 2327, 3704, 82, 1835, 2934, 2251, 3532, 3673, 3506, 684, 1826, 2761, 1705, 3260, 1499, 3811, 1599, 909, 2527, 3694, 331, 2848, 1007, 3504, 536, 1904, 2397, 253, 2655, 766, 1568, 2631, 752, 2252, 2255, 298, 851, 2545, 4042, 3971, 2968, 555, 243, 2374]
-    s.each { |n| @m.add_space(n, n) }
-    s.each do |n|
-      adr = @m.get_space(n / 2)
-      if adr
-        expect(adr[0]).to be >= n / 2
-      end
-    end
+  it 'should keep values over an close/open' do
+    @m.add_space(1, 15)
+    @m.close
+    @m.open
+    expect(@m.inspect).to eql('[nil, nil, [], [[1, 15]]]')
+    expect(@m.get_space(8)).to eql([ 1, 15 ])
   end
 
   it 'should support a clear' do
     @m.clear
+    expect(@m.inspect).to eql('[]')
   end
 
-  it 'should keep values over an close/open' do
-    @m.add_space(1, 42)
-    @m.close
-    @m.open
-    expect(@m.get_space(32)).to eql([ 1, 42 ])
+  it 'should multiple values to a pool' do
+    1.upto(8) { |i| @m.add_space(i, i) }
+    expect(@m.inspect).to eql('[[[1, 1]], [[2, 2][3, 3]], [[4, 4][5, 5][6, 6][7, 7]], [[8, 8]]]')
+  end
+
+  it 'should return the spaces again' do
+    expect(@m.get_space(1)).to eql([ 1, 1])
+    expect(@m.inspect).to eql('[[], [[2, 2][3, 3]], [[4, 4][5, 5][6, 6][7, 7]], [[8, 8]]]')
+    expect(@m.get_space(2)).to eql([ 3, 3])
+    expect(@m.inspect).to eql('[[], [[2, 2]], [[4, 4][5, 5][6, 6][7, 7]], [[8, 8]]]')
+    expect(@m.get_space(2)).to eql([ 2, 2])
+    expect(@m.inspect).to eql('[[], [], [[4, 4][5, 5][6, 6][7, 7]], [[8, 8]]]')
+    expect(@m.get_space(4)).to eql([ 7, 7])
+    expect(@m.inspect).to eql('[[], [], [[4, 4][5, 5][6, 6]], [[8, 8]]]')
+    expect(@m.get_space(8)).to eql([ 8, 8])
+    expect(@m.inspect).to eql('[[], [], [[4, 4][5, 5][6, 6]], []]')
   end
 
 end

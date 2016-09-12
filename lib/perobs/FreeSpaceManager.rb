@@ -68,7 +68,10 @@ module PEROBS
     # @param address [Integer] Starting address of the space
     # @param size [Integer] size of the space in bytes
     def add_space(address, size)
-      pool_index = size_to_pool(size)
+      if size <= 0
+        raise RuntimeError, "Size (#{size}) must be larger than 0."
+      end
+      pool_index = Math.log(size, 2).to_i
       new_pool(pool_index) unless @pools[pool_index]
       @pools[pool_index].push([ address, size ].pack('QQ'))
     end
@@ -77,14 +80,22 @@ module PEROBS
     # @param size [Integer] Required size in bytes
     # @return [Array] Touple with address and actual size of the space.
     def get_space(size)
+      if size <= 0
+        raise RuntimeError, "Size (#{size}) must be larger than 0."
+      end
       # When we search for a free space we need to search the pool that
       # corresponds to (size - 1) * 2. It is the pool that has the spaces that
       # are at least as big as size.
-      if (pool = @pools[size_to_pool((size - 1) * 2)]).nil?
+      if (pool = @pools[size == 1 ? 0 : Math.log((size - 1) * 2, 2)]).nil?
         return nil
       else
         return nil unless (entry = pool.pop)
-        entry.unpack('QQ')
+        sp_address, sp_size = entry.unpack('QQ')
+        if sp_size < size
+          raise RuntimeError, "Space at address #{sp_address} is too small. " +
+            "Must be at least #{size} bytes but is only #{sp_size} bytes."
+        end
+        [ sp_address, sp_size ]
       end
     end
 
@@ -94,6 +105,10 @@ module PEROBS
       Dir.glob(File.join(@dir, 'free_list_*.stack')).each do |file|
         File.delete(file)
       end
+    end
+
+    def inspect
+      '[' + @pools.map{ |p| p.inspect { |bs| bs.unpack('QQ').inspect} }.join(', ') + ']'
     end
 
     private
@@ -107,8 +122,8 @@ module PEROBS
 
     def size_to_pool(size)
       idx = Math.log(size, 2).to_i
-      # It makes no sense to have buckets for 1, 2 and 4 byte spaces. We
-      # enforce 8 as the smallest size.
+      # It makes no sense to have separate buckets for spaces smaller than 8
+      # bytes. We enforce 8 as the smallest size.
       idx = 8 if idx < 8
       idx
     end

@@ -97,6 +97,16 @@ module PEROBS
       bytes
     end
 
+    def inspect
+      @f.seek(0)
+      s = '['
+      while !@f.eof
+        s += yield(@f.read(@entry_bytes))
+      end
+
+      s + ']'
+    end
+
   end
 
 end
