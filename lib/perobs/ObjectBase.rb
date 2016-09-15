@@ -149,6 +149,20 @@ module PEROBS
       proc { store._collect(id) }
     end
 
+    # Library internal method to transfer the Object to a new store.
+    # @param store [Store] New store
+    def _transfer(store)
+      @store = store
+      # Remove the previously defined finalizer as it is attached to the old
+      # store.
+      ObjectSpace.undefine_finalizer(self)
+      # Register the object as in-memory object with the new store.
+      @store._register_in_memory(self, @_id)
+      # Register the finalizer for the new store.
+      ObjectSpace.define_finalizer(self, ObjectBase._finalize(@store, @_id))
+      @myself = POXReference.new(@store, @_id)
+    end
+
     # This method can be overloaded by derived classes to do some massaging on
     # the data after it has been restored from the database. This could either
     # be some sanity check or code to migrate the object from one version to

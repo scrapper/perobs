@@ -101,7 +101,7 @@ module PEROBS
     # @param options [Hash] various options to affect the operation of the
     #        database. Currently the following options are supported:
     #        :engine     : The class that provides the back-end storage
-    #                      engine. By default BTreeDB is used. A user
+    #                      engine. By default FlatFileDB is used. A user
     #                      can provide it's own storage engine that must
     #                      conform to the same API exposed by BTreeBlobsDB.
     #        :cache_bits : the number of bits used for cache indexing. The
@@ -151,6 +151,33 @@ module PEROBS
         @cache.cache_write(@root_objects)
       end
     end
+
+    # Copy the store content into a new Store. The arguments are identical to
+    # Store.new().
+    # @param data_base [String] the name of the database
+    # @param options [Hash] various options to affect the operation of the
+    def copy(dir, options = {})
+      # Ensure that the Store is OK.
+      return false unless check
+
+      # Create a new store with the specified directory and options.
+      new_db = Store.new(dir, options)
+      # Clear the cache.
+      new_db.sync
+      # Copy all objects of the existing store to the new store.
+      each do |ref_obj|
+        obj = ref_obj._referenced_object
+        obj._transfer(new_db)
+        obj._sync
+      end
+      # Copy the class map.
+      new_db.db.put_hash('class_map', @db.get_hash('class_map'))
+      # Flush the new store and close it.
+      new_db.exit
+
+      true
+    end
+
 
     # Close the store and ensure that all in-memory objects are written out to
     # the storage backend. The Store object is no longer usable after this

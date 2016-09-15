@@ -80,6 +80,7 @@ describe PEROBS::Store do
 
   before(:all) do
     @db_file = generate_db_name(__FILE__)
+    @db_file_new = @db_file + '-new'
   end
 
   after(:each) do
@@ -509,6 +510,31 @@ describe PEROBS::Store do
     ref.each do |k, v|
       expect(@store[k].name).to eq(v)
     end
+  end
+
+  it 'should copy the database' do
+    @store = PEROBS::Store.new(@db_file)
+    @store['person0'] = p0 = @store.new(Person)
+    id0 = p0._id
+    p1 = @store.new(Person)
+    id1 = p1._id
+    p2 = @store.new(Person)
+    id2 = p2._id
+    p1.related = p2
+    p2.related = p1
+    p0.related = p1
+    p0 = p1 = p2 = nil
+    expect(@store['person0']._id).to eq(id0)
+    expect(@store['person0'].related._id).to eq(id1)
+    expect(@store['person0'].related.related._id).to eq(id2)
+
+    @store.copy(@db_file_new, { :engine => PEROBS::FlatFileDB })
+    @store.delete_store
+
+    @store = PEROBS::Store.new(@db_file_new, { :engine => PEROBS::FlatFileDB })
+    expect(@store['person0']._id).to eq(id0)
+    expect(@store['person0'].related._id).to eq(id1)
+    expect(@store['person0'].related.related._id).to eq(id2)
   end
 
 end
