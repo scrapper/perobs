@@ -165,7 +165,7 @@ module PEROBS
     # @return [TrueClass/FalseClass] Always true right now
     def check(repair = false)
       # Determine size of the data blobs file.
-      data_file_size = File.exists?(@blobs_file_name) ?
+      data_file_size = File.exist?(@blobs_file_name) ?
         File.size(@blobs_file_name) : 0
 
       next_start = 0
@@ -296,7 +296,7 @@ module PEROBS
       entry_bytes = 29
       entry_format = 'QQQCL'
       restore_crc = false
-      if File.exists?(@index_file_name)
+      if File.exist?(@index_file_name)
         begin
           File.open(@index_file_name, 'rb') do |f|
             # Since version 2.3.0, all index files start with a header.

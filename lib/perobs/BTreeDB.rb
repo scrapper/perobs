@@ -125,7 +125,7 @@ module PEROBS
     # @return [Hash] A Hash that maps String objects to strings or numbers.
     def get_hash(name)
       file_name = File.join(@db_dir, name + '.json')
-      return ::Hash.new unless File.exists?(file_name)
+      return ::Hash.new unless File.exist?(file_name)
 
       begin
         json = File.read(file_name)
@@ -219,8 +219,8 @@ module PEROBS
         dir_bits = id & @dir_mask
         dir_name = File.join(dir_name, @dir_format_string % dir_bits)
 
-        if Dir.exists?(dir_name)
-          if File.exists?(File.join(dir_name, 'index'))
+        if Dir.exist?(dir_name)
+          if File.exist?(File.join(dir_name, 'index'))
             # The directory is a blob directory and not a BTree node dir.
             return BTreeBlob.new(dir_name, self)
           end
@@ -260,7 +260,7 @@ module PEROBS
       # contrast to BTree node directories that only contain other
       # directories.
       index_file = File.join(dir_name, 'index')
-      File.exists?(index_file)
+      File.exist?(index_file)
     end
 
   end

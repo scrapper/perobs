@@ -118,7 +118,7 @@ module PEROBS
 
     # Ensure that we have a directory to store the DB items.
     def ensure_dir_exists(dir)
-      unless Dir.exists?(dir)
+      unless Dir.exist?(dir)
         begin
           Dir.mkdir(dir)
         rescue IOError => e
