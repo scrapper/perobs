@@ -50,7 +50,7 @@ module PEROBS
     # Open the blob file.
     def open
       begin
-        if File.exists?(@file_name)
+        if File.exist?(@file_name)
           @f = File.open(@file_name, 'rb+')
         else
           @f = File.open(@file_name, 'wb+')

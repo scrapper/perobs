@@ -104,7 +104,7 @@ module PEROBS
     # @return [Hash] A Hash that maps String objects to strings or numbers.
     def get_hash(name)
       file_name = File.join(@db_dir, name + '.json')
-      return ::Hash.new unless File.exists?(file_name)
+      return ::Hash.new unless File.exist?(file_name)
 
       begin
         json = File.read(file_name)

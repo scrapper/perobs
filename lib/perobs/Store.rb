@@ -161,6 +161,9 @@ module PEROBS
     # @param data_base [String] the name of the database
     # @param options [Hash] various options to affect the operation of the
     def copy(dir, options = {})
+      # Make sure all objects are persisted.
+      sync
+
       # Create a new store with the specified directory and options.
       new_db = Store.new(dir, options)
       # Clear the cache.

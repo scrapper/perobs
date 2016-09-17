@@ -70,7 +70,7 @@ module PEROBS
     def open
       file_name = File.join(@db_dir, 'database.blobs')
       begin
-        if File.exists?(file_name)
+        if File.exist?(file_name)
           @f = File.open(file_name, 'rb+')
         else
           @f = File.open(file_name, 'wb+')
@@ -135,6 +135,7 @@ module PEROBS
           deleted_ids << blob_id
         end
       end
+      defragmentize
 
       deleted_ids
     end
@@ -345,13 +346,19 @@ module PEROBS
           end
         end
       end
+      @index.check(self)
       @space_list.check(self)
-      check_spaces_in_space_list
+      cross_check_entries
     end
 
     def has_space?(address, size)
       header = read_blob_header(address)
       header.length == size
+    end
+
+    def has_id_at?(id, address)
+      header = read_blob_header(address)
+      header.id == id
     end
 
     def inspect
@@ -411,12 +418,19 @@ module PEROBS
       Zlib.crc32(raw_obj, 0)
     end
 
-    def check_spaces_in_space_list
+    def cross_check_entries
       each_blob_header do |pos, mark, length, blob_id, crc|
-        if mark == 0 && length > 0
-          unless @space_list.has_space?(pos, length)
-            raise RuntimeError, "FlatFile has free space " +
-              "(addr: #{pos}, len: #{length}) that is not in FreeSpaceManager"
+        if mark == 0
+          if length > 0
+            unless @space_list.has_space?(pos, length)
+              raise RuntimeError, "FlatFile has free space " +
+                "(addr: #{pos}, len: #{length}) that is not in FreeSpaceManager"
+            end
+          end
+        else
+          unless @index.get_value(blob_id) == pos
+            raise RuntimeError, "FlatFile blob at address #{pos} is listed " +
+              "in index with address #{@index.get_value(blob_id)}"
           end
         end
       end

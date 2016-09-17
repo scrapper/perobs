@@ -42,9 +42,21 @@ module PEROBS
     attr_reader :nodes, :ids
 
     def initialize(db_dir)
+      # Directory path used to store the files.
       @db_dir = db_dir
-      @nodes = FixedSizeBlobFile.new(db_dir, 'database_index', 4 + 16 * 8)
+
+      # This FixedSizeBlobFile contains the nodes of the IndexTree.
+      @nodes = FixedSizeBlobFile.new(db_dir, 'database_index',
+                                     IndexTreeNode::NODE_BYTES)
+
+      # The node sequence usually only reveals a partial match with the
+      # requested ID. So, the leaves of the tree point to the object_id_index
+      # file which contains the full object ID and the address of the
+      # corresponding object in the FlatFile.
       @ids = FixedSizeBlobFile.new(db_dir, 'object_id_index', 2 * 8)
+
+      # The first MAX_CACHED_LEVEL levels of nodes will be cached in memory to
+      # improve access times.
       @node_cache = {}
     end
 
@@ -119,6 +131,11 @@ module PEROBS
     # @param [Integer] id
     def delete_value(id)
       @root.delete_value(id)
+    end
+
+    # Check if the index is OK and matches the flat_file data.
+    def check(flat_file)
+      @root.check(flat_file)
     end
 
     # Convert the tree into a human readable form.

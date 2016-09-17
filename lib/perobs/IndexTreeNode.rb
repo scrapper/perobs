@@ -28,28 +28,37 @@
 module PEROBS
 
   # The IndexTreeNode is the building block of the IndexTree. Each node can
-  # hold up to 16 entries. An entry can be empty (0), an reference to the
-  # value (1) or a reference to another IndexTreeNode for the next nibble.
-  # Each level of the tree is associated with an specific nibble of the ID.
-  # The nibble is used to identify the entry within the node.
+  # hold up to 16 entries. An entry is described by type bits and can be empty
+  # (0), an reference into the object ID file (1) or a reference to another
+  # IndexTreeNode for the next nibble (2). Each level of the tree is
+  # associated with an specific nibble of the ID. The nibble is used to
+  # identify the entry within the node. IndexTreeNode objects are in-memory
+  # represenations of the nodes in the IndexTree file.
   class IndexTreeNode
 
     attr_reader :address
 
+    ENTRIES = 16
+    ENTRY_BYTES = 8
+    TYPE_BYTES = 4
+    NODE_BYTES = TYPE_BYTES + ENTRIES * ENTRY_BYTES
+
     # Create a new IndexTreeNode.
     # @param tree [IndexTree] The tree this node belongs to
-    # @param nibble [Fixnum] the level of the node in the tree (root being 0)
+    # @param nibble_idx [Fixnum] the level of the node in the tree (root
+    #        being 0)
     # @param address [Integer] The address of this node in the blob file
-    def initialize(tree, nibble, address = nil)
+    def initialize(tree, nibble_idx, address = nil)
       @tree = tree
-      if nibble >= 16
+      if nibble_idx >= 16
+        # We are processing 64 bit numbers, so we have at most 16 nibbles.
         raise ArgumentError, 'nibble must be 0 - 15'
       end
-      @nibble = nibble
+      @nibble_idx = nibble_idx
       if (@address = address).nil? || !read_node
         # Create a new node if none with this address exists already.
         @entry_types = 0
-        @entries = ::Array.new(16, 0)
+        @entries = ::Array.new(ENTRIES, 0)
         @address = @tree.nodes.free_address
         write_node
       end
@@ -81,7 +90,7 @@ module PEROBS
           # store the existing value and the new value in it.
           # First get the exiting value of the entry and the corresponding ID.
           # Create a new node.
-          node = @tree.get_node(@nibble + 1)
+          node = @tree.get_node(@nibble_idx + 1)
           # The entry of the current node is now a reference to the new node.
           set_entry_type(index, 2)
           @entries[index] = node.address
@@ -92,7 +101,7 @@ module PEROBS
         write_node
       when 2
         # The entry is a reference to another node.
-        node = @tree.get_node(@nibble + 1, @entries[index])
+        node = @tree.get_node(@nibble_idx + 1, @entries[index])
         node.put_value(id, value)
       else
         raise RuntimError, "Illegal node type #{get_entry_type(index)}"
@@ -123,7 +132,7 @@ module PEROBS
       when 2
         # The entry is a reference to another node. Just follow it and look at
         # the next nibble.
-        return @tree.get_node(@nibble + 1, @entries[index]).
+        return @tree.get_node(@nibble_idx + 1, @entries[index]).
           get_value(id)
       else
         raise RuntimError, "Illegal node type #{get_entry_type(index)}"
@@ -154,12 +163,12 @@ module PEROBS
         end
       when 2
         # The entry is a reference to another node.
-        node = @tree.get_node(@nibble + 1, @entries[index])
+        node = @tree.get_node(@nibble_idx + 1, @entries[index])
         result = node.delete_value(id)
         if node.empty?
           # If the sub-node is empty after the delete we delete the whole
           # sub-node.
-          @tree.delete_node(@nibble + 1, @entries[index])
+          @tree.delete_node(@nibble_idx + 1, @entries[index])
           # Eliminate the reference to the sub-node and update this node in
           # the file.
           set_entry_type(index, 0)
@@ -169,6 +178,34 @@ module PEROBS
       else
         raise RuntimError, "Illegal node type #{get_entry_type(index)}"
       end
+    end
+
+    # Recursively check this node and all sub nodes. Compare the found
+    # ID/address pairs with the corresponding entry in the given FlatFile.
+    # @param flat_file [FlatFile]
+    # @return [Boolean] true if no errors were found, false otherwise
+    def check(flat_file)
+      ENTRIES.times do |index|
+        case get_entry_type(index)
+        when 0
+          # Empty entry, nothing to do here.
+        when 1
+          # There is a value stored for the ID part that we have seen so far.
+          # We still need to compare the requested ID with the full ID to
+          # determine a match.
+          id, address = get_id_and_address(@entries[index])
+          return false unless flat_file.has_id_at?(id, address)
+        when 2
+          # The entry is a reference to another node. Just follow it and look
+          # at the next nibble.
+          return false unless @tree.get_node(@nibble_idx + 1, @entries[index]).
+            check(flat_file)
+        else
+          return false
+        end
+      end
+
+      true
     end
 
     # Convert the node and all sub-nodes to human readable format.
@@ -182,7 +219,7 @@ module PEROBS
           id, address = get_id_and_address(@entries[i])
           str += "  #{id} => #{address},\n"
         when 2
-          str += "  " + @tree.get_node(@nibble + 1, @entries[i]).
+          str += "  " + @tree.get_node(@nibble_idx + 1, @entries[i]).
             inspect.gsub(/\n/, "\n  ")
         end
       end
@@ -208,13 +245,13 @@ module PEROBS
     private
 
     def calc_index(id)
-      (id >> (4 * @nibble)) & 0xF
+      (id >> (4 * @nibble_idx)) & 0xF
     end
 
     def read_node
       return false unless (bytes = @tree.nodes.retrieve_blob(@address))
-      @entry_types = bytes[0, 4].unpack('L')[0]
-      @entries = bytes[4, 16 * 8].unpack('Q16')
+      @entry_types = bytes[0, TYPE_BYTES].unpack('L')[0]
+      @entries = bytes[TYPE_BYTES, ENTRIES * ENTRY_BYTES].unpack('Q16')
       true
     end
 
