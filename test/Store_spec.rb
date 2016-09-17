@@ -437,12 +437,12 @@ describe PEROBS::Store do
   end
 
   it 'should survive a real world usage test' do
-    options = { :engine => PEROBS::BTreeDB, :dir_bits => 4 }
+    options = { :engine => PEROBS::FlatFileDB }
     @store = PEROBS::Store.new(@db_file, options)
     ref = {}
 
     deletions_since_last_gc = 0
-    0.upto(5000) do |i|
+    0.upto(15000) do |i|
       key = "o#{i}"
       case rand(8)
       when 0
@@ -468,7 +468,7 @@ describe PEROBS::Store do
         end
       when 3
         # Call garbage collector
-        if rand(30) == 0
+        if rand(60) == 0
           @store.gc
           stats = @store.statistics
           expect(stats.marked_objects).to eq(ref.length)

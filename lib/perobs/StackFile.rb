@@ -97,14 +97,27 @@ module PEROBS
       bytes
     end
 
-    def inspect
-      @f.seek(0)
-      s = '['
-      while !@f.eof
-        s += yield(@f.read(@entry_bytes))
-      end
+    # Remove all entries from the stack.
+    def clear
+      @f.truncate(0)
+      @f.flush
+    end
 
-      s + ']'
+    # Iterate over all entries in the stack and call the given block for the
+    # bytes.
+    def each
+      @f.seek(0)
+      while !@f.eof
+        yield(@f.read(@entry_bytes))
+      end
+    end
+
+    # Return the content of the stack as an Array.
+    # @return [Array]
+    def to_ary
+      a = []
+      each { |bytes| a << bytes }
+      a
     end
 
   end

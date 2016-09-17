@@ -39,7 +39,7 @@ module PEROBS
   # 1 Byte:  Mark byte.
   #          Bit 0: 0 deleted entry, 1 valid entry
   #          Bit 1: 0 unmarked, 1 marked
-  #          Bit 2 - 7: reserved
+  #          Bit 2 - 7: reserved, must be 0
   # 8 bytes: Length of the data blob in bytes
   # 8 bytes: ID of the value in the data blob
   # 4 bytes: CRC32 checksum of the data blob
@@ -90,6 +90,7 @@ module PEROBS
       @index.close
       @f.flush
       @f.close
+      @f = nil
     end
 
     # Force outstanding data to be written to the filesystem.
@@ -146,9 +147,9 @@ module PEROBS
     def write_obj_by_id(id, raw_obj)
       addr, length = find_free_blob(raw_obj.length)
       begin
-        if addr < @f.size
+        if length != -1
           # Just a safeguard so we don't overwrite current data.
-          header = read_blob_header(addr, id, false)
+          header = read_blob_header(addr)
           if header.length != length
             raise RuntimeError, "Length in free list (#{length}) and header " +
               "(#{header.length}) don't match."
@@ -165,23 +166,24 @@ module PEROBS
         @f.write([ 1, raw_obj.length, id, checksum(raw_obj)].
                  pack(BLOB_HEADER_FORMAT))
         @f.write(raw_obj)
-        if raw_obj.length < length
-          if length - raw_obj.length < BLOB_HEADER_LENGTH
-            raise RuntimeError, "Not enough space to append the empty space " +
-              "header."
-          end
+        if length != -1 && raw_obj.length < length
           # The new object was not appended and it did not completely fill the
           # free space. So we have to write a new header to mark the remaining
           # empty space.
+          unless length - raw_obj.length >= BLOB_HEADER_LENGTH
+            raise RuntimeError, "Not enough space to append the empty space " +
+              "header (space: #{length} bytes, object: #{raw_obj.length} " +
+              "bytes)."
+          end
           space_address = @f.pos
           space_length = length - BLOB_HEADER_LENGTH - raw_obj.length
           @f.write([ 0, space_length, 0, 0 ].pack(BLOB_HEADER_FORMAT))
           # Register the new space with the space list.
-          @space_list.add_space(space_address, space_length)
+          @space_list.add_space(space_address, space_length) if space_length > 0
         end
         @f.flush
         @index.put_value(id, addr)
-      rescue => e
+      rescue IOError => e
         raise IOError, "Cannot write blob for ID #{id} to FlatFileDB: " +
           e.message
       end
@@ -194,13 +196,6 @@ module PEROBS
     # @return [Integer] Offset in the flat file or nil if not found
     def find_obj_addr_by_id(id)
       @index.get_value(id)
-      #each_blob_header do |pos, mark, length, blob_id, crc|
-      #  if (mark & 1 == 1) && (blob_id == id)
-      #    return pos
-      #  end
-      #end
-
-      #nil
     end
 
     # Read the object with the given ID.
@@ -220,6 +215,10 @@ module PEROBS
     # @return [String] Raw object data
     def read_obj_by_address(addr, id)
       header = read_blob_header(addr, id)
+      if header.id != id
+        raise RuntimeError, "Database index corrupted: Index for object " +
+          "#{id} points to object with ID #{header.id}"
+      end
       begin
         @f.seek(addr + BLOB_HEADER_LENGTH)
         buf = @f.read(header.length)
@@ -324,7 +323,9 @@ module PEROBS
       @space_list.clear
     end
 
-    def check(repair)
+    def check(repair = false)
+      return unless @f
+
       each_blob_header do |pos, mark, length, blob_id, crc|
         if (mark & 1 == 1)
           begin
@@ -344,12 +345,33 @@ module PEROBS
           end
         end
       end
+      @space_list.check(self)
+      check_spaces_in_space_list
     end
+
+    def has_space?(address, size)
+      header = read_blob_header(address)
+      header.length == size
+    end
+
+    def inspect
+      s = '['
+      each_blob_header do |pos, mark, length, blob_id, crc|
+        s << "{ :pos => #{pos}, :mark => #{mark}, " +
+             ":length => #{length}, :id => #{blob_id}, :crc => #{crc}"
+        if mark != 0
+          s << ", :value => #{@f.read(length)}"
+        end
+        s << " }\n"
+      end
+      s + ']'
+    end
+
 
 
     private
 
-    def read_blob_header(addr, id, check_id = true)
+    def read_blob_header(addr, id = nil)
       buf = nil
       begin
         @f.seek(addr)
@@ -358,7 +380,7 @@ module PEROBS
         raise IOError, "Cannot read blob in flat file DB: #{e.message}"
       end
       header = Header.new(*buf.unpack(BLOB_HEADER_FORMAT))
-      if check_id && header.id != id
+      if id && header.id != id
         raise RuntimeError, "Mismatch between FlatFile index and blob file " +
                             "found for entry with ID #{id}/#{header.id}"
       end
@@ -387,6 +409,17 @@ module PEROBS
 
     def checksum(raw_obj)
       Zlib.crc32(raw_obj, 0)
+    end
+
+    def check_spaces_in_space_list
+      each_blob_header do |pos, mark, length, blob_id, crc|
+        if mark == 0 && length > 0
+          unless @space_list.has_space?(pos, length)
+            raise RuntimeError, "FlatFile has free space " +
+              "(addr: #{pos}, len: #{length}) that is not in FreeSpaceManager"
+          end
+        end
+      end
     end
 
     def each_blob_header(&block)

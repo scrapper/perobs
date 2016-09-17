@@ -51,16 +51,11 @@ module PEROBS
         # Cut out the pool index from the file name.
         index = basename[10..-7].to_i
         @pools[index] = StackFile.new(@dir, basename[0..-7], 2 * 8)
-        @pools[index].open
       end
     end
 
     # Close all pool files.
     def close
-      @pools.each do |pool|
-        next if pool.nil?
-        pool.close
-      end
       @pools = []
     end
 
@@ -71,9 +66,9 @@ module PEROBS
       if size <= 0
         raise RuntimeError, "Size (#{size}) must be larger than 0."
       end
-      pool_index = Math.log(size, 2).to_i
+      pool_index = msb(size)
       new_pool(pool_index) unless @pools[pool_index]
-      @pools[pool_index].push([ address, size ].pack('QQ'))
+      push_pool(pool_index, [ address, size ].pack('QQ'))
     end
 
     # Get a space that has at least the requested size.
@@ -86,10 +81,11 @@ module PEROBS
       # When we search for a free space we need to search the pool that
       # corresponds to (size - 1) * 2. It is the pool that has the spaces that
       # are at least as big as size.
-      if (pool = @pools[size == 1 ? 0 : Math.log((size - 1) * 2, 2)]).nil?
+      pool_index = size == 1 ? 0 : msb(size - 1) + 1
+      unless @pools[pool_index]
         return nil
       else
-        return nil unless (entry = pool.pop)
+        return nil unless (entry = pop_pool(pool_index))
         sp_address, sp_size = entry.unpack('QQ')
         if sp_size < size
           raise RuntimeError, "Space at address #{sp_address} is too small. " +
@@ -107,8 +103,60 @@ module PEROBS
       end
     end
 
+    # Check if there is a space in the free space lists that matches the
+    # address and the size.
+    # @param [Integer] address Address of the space
+    # @param [Integer] size Length of the space in bytes
+    # @return [Boolean] True if space is found, false otherwise
+    def has_space?(address, size)
+      unless (pool = @pools[msb(size)])
+        return false
+      end
+
+      pool.open
+      pool.each do |entry|
+        sp_address, sp_size = entry.unpack('QQ')
+        if address == sp_address
+          if size != sp_size
+            raise RuntimeError, "FreeSpaceManager has space with different " +
+              "size"
+          end
+          pool.close
+          return true
+        end
+      end
+
+      pool.close
+      false
+    end
+
+    def check(flat_file)
+      @pools.each do |pool|
+        next unless pool
+
+        pool.open
+        pool.each do |entry|
+          address, size = entry.unpack('QQ')
+          unless flat_file.has_space?(address, size)
+            raise RuntimeError, "FreeSpaceManager has space that isn't " +
+              "available in the FlatFile."
+          end
+        end
+        pool.close
+      end
+    end
+
     def inspect
-      '[' + @pools.map{ |p| p.inspect { |bs| bs.unpack('QQ').inspect} }.join(', ') + ']'
+      '[' + @pools.map do |p|
+        if p
+          p.open
+          r = p.to_ary.map { |bs| bs.unpack('QQ')}.inspect
+          p.close
+          r
+        else
+          'nil'
+        end
+      end.join(', ') + ']'
     end
 
     private
@@ -117,15 +165,29 @@ module PEROBS
       # The file name pattern for the pool files.
       filename = "free_list_#{index}"
       @pools[index] = sf = StackFile.new(@dir, filename, 2 * 8)
-      sf.open
     end
 
-    def size_to_pool(size)
-      idx = Math.log(size, 2).to_i
-      # It makes no sense to have separate buckets for spaces smaller than 8
-      # bytes. We enforce 8 as the smallest size.
-      idx = 8 if idx < 8
-      idx
+    def push_pool(index, value)
+      pool = @pools[index]
+      pool.open
+      pool.push(value)
+      pool.close
+    end
+
+    def pop_pool(index)
+      pool = @pools[index]
+      pool.open
+      value = pool.pop
+      pool.close
+
+      value
+    end
+
+    def msb(i)
+      unless i > 0
+        raise ArgumentError, "i must be larger than 0"
+      end
+      i.to_s(2).length - 1
     end
 
   end

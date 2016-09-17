@@ -103,7 +103,7 @@ module PEROBS
     #        :engine     : The class that provides the back-end storage
     #                      engine. By default FlatFileDB is used. A user
     #                      can provide it's own storage engine that must
-    #                      conform to the same API exposed by BTreeBlobsDB.
+    #                      conform to the same API exposed by FlatFileDB.
     #        :cache_bits : the number of bits used for cache indexing. The
     #                      cache will hold 2 to the power of bits number of
     #                      objects. We have separate caches for reading and
@@ -149,6 +149,10 @@ module PEROBS
         @root_objects = _construct_po(Hash, 0)
         # Mark the root_objects object as modified.
         @cache.cache_write(@root_objects)
+      end
+      unless @root_objects.is_a?(Hash)
+        raise RuntimeError, "Database corrupted: Root objects must be a Hash " +
+                            "but is a #{@root_objects.class}"
       end
     end
 
@@ -270,6 +274,12 @@ module PEROBS
       return nil unless (id = @root_objects[name])
 
       POXReference.new(self, id)
+    end
+
+    # Return a list with all the names of the root objects.
+    # @return [Array of Symbols]
+    def names
+      @root_objects.keys
     end
 
     # Flush out all modified objects to disk and shrink the in-memory list if

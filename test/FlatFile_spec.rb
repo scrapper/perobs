@@ -36,6 +36,10 @@ describe PEROBS::FlatFile do
     @ff = PEROBS::FlatFile.new(@db_dir)
   end
 
+  after(:each) do
+    @ff.check
+  end
+
   after(:all) do
     FileUtils.rm_rf(@db_dir)
   end

@@ -47,6 +47,7 @@ describe PEROBS::FreeSpaceManager do
 
   it 'should support adding and removing space' do
     @m.add_space(1, 7)
+    expect(@m.has_space?(1, 7)).to be true
     expect(@m.inspect).to eql('[nil, nil, [[1, 7]]]')
     expect(@m.get_space(4)).to eql([ 1, 7 ])
     expect(@m.inspect).to eql('[nil, nil, []]')
@@ -71,20 +72,20 @@ describe PEROBS::FreeSpaceManager do
 
   it 'should multiple values to a pool' do
     1.upto(8) { |i| @m.add_space(i, i) }
-    expect(@m.inspect).to eql('[[[1, 1]], [[2, 2][3, 3]], [[4, 4][5, 5][6, 6][7, 7]], [[8, 8]]]')
+    expect(@m.inspect).to eql('[[[1, 1]], [[2, 2], [3, 3]], [[4, 4], [5, 5], [6, 6], [7, 7]], [[8, 8]]]')
   end
 
   it 'should return the spaces again' do
     expect(@m.get_space(1)).to eql([ 1, 1])
-    expect(@m.inspect).to eql('[[], [[2, 2][3, 3]], [[4, 4][5, 5][6, 6][7, 7]], [[8, 8]]]')
+    expect(@m.inspect).to eql('[[], [[2, 2], [3, 3]], [[4, 4], [5, 5], [6, 6], [7, 7]], [[8, 8]]]')
     expect(@m.get_space(2)).to eql([ 3, 3])
-    expect(@m.inspect).to eql('[[], [[2, 2]], [[4, 4][5, 5][6, 6][7, 7]], [[8, 8]]]')
+    expect(@m.inspect).to eql('[[], [[2, 2]], [[4, 4], [5, 5], [6, 6], [7, 7]], [[8, 8]]]')
     expect(@m.get_space(2)).to eql([ 2, 2])
-    expect(@m.inspect).to eql('[[], [], [[4, 4][5, 5][6, 6][7, 7]], [[8, 8]]]')
+    expect(@m.inspect).to eql('[[], [], [[4, 4], [5, 5], [6, 6], [7, 7]], [[8, 8]]]')
     expect(@m.get_space(4)).to eql([ 7, 7])
-    expect(@m.inspect).to eql('[[], [], [[4, 4][5, 5][6, 6]], [[8, 8]]]')
+    expect(@m.inspect).to eql('[[], [], [[4, 4], [5, 5], [6, 6]], [[8, 8]]]')
     expect(@m.get_space(8)).to eql([ 8, 8])
-    expect(@m.inspect).to eql('[[], [], [[4, 4][5, 5][6, 6]], []]')
+    expect(@m.inspect).to eql('[[], [], [[4, 4], [5, 5], [6, 6]], []]')
   end
 
 end

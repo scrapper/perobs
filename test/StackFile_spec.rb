@@ -65,6 +65,24 @@ describe PEROBS::StackFile do
     expect(@stack.pop).to be_nil
   end
 
+  it 'should handle mixed pushes and pops' do
+    @stack.push('1111')
+    @stack.push('2222')
+    expect(@stack.pop).to eql('2222')
+    @stack.push('3333')
+    @stack.push('4444')
+    expect(@stack.pop).to eql('4444')
+    expect(@stack.pop).to eql('3333')
+    expect(@stack.pop).to eql('1111')
+    expect(@stack.pop).to be_nil
+    @stack.push('5555')
+    expect(@stack.pop).to eql('5555')
+    @stack.push('6666')
+    @stack.push('7777')
+    expect(@stack.pop).to eql('7777')
+    expect(@stack.pop).to eql('6666')
+  end
+
   it 'should persist the stack over close/open' do
     @stack.push('1111')
     @stack.push('2222')
@@ -73,6 +91,22 @@ describe PEROBS::StackFile do
     expect(@stack.pop).to eql('2222')
     expect(@stack.pop).to eql('1111')
     expect(@stack.pop).to be_nil
+  end
+
+  it 'should iterate over all entries' do
+    @stack.push('1111')
+    @stack.push('2222')
+    @stack.push('3333')
+    s = ''
+    @stack.each { |e| s << e }
+    expect(s).to eql('111122223333')
+    expect(@stack.to_ary).to eql([ '1111', '2222', '3333' ])
+  end
+
+  it 'should clear the stack' do
+    @stack.clear
+    expect(@stack.pop).to be_nil
+    expect(@stack.to_ary).to eql([])
   end
 
 end
