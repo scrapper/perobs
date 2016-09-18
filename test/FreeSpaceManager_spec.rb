@@ -65,7 +65,7 @@ describe PEROBS::FreeSpaceManager do
     expect(@m.get_space(8)).to eql([ 1, 15 ])
   end
 
-  it 'should support a clear' do
+  it 'should support clearing the data' do
     @m.clear
     expect(@m.inspect).to eql('[]')
   end

@@ -137,6 +137,11 @@ describe PEROBS::FlatFile do
     expect(@ff.find_obj_addr_by_id(5)).to eql(115)
   end
 
+  it 'should be able to regenerate the index and free list' do
+    @ff.regenerate_index_and_spaces
+    expect(@ff.check).to be true
+  end
+
   it 'should defragment the file' do
     @ff.defragmentize
     expect(@ff.read_obj_by_id(0)).to eql('Object 0')

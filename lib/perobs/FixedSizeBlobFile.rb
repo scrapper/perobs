@@ -73,6 +73,13 @@ module PEROBS
       end
     end
 
+    # Delete all data.
+    def clear
+      @f.truncate(0)
+      @f.flush
+      @free_list.clear
+    end
+
     # Return the address of a free blob storage space. Addresses start at 0
     # and increase linearly.
     # @return [Fixnum] address of a free blob space

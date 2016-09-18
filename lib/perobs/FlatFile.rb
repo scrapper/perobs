@@ -325,7 +325,7 @@ module PEROBS
     end
 
     def check(repair = false)
-      return unless @f
+      return true unless @f
 
       each_blob_header do |pos, mark, length, blob_id, crc|
         if (mark & 1 == 1)
@@ -346,9 +346,29 @@ module PEROBS
           end
         end
       end
-      @index.check(self)
-      @space_list.check(self)
-      cross_check_entries
+      unless @index.check(self) && @space_list.check(self) &&
+             cross_check_entries
+        return false unless repair
+
+        regenerate_index_and_spaces
+      end
+
+      true
+    end
+
+    # This method clears the index tree and the free space list and
+    # regenerates them from the FlatFile.
+    def regenerate_index_and_spaces
+      @index.clear
+      @space_list.clear
+
+      each_blob_header do |pos, mark, length, id, crc|
+        if mark == 0
+          @space_list.add_space(pos, length) if length > 0
+        else
+          @index.put_value(id, pos)
+        end
+      end
     end
 
     def has_space?(address, size)
@@ -423,17 +443,21 @@ module PEROBS
         if mark == 0
           if length > 0
             unless @space_list.has_space?(pos, length)
-              raise RuntimeError, "FlatFile has free space " +
+              $stderr.puts "FlatFile has free space " +
                 "(addr: #{pos}, len: #{length}) that is not in FreeSpaceManager"
+              return false
             end
           end
         else
           unless @index.get_value(blob_id) == pos
-            raise RuntimeError, "FlatFile blob at address #{pos} is listed " +
+            $stderr.puts "FlatFile blob at address #{pos} is listed " +
               "in index with address #{@index.get_value(blob_id)}"
+            return false
           end
         end
       end
+
+      true
     end
 
     def each_blob_header(&block)
@@ -447,7 +471,7 @@ module PEROBS
           pos += BLOB_HEADER_LENGTH + length
           @f.seek(pos)
         end
-      rescue => e
+      rescue IOError => e
         raise IOError, "Cannot read blob in flat file DB: #{e.message}"
       end
     end

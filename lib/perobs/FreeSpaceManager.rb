@@ -97,10 +97,14 @@ module PEROBS
 
     # Clear all pools and forget any registered spaces.
     def clear
-      close
-      Dir.glob(File.join(@dir, 'free_list_*.stack')).each do |file|
-        File.delete(file)
+      @pools.each do |pool|
+        if pool
+          pool.open
+          pool.clear
+          pool.close
+        end
       end
+      close
     end
 
     # Check if there is a space in the free space lists that matches the
@@ -138,12 +142,15 @@ module PEROBS
         pool.each do |entry|
           address, size = entry.unpack('QQ')
           unless flat_file.has_space?(address, size)
-            raise RuntimeError, "FreeSpaceManager has space that isn't " +
+            $stderr.puts "FreeSpaceManager has space that isn't " +
               "available in the FlatFile."
+            return false
           end
         end
         pool.close
       end
+
+      true
     end
 
     def inspect

@@ -194,12 +194,18 @@ module PEROBS
           # We still need to compare the requested ID with the full ID to
           # determine a match.
           id, address = get_id_and_address(@entries[index])
-          return false unless flat_file.has_id_at?(id, address)
+          unless flat_file.has_id_at?(id, address)
+            $stderr.puts "The entry for ID #{id} in the index was not found " +
+              "in the FlatFile at address #{address}"
+            return false
+          end
         when 2
           # The entry is a reference to another node. Just follow it and look
           # at the next nibble.
-          return false unless @tree.get_node(@nibble_idx + 1, @entries[index]).
-            check(flat_file)
+          unless @tree.get_node(@nibble_idx + 1, @entries[index]).
+                 check(flat_file)
+            return false
+          end
         else
           return false
         end
