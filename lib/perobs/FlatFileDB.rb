@@ -28,6 +28,7 @@
 require 'fileutils'
 require 'zlib'
 
+require 'perobs/DataBase'
 require 'perobs/FlatFile'
 
 module PEROBS
@@ -35,6 +36,10 @@ module PEROBS
   # The FlatFileDB is a storage backend that uses a single flat file to store
   # the value blobs.
   class FlatFileDB < DataBase
+
+    # This version number increases whenever the on-disk format changes in a
+    # way that requires conversion actions after an update.
+    VERSION = 1
 
     attr_reader :max_blob_size
 
@@ -49,6 +54,7 @@ module PEROBS
       @db_dir = db_name
       # Create the database directory if it doesn't exist yet.
       ensure_dir_exists(@db_dir)
+      check_version
 
       # Read the existing DB config.
       @config = get_hash('config')
@@ -191,6 +197,38 @@ module PEROBS
     def put_raw_object(raw, id)
       @flat_file.delete_obj_(id)
       @flat_file.write_obj_by_id(id, raw)
+    end
+
+    private
+
+    def check_version
+      version_file = File.join(@db_dir, 'version')
+      version = VERSION
+
+      if File.exist?(version_file)
+        begin
+          version = File.read(version_file).to_i
+        rescue => e
+          raise IOError, "Cannot read version number file '#{version_file}': " +
+            e.message
+        end
+      else
+        write_version_file(version_file)
+      end
+
+      if version > VERSION
+        raise RuntimeError, "Cannot downgrade the FlatFile database from " +
+          "version #{version} to version #{VERSION}"
+      end
+    end
+
+    def write_version_file(version_file)
+      begin
+        File.write(version_file, "#{VERSION}")
+      rescue => e
+        raise IOError, "Cannot write version number file '#{version_file}': " +
+          e.message
+      end
     end
 
   end
