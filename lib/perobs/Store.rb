@@ -174,8 +174,6 @@ module PEROBS
         obj._transfer(new_db)
         obj._sync
       end
-      # Copy the class map.
-      new_db.db.put_hash('class_map', @db.get_hash('class_map'))
       # Flush the new store and close it.
       new_db.exit
 

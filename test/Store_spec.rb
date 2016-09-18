@@ -523,7 +523,12 @@ describe PEROBS::Store do
     p1.related = p2
     p2.related = p1
     p0.related = p1
-    p0 = p1 = p2 = nil
+    p3 = @store.new(PEROBS::Array)
+    @store['persons'] = p3
+    p3 << p0
+    p3 << p1
+    p3 << p2
+    p0 = p1 = p2 = p3 = nil
     expect(@store['person0']._id).to eq(id0)
     expect(@store['person0'].related._id).to eq(id1)
     expect(@store['person0'].related.related._id).to eq(id2)
@@ -535,6 +540,9 @@ describe PEROBS::Store do
     expect(@store['person0']._id).to eq(id0)
     expect(@store['person0'].related._id).to eq(id1)
     expect(@store['person0'].related.related._id).to eq(id2)
+    expect(@store['persons'][0]).to eq(@store['person0'])
+    expect(@store['persons'][1]).to eq(@store['person0'].related)
+    expect(@store['persons'][2]).to eq(@store['person0'].related.related)
   end
 
 end
