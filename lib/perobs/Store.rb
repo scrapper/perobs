@@ -435,12 +435,10 @@ module PEROBS
     end
 
     # Remove the object from the in-memory list. This is an internal method
-    # and should never be called from user code.
+    # and should never be called from user code. It will be called from a
+    # finalizer, so many restrictions apply!
     # @param id [Fixnum or Bignum] Object ID of object to remove from the list
     def _collect(id, ignore_errors = false)
-      unless ignore_errors || @in_memory_objects.include?(id)
-        PEROBS.log.fatal "Object with id #{id} is currently not in memory"
-      end
       @in_memory_objects.delete(id)
     end
 
