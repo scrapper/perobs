@@ -25,6 +25,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+require 'perobs/Log'
+
 module PEROBS
 
   # This class implements a file based stack. All entries must have the same
@@ -50,7 +52,7 @@ module PEROBS
           @f = File.open(@file_name, 'wb+')
         end
       rescue => e
-        raise IOError, "Cannot open stack file #{@file_name}: #{e.message}"
+        PEROBS.log.fatal "Cannot open stack file #{@file_name}: #{e.message}"
       end
     end
 

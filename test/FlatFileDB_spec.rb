@@ -43,7 +43,7 @@ describe PEROBS::FlatFileDB do
 
   after(:all) do
     @db.close
-    FileUtils.rm_rf(@db_dir)
+    #FileUtils.rm_rf(@db_dir)
   end
 
   it 'should have a version file' do

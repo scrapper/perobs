@@ -28,6 +28,7 @@
 require 'set'
 require 'weakref'
 
+require 'perobs/Log'
 require 'perobs/Handle'
 require 'perobs/Cache'
 require 'perobs/ClassMap'
@@ -145,14 +146,15 @@ module PEROBS
 
       # The named (global) objects IDs hashed by their name
       unless (@root_objects = object_by_id(0))
+        PEROBS.log.debug "Initializing the PEROBS store"
         # The root object hash always has the object ID 0.
         @root_objects = _construct_po(Hash, 0)
         # Mark the root_objects object as modified.
         @cache.cache_write(@root_objects)
       end
       unless @root_objects.is_a?(Hash)
-        raise RuntimeError, "Database corrupted: Root objects must be a Hash " +
-                            "but is a #{@root_objects.class}"
+        PEROBS.log.fatal "Database corrupted: Root objects must be a Hash " +
+                         "but is a #{@root_objects.class}"
       end
     end
 
@@ -186,7 +188,7 @@ module PEROBS
     # method was called.
     def exit
       if @cache.in_transaction?
-        raise RuntimeError, 'You cannot call exit() during a transaction'
+        PEROBS.log.fatal 'You cannot call exit() during a transaction'
       end
       @cache.flush
       @db.close
@@ -204,7 +206,7 @@ module PEROBS
     # @return [POXReference] A reference to the newly created object.
     def new(klass, *args)
       unless klass.is_a?(BasicObject)
-        raise ArgumentError, "#{klass} is not a BasicObject derivative"
+        PEROBS.log.abort "#{klass} is not a BasicObject derivative"
       end
 
       obj = _construct_po(klass, _new_id, *args)
@@ -249,12 +251,12 @@ module PEROBS
       # We only allow derivatives of PEROBS::Object to be stored in the
       # store.
       unless obj.is_a?(ObjectBase)
-        raise ArgumentError, 'Object must be of class PEROBS::Object but ' +
-                             "is of class #{obj.class}"
+        PEROBS.log.abort 'Object must be of class PEROBS::Object but ' +
+                         "is of class #{obj.class}"
       end
 
       unless obj.store == self
-        raise ArgumentError, 'The object does not belong to this store.'
+        PEROBS.log.abort 'The object does not belong to this store.'
       end
 
       # Store the name and mark the name list as modified.
@@ -284,7 +286,7 @@ module PEROBS
     # needed.
     def sync
       if @cache.in_transaction?
-        raise RuntimeError, 'You cannot call sync() during a transaction'
+        PEROBS.log.fatal 'You cannot call sync() during a transaction'
       end
       @cache.flush
     end
@@ -296,7 +298,7 @@ module PEROBS
     # @return [Fixnum] The number of collected objects
     def gc
       if @cache.in_transaction?
-        raise RuntimeError, 'You cannot call gc() during a transaction'
+        PEROBS.log.fatal 'You cannot call gc() during a transaction'
       end
       sync
       mark
@@ -388,8 +390,8 @@ module PEROBS
       while !stack.empty?
         # Get an object index from the stack.
         unless (obj = object_by_id(id = stack.pop))
-          raise RuntimeError, "Database is corrupted. Object with ID #{id} " +
-                              "not found."
+          PEROBS.log.abort "Database is corrupted. Object with ID #{id} " +
+                           "not found."
         end
         # Mark the object so it will never be pushed to the stack again.
         @db.mark(id)
@@ -437,7 +439,7 @@ module PEROBS
     # @param id [Fixnum or Bignum] Object ID of object to remove from the list
     def _collect(id, ignore_errors = false)
       unless ignore_errors || @in_memory_objects.include?(id)
-        raise RuntimeError, "Object with id #{id} is currently not in memory"
+        PEROBS.log.fatal "Object with id #{id} is currently not in memory"
       end
       @in_memory_objects.delete(id)
     end
@@ -507,9 +509,8 @@ module PEROBS
                          "object #{ref_obj._id}:\n" + ref_obj.inspect
             ref_obj._delete_reference_to_id(id)
           else
-            raise RuntimeError,
-              "The following object references a non-existing object #{id}:\n" +
-              ref_obj.inspect
+             PEROBS.log.fatal "The following object references a " +
+                              "non-existing object #{id}:\n" + ref_obj.inspect
           end
           errors += 1
         end

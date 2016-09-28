@@ -25,6 +25,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+require 'perobs/Log'
 require 'perobs/StackFile'
 
 module PEROBS
@@ -64,7 +65,7 @@ module PEROBS
     # @param size [Integer] size of the space in bytes
     def add_space(address, size)
       if size <= 0
-        raise RuntimeError, "Size (#{size}) must be larger than 0."
+        PEROBS.log.fatal "Size (#{size}) must be larger than 0."
       end
       pool_index = msb(size)
       new_pool(pool_index) unless @pools[pool_index]
@@ -76,7 +77,7 @@ module PEROBS
     # @return [Array] Touple with address and actual size of the space.
     def get_space(size)
       if size <= 0
-        raise RuntimeError, "Size (#{size}) must be larger than 0."
+        PEROBS.log.fatal "Size (#{size}) must be larger than 0."
       end
       # When we search for a free space we need to search the pool that
       # corresponds to (size - 1) * 2. It is the pool that has the spaces that
@@ -88,7 +89,7 @@ module PEROBS
         return nil unless (entry = pop_pool(pool_index))
         sp_address, sp_size = entry.unpack('QQ')
         if sp_size < size
-          raise RuntimeError, "Space at address #{sp_address} is too small. " +
+          PEROBS.log.fatal "Space at address #{sp_address} is too small. " +
             "Must be at least #{size} bytes but is only #{sp_size} bytes."
         end
         [ sp_address, sp_size ]
@@ -122,7 +123,7 @@ module PEROBS
         sp_address, sp_size = entry.unpack('QQ')
         if address == sp_address
           if size != sp_size
-            raise RuntimeError, "FreeSpaceManager has space with different " +
+            PEROBS.log.fatal "FreeSpaceManager has space with different " +
               "size"
           end
           pool.close
@@ -142,7 +143,7 @@ module PEROBS
         pool.each do |entry|
           address, size = entry.unpack('QQ')
           unless flat_file.has_space?(address, size)
-            $stderr.puts "FreeSpaceManager has space that isn't " +
+            PEROBS.log.error "FreeSpaceManager has space that isn't " +
               "available in the FlatFile."
             return false
           end
@@ -192,7 +193,7 @@ module PEROBS
 
     def msb(i)
       unless i > 0
-        raise ArgumentError, "i must be larger than 0"
+        PEROBS.log.fatal "i must be larger than 0"
       end
       i.to_s(2).length - 1
     end

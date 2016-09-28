@@ -28,6 +28,7 @@
 require 'fileutils'
 require 'zlib'
 
+require 'perobs/Log'
 require 'perobs/DataBase'
 require 'perobs/FlatFile'
 
@@ -54,6 +55,7 @@ module PEROBS
       @db_dir = db_name
       # Create the database directory if it doesn't exist yet.
       ensure_dir_exists(@db_dir)
+      PEROBS.log.open(File.join(@db_dir, 'log'))
       check_version
 
       # Read the existing DB config.
@@ -67,12 +69,14 @@ module PEROBS
     def open
       @flat_file = FlatFile.new(@db_dir)
       @flat_file.open
+      PEROBS.log.info "FlatFile opened"
     end
 
     # Close the FlatFileDB.
     def close
       @flat_file.close
       @flat_file = nil
+      PEROBS.log.info "FlatFile closed"
     end
 
     # Delete the entire database. The database is no longer usable after this
@@ -100,8 +104,7 @@ module PEROBS
       begin
         File.write(file_name, hash.to_json)
       rescue => e
-        raise RuntimeError,
-              "Cannot write hash file '#{file_name}': #{e.message}"
+        PEROBS.log.fatal "Cannot write hash file '#{file_name}': #{e.message}"
       end
     end
 
@@ -115,8 +118,7 @@ module PEROBS
       begin
         json = File.read(file_name)
       rescue => e
-        raise RuntimeError,
-              "Cannot read hash file '#{file_name}': #{e.message}"
+        PEROBS.log.fatal "Cannot read hash file '#{file_name}': #{e.message}"
       end
       JSON.parse(json, :create_additions => true)
     end
@@ -142,14 +144,19 @@ module PEROBS
 
     # This method must be called to initiate the marking process.
     def clear_marks
+      PEROBS.log.info "Clearing all marks"
       @flat_file.clear_all_marks
+      PEROBS.log.info "All marks cleared"
     end
 
     # Permanently delete all objects that have not been marked. Those are
     # orphaned and are no longer referenced by any actively used object.
     # @return [Array] List of IDs that have been removed from the DB.
     def delete_unmarked_objects
-      @flat_file.delete_unmarked_objects
+      PEROBS.log.info "Deleting unmarked objects"
+      retval = @flat_file.delete_unmarked_objects
+      PEROBS.log.info "Unmarked objects deleted"
+      retval
     end
 
     # Mark an object.
@@ -170,7 +177,9 @@ module PEROBS
     # @param repair [TrueClass/FalseClass] True if found errors should be
     #        repaired.
     def check_db(repair = false)
+      PEROBS.log.info "check_db started"
       @flat_file.check(repair)
+      PEROBS.log.info "check_db finished"
     end
 
     # Check if the stored object is syntactically correct.
@@ -183,7 +192,7 @@ module PEROBS
       begin
         get_object(id)
       rescue => e
-        $stderr.puts "Cannot read object with ID #{id}: #{e.message}"
+        PEROBS.log.warn "Cannot read object with ID #{id}: #{e.message}"
         return false
       end
 
@@ -209,16 +218,16 @@ module PEROBS
         begin
           version = File.read(version_file).to_i
         rescue => e
-          raise IOError, "Cannot read version number file '#{version_file}': " +
-            e.message
+          PEROBS.log.fatal "Cannot read version number file " +
+                           "'#{version_file}': " + e.message
         end
       else
         write_version_file(version_file)
       end
 
       if version > VERSION
-        raise RuntimeError, "Cannot downgrade the FlatFile database from " +
-          "version #{version} to version #{VERSION}"
+        PEROBS.log.abort "Cannot downgrade the FlatFile database from " +
+                         "version #{version} to version #{VERSION}"
       end
     end
 
@@ -226,8 +235,8 @@ module PEROBS
       begin
         File.write(version_file, "#{VERSION}")
       rescue => e
-        raise IOError, "Cannot write version number file '#{version_file}': " +
-          e.message
+        PEROBS.log.fatal "Cannot write version number file " +
+                         "'#{version_file}': " + e.message
       end
     end
 

@@ -27,6 +27,7 @@
 
 require 'zlib'
 
+require 'perobs/Log'
 require 'perobs/IndexTree'
 require 'perobs/FreeSpaceManager'
 
@@ -73,10 +74,11 @@ module PEROBS
         if File.exist?(file_name)
           @f = File.open(file_name, 'rb+')
         else
+          PEROBS.log.info 'New database.blobs file created'
           @f = File.open(file_name, 'wb+')
         end
       rescue => e
-        raise IOError, "Cannot open flat file database #{file_name}: " +
+        PEROBS.log.abort "Cannot open flat file database #{file_name}: " +
           e.message
       end
       @index.open
@@ -122,7 +124,7 @@ module PEROBS
         @f.flush
         @space_list.add_space(addr, header.length)
       rescue => e
-        raise IOError, "Cannot erase blob for ID #{header.id}: #{e.message}"
+        PEROBS.log.fatal "Cannot erase blob for ID #{header.id}: #{e.message}"
       end
     end
 
@@ -152,15 +154,15 @@ module PEROBS
           # Just a safeguard so we don't overwrite current data.
           header = read_blob_header(addr)
           if header.length != length
-            raise RuntimeError, "Length in free list (#{length}) and header " +
+            PEROBS.log.fatal "Length in free list (#{length}) and header " +
               "(#{header.length}) don't match."
           end
           if raw_obj.length > header.length
-            raise RuntimeError, "Object (#{raw_obj.length}) is longer than " +
+            PEROBS.log.fatal "Object (#{raw_obj.length}) is longer than " +
               "blob space (#{header.length})."
           end
           if header.mark != 0
-            raise RuntimeError, "Mark (#{header.mark}) is not 0."
+            PEROBS.log.fatal "Mark (#{header.mark}) is not 0."
           end
         end
         @f.seek(addr)
@@ -172,7 +174,7 @@ module PEROBS
           # free space. So we have to write a new header to mark the remaining
           # empty space.
           unless length - raw_obj.length >= BLOB_HEADER_LENGTH
-            raise RuntimeError, "Not enough space to append the empty space " +
+            PEROBS.log.fatal "Not enough space to append the empty space " +
               "header (space: #{length} bytes, object: #{raw_obj.length} " +
               "bytes)."
           end
@@ -185,7 +187,7 @@ module PEROBS
         @f.flush
         @index.put_value(id, addr)
       rescue IOError => e
-        raise IOError, "Cannot write blob for ID #{id} to FlatFileDB: " +
+        PEROBS.log.fatal "Cannot write blob for ID #{id} to FlatFileDB: " +
           e.message
       end
 
@@ -217,19 +219,18 @@ module PEROBS
     def read_obj_by_address(addr, id)
       header = read_blob_header(addr, id)
       if header.id != id
-        raise RuntimeError, "Database index corrupted: Index for object " +
+        PEROBS.log.fatal "Database index corrupted: Index for object " +
           "#{id} points to object with ID #{header.id}"
       end
       begin
         @f.seek(addr + BLOB_HEADER_LENGTH)
         buf = @f.read(header.length)
         if checksum(buf) != header.crc
-          raise RuntimeError,
-            "Checksum failure while reading blob ID #{id}"
+          PEROBS.log.fatal "Checksum failure while reading blob ID #{id}"
         end
         return buf
       rescue => e
-        raise IOError, "Cannot read blob for ID #{id}: #{e.message}"
+        PEROBS.log.fatal "Cannot read blob for ID #{id}: #{e.message}"
       end
     end
 
@@ -251,7 +252,7 @@ module PEROBS
         @f.write([ header.mark | 2 ].pack('C'))
         @f.flush
       rescue => e
-        raise IOError, "Marking of FlatFile blob with ID #{id} " +
+        PEROBS.log.fatal "Marking of FlatFile blob with ID #{id} " +
           "failed: #{e.message}"
       end
     end
@@ -276,8 +277,8 @@ module PEROBS
             @f.write([ mark & 0b11111101 ].pack('C'))
             @f.flush
           rescue => e
-            raise IOError, "Unmarking of FlatFile blob with ID #{blob_id} " +
-                           "failed: #{e.message}"
+            PEROBS.log.fatal "Unmarking of FlatFile blob with ID #{blob_id} " +
+              "failed: #{e.message}"
           end
         end
       end
@@ -309,7 +310,7 @@ module PEROBS
                        pack(BLOB_HEADER_FORMAT))
               @f.flush
             rescue => e
-              raise IOError, "Error while moving blob for ID #{blob_id}: " +
+              PEROBS.log.fatal "Error while moving blob for ID #{blob_id}: " +
                 e.message
             end
           end
@@ -336,12 +337,12 @@ module PEROBS
               if repair
                 delete_obj_by_address(pos, blob_id)
               else
-                raise RuntimeError,
-                  "Checksum failure while checking blob with ID #{id}"
+                PEROBS.log.fatal "Checksum failure while checking blob " +
+                  "with ID #{id}"
               end
             end
           rescue => e
-            raise IOError, "Check of blob with ID #{blob_id} failed: " +
+            PEROBS.log.fatal "Check of blob with ID #{blob_id} failed: " +
               e.message
           end
         end
@@ -404,12 +405,12 @@ module PEROBS
         @f.seek(addr)
         buf = @f.read(BLOB_HEADER_LENGTH)
       rescue => e
-        raise IOError, "Cannot read blob in flat file DB: #{e.message}"
+        PEROBS.log.fatal "Cannot read blob in flat file DB: #{e.message}"
       end
       header = Header.new(*buf.unpack(BLOB_HEADER_FORMAT))
       if id && header.id != id
-        raise RuntimeError, "Mismatch between FlatFile index and blob file " +
-                            "found for entry with ID #{id}/#{header.id}"
+        PEROBS.log.fatal "Mismatch between FlatFile index and blob file " +
+          "found for entry with ID #{id}/#{header.id}"
       end
 
       return header
@@ -472,7 +473,7 @@ module PEROBS
           @f.seek(pos)
         end
       rescue IOError => e
-        raise IOError, "Cannot read blob in flat file DB: #{e.message}"
+        PEROBS.log.fatal "Cannot read blob in flat file DB: #{e.message}"
       end
     end
 
