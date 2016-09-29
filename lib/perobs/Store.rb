@@ -352,8 +352,15 @@ module PEROBS
       @db.clear_marks
 
       errors = 0
+      objects = 0
       @root_objects.each do |name, id|
+        objects += 1
         errors += check_object(id, repair)
+      end
+      if errors > 0
+        PEROBS.log.warn "#{errors} errors found in #{objects} objects"
+      else
+        PEROBS.log.info "No errors found"
       end
       @root_objects.delete_if { |name, id| !@db.check(id, false) }
 

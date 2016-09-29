@@ -326,7 +326,7 @@ module PEROBS
     end
 
     def check(repair = false)
-      return true unless @f
+      return unless @f
 
       each_blob_header do |pos, mark, length, blob_id, crc|
         if (mark & 1 == 1)
@@ -335,6 +335,8 @@ module PEROBS
             buf = @f.read(length)
             if crc && checksum(buf) != crc
               if repair
+                PEROBS.log.error "Checksum failure while checking blob " +
+                  "with ID #{id}. Deleting object."
                 delete_obj_by_address(pos, blob_id)
               else
                 PEROBS.log.fatal "Checksum failure while checking blob " +
@@ -349,17 +351,16 @@ module PEROBS
       end
       unless @index.check(self) && @space_list.check(self) &&
              cross_check_entries
-        return false unless repair
+        return unless repair
 
         regenerate_index_and_spaces
       end
-
-      true
     end
 
     # This method clears the index tree and the free space list and
     # regenerates them from the FlatFile.
     def regenerate_index_and_spaces
+      PEROBS.log.warn "Re-generating FlatFileDB index and space files"
       @index.clear
       @space_list.clear
 
