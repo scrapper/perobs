@@ -25,6 +25,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+require 'perobs/Log'
 require 'perobs/Store'
 
 module PEROBS
@@ -55,7 +56,7 @@ module PEROBS
       # to increase performance.
       if obj.respond_to?(:is_poxreference?)
         # If this condition triggers, we have a bug in the library.
-        raise RuntimeError, "POXReference objects should never be cached"
+        PEROBS.log.fatal "POXReference objects should never be cached"
       end
       @reads[index(obj)] = obj
     end
@@ -67,7 +68,7 @@ module PEROBS
       # to increase performance.
       if obj.respond_to?(:is_poxreference?)
         # If this condition triggers, we have a bug in the library.
-        raise RuntimeError, "POXReference objects should never be cached"
+        PEROBS.log.fatal "POXReference objects should never be cached"
       end
 
       if @transaction_stack.empty?
@@ -147,7 +148,7 @@ module PEROBS
     def end_transaction
       case @transaction_stack.length
       when 0
-        raise RuntimeError, 'No ongoing transaction to end'
+        PEROBS.log.fatal 'No ongoing transaction to end'
       when 1
         # All transactions completed successfully. Write all modified objects
         # into the backend storage.
@@ -169,7 +170,7 @@ module PEROBS
     # the transaction started.
     def abort_transaction
       if @transaction_stack.empty?
-        raise RuntimeError, 'No ongoing transaction to abort'
+        PEROBS.log.fatal 'No ongoing transaction to abort'
       end
       @transaction_stack.pop.each do |id|
         @transaction_objects[id]._restore(@transaction_stack.length)

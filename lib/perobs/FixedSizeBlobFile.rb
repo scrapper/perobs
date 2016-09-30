@@ -25,6 +25,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+require 'perobs/Log'
 require 'perobs/StackFile'
 
 module PEROBS
@@ -56,7 +57,7 @@ module PEROBS
           @f = File.open(@file_name, 'wb+')
         end
       rescue IOError => e
-        raise IOError, "Cannot open blob file #{@file_name}: #{e.message}"
+        PEROBS.log.fatal "Cannot open blob file #{@file_name}: #{e.message}"
       end
       @free_list.open
     end
@@ -69,7 +70,7 @@ module PEROBS
         @f.flush
         @f.close
       rescue IOError => e
-        raise IOError, "Cannot close blob file #{@file_name}: #{e.message}"
+        PEROBS.log.fatal "Cannot close blob file #{@file_name}: #{e.message}"
       end
     end
 
@@ -100,8 +101,8 @@ module PEROBS
     # @param bytes [String] bytes to store
     def store_blob(address, bytes)
       if bytes.length != @entry_bytes
-        raise ArgumentError, "All stack entries must be #{@entry_bytes} " +
-                             "long. This entry is #{bytes.length} bytes long."
+        PEROBS.log.fatal "All stack entries must be #{@entry_bytes} " +
+          "long. This entry is #{bytes.length} bytes long."
       end
       begin
         @f.seek(address_to_offset(address))
@@ -111,7 +112,7 @@ module PEROBS
         @f.write(bytes)
         @f.flush
       rescue IOError => e
-        raise IOError, "Cannot store blob at address #{address}: #{e.message}"
+        PEROBS.log.fatal "Cannot store blob at address #{address}: #{e.message}"
       end
     end
 
@@ -130,7 +131,8 @@ module PEROBS
         end
         bytes = @f.read(@entry_bytes)
       rescue IOError => e
-        raise IOError, "Cannot retrieve blob at adress #{address}: #{e.message}"
+        PEROBS.log.fatal "Cannot retrieve blob at adress #{address}: " +
+          e.message
       end
 
       bytes
@@ -142,12 +144,13 @@ module PEROBS
       begin
         @f.seek(address_to_offset(address))
         if (@f.read(1).unpack('C')[0] != 1)
-          raise ArgumentError, "There is no blob stored at address #{address}"
+          PEROBS.log.fatal "There is no blob stored at address #{address}"
         end
         @f.seek(address_to_offset(address))
         @f.write([ 0 ].pack('C'))
       rescue IOError => e
-        raise "Cannot delete blob at address #{address}: #{e.message}"
+        PEROBS.log.fatal "Cannot delete blob at address #{address}: " +
+          e.message
       end
       # Add the address to the free list.
       @free_list.push([ address ].pack('Q'))

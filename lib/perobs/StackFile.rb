@@ -63,7 +63,7 @@ module PEROBS
         @f.flush
         @f.close
       rescue => e
-        raise IOError, "Cannot close stack file #{@file_name}: #{e.message}"
+        PEROBS.log.fatal "Cannot close stack file #{@file_name}: #{e.message}"
       end
     end
 
@@ -71,14 +71,14 @@ module PEROBS
     # @param bytes [String] Bytes to write.
     def push(bytes)
       if bytes.length != @entry_bytes
-        raise ArgumentError, "All stack entries must be #{@entry_bytes} " +
-                             "long. This entry is #{bytes.length} bytes long."
+        PEROBS.log.fatal "All stack entries must be #{@entry_bytes} " +
+          "long. This entry is #{bytes.length} bytes long."
       end
       begin
         @f.seek(0, IO::SEEK_END)
         @f.write(bytes)
       rescue => e
-        raise IOError, "Cannot push to stack file #{@file_name}: #{e.message}"
+        PEROBS.log.fatal "Cannot push to stack file #{@file_name}: #{e.message}"
       end
     end
 
@@ -93,7 +93,8 @@ module PEROBS
         @f.truncate(@f.size - @entry_bytes)
         @f.flush
       rescue => e
-        raise IOError, "Cannot pop from stack file #{@file_name}: #{e.message}"
+        PEROBS.log.fatal "Cannot pop from stack file #{@file_name}: " +
+          e.message
       end
 
       bytes

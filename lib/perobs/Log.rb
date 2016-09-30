@@ -44,8 +44,8 @@ module PEROBS
 
   # The ILogger class is a singleton that provides a common logging mechanism
   # to all objects. It exposes essentially the same interface as the Logger
-  # class, just as a singleton and with some additional methods like 'fatal'
-  # and 'abort'.
+  # class, just as a singleton and extends fatal to raise an FatalError
+  # exception.
   class ILogger < Monitor
 
     include Singleton
@@ -79,13 +79,6 @@ module PEROBS
     # Make it properly introspectable.
     def respond_to?(method, include_private = false)
       @@logger.respond_to?(method)
-    end
-
-    # Print an error message via the Logger and raise a Fit4Ruby::Abort.
-    # This method should be used to abort the program in case of user errors.
-    def abort(msg, &block)
-      @@logger.error(msg, &block)
-      raise UsageError, msg
     end
 
     # Print an error message via the Logger and raise a Fit4Ruby::Error.

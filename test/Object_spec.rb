@@ -155,12 +155,16 @@ describe PEROBS::Store do
   it 'should catch a leaked PEROBS::ObjectBase object' do
     @store['a'] = a = @store.new(O1_Object)
     o = @store.new(O2_Object)
-    expect { a.a1 = o.get_self }.to raise_error(ArgumentError)
+    PEROBS.log.open(StringIO.new)
+    expect { a.a1 = o.get_self }.to raise_error(PEROBS::FatalError)
+    PEROBS.log.open($stderr)
   end
 
   it 'should raise an error when no attributes are defined' do
     @store['o3'] = @store.new(O3)
-    expect { @store.sync }.to raise_error(StandardError)
+    PEROBS.log.open(StringIO.new)
+    expect { @store.sync }.to raise_error(PEROBS::FatalError)
+    PEROBS.log.open($stderr)
   end
 
 end

@@ -169,7 +169,9 @@ describe PEROBS::Hash do
     @store['a'] = a = @store.new(PEROBS::Hash)
     o = @store.new(PO)
     a['a'] = o.get_self
-    expect { @store.sync }.to raise_error(RuntimeError)
+    PEROBS.log.open(StringIO.new)
+    expect { @store.sync }.to raise_error(PEROBS::FatalError)
+    PEROBS.log.open($stderr)
   end
 
 end

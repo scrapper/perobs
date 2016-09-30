@@ -176,7 +176,7 @@ module PEROBS
       begin
         get_object(id)
       rescue => e
-        $stderr.puts "Cannot read object with ID #{id}: #{e.message}"
+        PEROBS.log.error "Cannot read object with ID #{id}: #{e.message}"
         return false
       end
 

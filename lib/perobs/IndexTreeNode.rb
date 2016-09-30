@@ -25,6 +25,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+require 'perobs/Log'
+
 module PEROBS
 
   # The IndexTreeNode is the building block of the IndexTree. Each node can
@@ -52,7 +54,7 @@ module PEROBS
       @tree = tree
       if nibble_idx >= 16
         # We are processing 64 bit numbers, so we have at most 16 nibbles.
-        raise ArgumentError, 'nibble must be 0 - 15'
+        PEROBS.log.fatal 'nibble must be 0 - 15'
       end
       @nibble_idx = nibble_idx
       if (@address = address).nil? || !read_node
@@ -104,7 +106,7 @@ module PEROBS
         node = @tree.get_node(@nibble_idx + 1, @entries[index])
         node.put_value(id, value)
       else
-        raise RuntimError, "Illegal node type #{get_entry_type(index)}"
+        PEROBS.log.fatal "Illegal node type #{get_entry_type(index)}"
       end
     end
 
@@ -135,7 +137,7 @@ module PEROBS
         return @tree.get_node(@nibble_idx + 1, @entries[index]).
           get_value(id)
       else
-        raise RuntimError, "Illegal node type #{get_entry_type(index)}"
+        PEROBS.log.fatal "Illegal node type #{get_entry_type(index)}"
       end
     end
 
@@ -176,7 +178,7 @@ module PEROBS
         end
         return result
       else
-        raise RuntimError, "Illegal node type #{get_entry_type(index)}"
+        PEROBS.node.fatal "Illegal node type #{get_entry_type(index)}"
       end
     end
 
@@ -195,8 +197,8 @@ module PEROBS
           # determine a match.
           id, address = get_id_and_address(@entries[index])
           unless flat_file.has_id_at?(id, address)
-            $stderr.puts "The entry for ID #{id} in the index was not found " +
-              "in the FlatFile at address #{address}"
+            PEROBS.log.error "The entry for ID #{id} in the index was not " +
+              "found in the FlatFile at address #{address}"
             return false
           end
         when 2
@@ -268,7 +270,7 @@ module PEROBS
 
     def set_entry_type(index, type)
       if index < 0 || index > 15
-        raise ArgumentError, "Index must be between 0 and 15"
+        PEROBS.log.fatal "Index must be between 0 and 15"
       end
       @entry_types = ((@entry_types & ~(0x3 << 2 * index)) |
                      ((type & 0x3) << 2 * index)) & 0xFFFFFFFF
@@ -276,7 +278,7 @@ module PEROBS
 
     def get_entry_type(index)
       if index < 0 || index > 15
-        raise ArgumentError, "Index must be between 0 and 15"
+        PEROBS.log.fatal "Index must be between 0 and 15"
       end
       (@entry_types >> 2 * index) & 0x3
     end

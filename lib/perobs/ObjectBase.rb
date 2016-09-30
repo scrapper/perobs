@@ -25,6 +25,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+require 'perobs/Log'
 require 'perobs/ClassMap'
 
 module PEROBS
@@ -47,13 +48,11 @@ module PEROBS
     # Proxy all calls to unknown methods to the referenced object.
     def method_missing(method_sym, *args, &block)
       unless (obj = _referenced_object)
-        ::Kernel.raise ::RuntimeError,
-          "Internal consistency error. No object with ID #{@id} found in " +
-          'the store.'
+        PEROBS.log.fatal "Internal consistency error. No object with ID " +
+          "#{@id} found in the store."
       end
       if obj.respond_to?(:is_poxreference?)
-        ::Kernel.raise ::RuntimeError,
-          "POXReference that references a POXReference found."
+        PEROBS.log.fatal "POXReference that references a POXReference found."
       end
       obj.send(method_sym, *args, &block)
     end

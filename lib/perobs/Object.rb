@@ -27,6 +27,7 @@
 
 require 'time'
 
+require 'perobs/Log'
 require 'perobs/ObjectBase'
 
 module PEROBS
@@ -53,7 +54,7 @@ module PEROBS
       def po_attr(*attributes)
         attributes.each do |attr_name|
           unless attr_name.is_a?(Symbol)
-            raise ArgumentError, "name must be a symbol but is a " +
+            PEROBS.log.fatal "name must be a symbol but is a " +
               "#{attr_name.class}"
           end
 
@@ -115,8 +116,8 @@ module PEROBS
         end
         return true
       else
-        raise ArgumentError, "'#{attr}' is not a defined persistent " +
-                             "attribute of class #{self.class}"
+        PEROBS.log.fatal "'#{attr}' is not a defined persistent " +
+          "attribute of class #{self.class}"
       end
 
       false
@@ -209,13 +210,12 @@ module PEROBS
         # References to other PEROBS::Objects must be handled somewhat
         # special.
         if @store != val.store
-          raise ArgumentError, 'The referenced object is not part of this store'
+          PEROBS.log.fatal 'The referenced object is not part of this store'
         end
       elsif val.is_a?(ObjectBase)
-        raise ArgumentError, 'A PEROBS::ObjectBase object escaped! ' +
-                             'Have you used self() instead of myself() to' +
-                             'get the reference of the PEROBS object that ' +
-                             'you are trying to assign here?'
+        PEROBS.log.fatal 'A PEROBS::ObjectBase object escaped! ' +
+          'Have you used self() instead of myself() to get the reference ' +
+          'of the PEROBS object that you are trying to assign here?'
       end
       instance_variable_set(('@' + attr.to_s).to_sym, val)
       # Let the store know that we have a modified object. If we restored the
@@ -233,8 +233,7 @@ module PEROBS
       # PEROBS objects that don't have persistent attributes declared don't
       # really make sense.
       unless self.class.attributes
-        raise StandardError
-          "No persistent attributes have been declared for " +
+        PEROBS.log.fatal "No persistent attributes have been declared for " +
           "class #{self.class}. Use 'po_attr' to declare them."
       end
       self.class.attributes

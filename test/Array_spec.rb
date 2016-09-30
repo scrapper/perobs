@@ -243,7 +243,9 @@ describe PEROBS::Array do
     @store['a'] = a = @store.new(PEROBS::Array)
     o = @store.new(PO)
     a[0] = o.get_self
-    expect { @store.sync }.to raise_error(RuntimeError)
+    PEROBS.log.open(StringIO.new)
+    expect { @store.sync }.to raise_error(PEROBS::FatalError)
+    PEROBS.log.open($stderr)
   end
 
 end

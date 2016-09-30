@@ -32,6 +32,7 @@ require 'json/add/struct'
 require 'yaml'
 require 'fileutils'
 
+require 'perobs/Log'
 require 'perobs/ObjectBase'
 
 module PEROBS
@@ -70,8 +71,8 @@ module PEROBS
           YAML.dump(obj)
         end
       rescue => e
-        raise RuntimeError,
-              "Cannot serialize object as #{@serializer}: #{e.message}"
+        PEROBS.log.fatal "Cannot serialize object as #{@serializer}: " +
+          e.message
       end
     end
 
@@ -89,9 +90,8 @@ module PEROBS
           YAML.load(raw)
         end
       rescue => e
-        raise RuntimeError,
-              "Cannot de-serialize object with #{@serializer} parser: " +
-              e.message
+        PEROBS.log.fatal "Cannot de-serialize object with #{@serializer} " +
+          "parser: " + e.message
       end
     end
 
@@ -122,7 +122,7 @@ module PEROBS
         begin
           Dir.mkdir(dir)
         rescue IOError => e
-          raise IOError, "Cannote create DB directory '#{dir}': #{e.message}"
+          PEROBS.log.fatal "Cannote create DB directory '#{dir}': #{e.message}"
         end
       end
     end

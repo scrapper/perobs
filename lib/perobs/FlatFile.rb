@@ -78,7 +78,7 @@ module PEROBS
           @f = File.open(file_name, 'wb+')
         end
       rescue => e
-        PEROBS.log.abort "Cannot open flat file database #{file_name}: " +
+        PEROBS.log.fatal "Cannot open flat file database #{file_name}: " +
           e.message
       end
       @index.open
@@ -445,14 +445,14 @@ module PEROBS
         if mark == 0
           if length > 0
             unless @space_list.has_space?(pos, length)
-              $stderr.puts "FlatFile has free space " +
+              PEROBS.log.error "FlatFile has free space " +
                 "(addr: #{pos}, len: #{length}) that is not in FreeSpaceManager"
               return false
             end
           end
         else
           unless @index.get_value(blob_id) == pos
-            $stderr.puts "FlatFile blob at address #{pos} is listed " +
+            PEROBS.log.error "FlatFile blob at address #{pos} is listed " +
               "in index with address #{@index.get_value(blob_id)}"
             return false
           end

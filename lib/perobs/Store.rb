@@ -154,7 +154,7 @@ module PEROBS
       end
       unless @root_objects.is_a?(Hash)
         PEROBS.log.fatal "Database corrupted: Root objects must be a Hash " +
-                         "but is a #{@root_objects.class}"
+          "but is a #{@root_objects.class}"
       end
     end
 
@@ -206,7 +206,7 @@ module PEROBS
     # @return [POXReference] A reference to the newly created object.
     def new(klass, *args)
       unless klass.is_a?(BasicObject)
-        PEROBS.log.abort "#{klass} is not a BasicObject derivative"
+        PEROBS.log.fatal "#{klass} is not a BasicObject derivative"
       end
 
       obj = _construct_po(klass, _new_id, *args)
@@ -251,12 +251,12 @@ module PEROBS
       # We only allow derivatives of PEROBS::Object to be stored in the
       # store.
       unless obj.is_a?(ObjectBase)
-        PEROBS.log.abort 'Object must be of class PEROBS::Object but ' +
-                         "is of class #{obj.class}"
+        PEROBS.log.fatal 'Object must be of class PEROBS::Object but ' +
+          "is of class #{obj.class}"
       end
 
       unless obj.store == self
-        PEROBS.log.abort 'The object does not belong to this store.'
+        PEROBS.log.fatal 'The object does not belong to this store.'
       end
 
       # Store the name and mark the name list as modified.
@@ -360,7 +360,7 @@ module PEROBS
       if errors > 0
         PEROBS.log.warn "#{errors} errors found in #{objects} objects"
       else
-        PEROBS.log.info "No errors found"
+        PEROBS.log.debug "No errors found"
       end
       @root_objects.delete_if { |name, id| !@db.check(id, false) }
 
@@ -397,8 +397,8 @@ module PEROBS
       while !stack.empty?
         # Get an object index from the stack.
         unless (obj = object_by_id(id = stack.pop))
-          PEROBS.log.abort "Database is corrupted. Object with ID #{id} " +
-                           "not found."
+          PEROBS.log.fatal "Database is corrupted. Object with ID #{id} " +
+            "not found."
         end
         # Mark the object so it will never be pushed to the stack again.
         @db.mark(id)
@@ -477,6 +477,7 @@ module PEROBS
     def sweep
       @stats.swept_objects = @db.delete_unmarked_objects.length
       @cache.reset
+      PEROBS.log.debug "#{@stats.swept_objects} collected"
       @stats.swept_objects
     end
 
@@ -510,12 +511,12 @@ module PEROBS
         else
           # Remove references to bad objects.
           if ref_obj && repair
-            $stderr.puts "Fixing broken reference to object #{id} in " +
-                         "object #{ref_obj._id}:\n" + ref_obj.inspect
+            PEROBS.log.warn "Fixing broken reference to object #{id} in " +
+              "object #{ref_obj._id}:\n" + ref_obj.inspect
             ref_obj._delete_reference_to_id(id)
           else
              PEROBS.log.fatal "The following object references a " +
-                              "non-existing object #{id}:\n" + ref_obj.inspect
+               "non-existing object #{id}:\n" + ref_obj.inspect
           end
           errors += 1
         end

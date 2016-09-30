@@ -27,6 +27,8 @@
 
 require 'zlib'
 
+require 'perobs/Log'
+
 module PEROBS
 
   # This class manages the usage of the data blobs in the corresponding
@@ -77,7 +79,7 @@ module PEROBS
         crc32 = Zlib.crc32(raw, 0)
         start_address = reserve_bytes(id, bytes, crc32)
         if write_to_blobs_file(raw, start_address) != bytes
-          raise RuntimeError, 'Object length does not match written bytes'
+          PEROBS.log.fatal 'Object length does not match written bytes'
         end
         write_index
       end
@@ -118,8 +120,8 @@ module PEROBS
       end
 
       unless found
-        raise ArgumentError,
-              "Cannot find an entry for ID #{'%016X' % id} #{id} to mark"
+        PEROBS.log.fatal "Cannot find an entry for ID #{'%016X' % id} " +
+          "#{id} to mark"
       end
 
       write_index
@@ -136,8 +138,7 @@ module PEROBS
       end
 
       return false if ignore_errors
-      raise ArgumentError,
-            "Cannot find an entry for ID #{'%016X' % id} to check"
+      PEROBS.log.fatal "Cannot find an entry for ID #{'%016X' % id} to check"
     end
 
     # Remove all entries from the index that have not been marked.
@@ -173,7 +174,7 @@ module PEROBS
       @entries.each do |entry|
         # Entries should never overlap
         if prev_entry && next_start > entry[START]
-          raise RuntimeError,
+          PEROBS.log.fatal
                 "#{@dir}: Index entries are overlapping\n" +
                 "ID: #{'%016X' % prev_entry[ID]}  " +
                 "Start: #{prev_entry[START]}  " +
@@ -185,7 +186,7 @@ module PEROBS
 
         # Entries must fit within the data file
         if next_start > data_file_size
-          raise RuntimeError,
+          PEROBS.log.fatal
                 "#{@dir}: Entry for ID #{'%016X' % entry[ID]} " +
                 "goes beyond 'data' file " +
                 "size (#{data_file_size})\n" +
@@ -209,8 +210,8 @@ module PEROBS
       begin
         File.write(@blobs_file_name, raw, address)
       rescue => e
-        raise IOError,
-              "Cannot write blobs file #{@blobs_file_name}: #{e.message}"
+        PEROBS.log.fatal "Cannot write blobs file #{@blobs_file_name}: " +
+          e.message
       end
     end
 
@@ -221,13 +222,12 @@ module PEROBS
       begin
         raw = File.read(@blobs_file_name, entry[BYTES], entry[START])
       rescue => e
-        raise IOError,
-              "Cannot read blobs file #{@blobs_file_name}: #{e.message}"
+        PEROBS.log.fatal "Cannot read blobs file #{@blobs_file_name}: " +
+          e.message
       end
       if Zlib.crc32(raw, 0) != entry[CRC]
-        raise RuntimeError,
-              "BTreeBlob for object #{entry[ID]} has been corrupted: " +
-              "Checksum mismatch"
+        PEROBS.log.fatal "BTreeBlob for object #{entry[ID]} has been " +
+          "corrupted: Checksum mismatch"
       end
 
       raw
@@ -338,8 +338,8 @@ module PEROBS
                 begin
                   raw = File.read(@blobs_file_name, e[BYTES], e[START])
                 rescue => e
-                  raise IOError,
-                    "Cannot read blobs file #{@blobs_file_name}: #{e.message}"
+                  PEROBS.log.fatal "Cannot read blobs file " +
+                    "#{@blobs_file_name}: #{e.message}"
                 end
                 e[CRC] = Zlib.crc32(raw)
               end
@@ -348,8 +348,8 @@ module PEROBS
             end
           end
         rescue => e
-          raise RuntimeError,
-                "BTreeBlob file #{@index_file_name} corrupted: #{e.message}"
+          PEROBS.log.fatal "BTreeBlob file #{@index_file_name} corrupted: " +
+            e.message
         end
       end
     end
@@ -364,9 +364,8 @@ module PEROBS
           end
         end
       rescue => e
-        raise RuntimeError,
-              "Cannot write BTreeBlob index file #{@index_file_name}: " +
-              e.message
+        PEROBS.log.fatal "Cannot write BTreeBlob index file " +
+          "#{@index_file_name}: " + e.message
       end
     end
 

@@ -25,6 +25,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+require 'perobs/Log'
 require 'perobs/ObjectBase'
 
 module PEROBS
@@ -142,9 +143,9 @@ module PEROBS
           # objects should not be used directly. The library only exposes them
           # via POXReference proxy objects.
           if v.is_a?(ObjectBase)
-            raise RuntimeError, 'A PEROBS::ObjectBase object escaped! ' +
+            PEROBS.log.fatal 'A PEROBS::ObjectBase object escaped! ' +
               "It is stored in a PEROBS::Hash with key #{k.inspect}. " +
-              'Have you used self() instead of myself() to' +
+              'Have you used self() instead of myself() to ' +
               "get the reference of this PEROBS object?\n" +
               v.inspect
           end

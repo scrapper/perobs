@@ -229,7 +229,7 @@ module PEROBS
       end
 
       if version > VERSION
-        PEROBS.log.abort "Cannot downgrade the FlatFile database from " +
+        PEROBS.log.fatal "Cannot downgrade the FlatFile database from " +
                          "version #{version} to version #{VERSION}"
       end
     end

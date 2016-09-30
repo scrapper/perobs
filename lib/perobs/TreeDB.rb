@@ -27,6 +27,7 @@
 
 require 'fileutils'
 
+require 'perobs/Log'
 require 'perobs/DataBase'
 require 'perobs/BTreeBlob'
 
@@ -69,15 +70,15 @@ module PEROBS
       # Check and set @dir_bits, the number of bits used for each tree level.
       @dir_bits = options[:dir_bits] || 12
       if @dir_bits < 4 || @dir_bits > 14
-        raise ArgumentError,
-              "dir_bits option (#{@dir_bits}) must be between 4 and 12"
+        PEROBS.log.fatal "dir_bits option (#{@dir_bits}) must be between 4 " +
+          "and 12"
       end
       check_option('dir_bits')
 
       @max_blob_size = options[:max_blob_size] || 32
       if @max_blob_size < 4 || @max_blob_size > 128
-        raise ArgumentError,
-          "max_blob_size option (#{@max_blob_size}) must be between 4 and 128"
+        PEROBS.log.fatal "max_blob_size option (#{@max_blob_size}) must be " +
+          "between 4 and 128"
       end
       check_option('max_blob_size')
 
@@ -115,8 +116,7 @@ module PEROBS
       begin
         File.write(file_name, hash.to_json)
       rescue => e
-        raise RuntimeError,
-              "Cannot write hash file '#{file_name}': #{e.message}"
+        PEROBS.log.fatal "Cannot write hash file '#{file_name}': #{e.message}"
       end
     end
 
@@ -130,8 +130,7 @@ module PEROBS
       begin
         json = File.read(file_name)
       rescue => e
-        raise RuntimeError,
-              "Cannot read hash file '#{file_name}': #{e.message}"
+        PEROBS.log.fatal "Cannot read hash file '#{file_name}': #{e.message}"
       end
       JSON.parse(json, :create_additions => true)
     end
@@ -196,7 +195,7 @@ module PEROBS
       begin
         get_object(id)
       rescue => e
-        $stderr.puts "Cannot read object with ID #{id}: #{e.message}"
+        PEROBS.log.error "Cannot read object with ID #{id}: #{e.message}"
         return false
       end
 
