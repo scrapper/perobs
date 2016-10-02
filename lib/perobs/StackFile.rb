@@ -62,8 +62,17 @@ module PEROBS
       begin
         @f.flush
         @f.close
-      rescue => e
+      rescue IOError => e
         PEROBS.log.fatal "Cannot close stack file #{@file_name}: #{e.message}"
+      end
+    end
+
+    # Flush out unwritten data to file.
+    def sync
+      begin
+        @f.flush
+      rescue IOError => e
+        PEROBS.log.fatal "Cannot sync stack file #{@file_name}: #{e.message}"
       end
     end
 

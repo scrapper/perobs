@@ -77,7 +77,7 @@ module PEROBS
           PEROBS.log.info 'New database.blobs file created'
           @f = File.open(file_name, 'wb+')
         end
-      rescue => e
+      rescue IOError => e
         PEROBS.log.fatal "Cannot open flat file database #{file_name}: " +
           e.message
       end
@@ -97,7 +97,11 @@ module PEROBS
 
     # Force outstanding data to be written to the filesystem.
     def sync
-      @f.flush
+      begin
+        @f.flush
+      rescue IOError => e
+        PEROBS.log.fatal "Cannot sync flat file database: #{e.message}"
+      end
     end
 
     # Delete the blob for the specified ID.
@@ -323,13 +327,18 @@ module PEROBS
       @f.truncate(@f.size - distance)
       @f.flush
       @space_list.clear
+
+      sync
     end
 
     def check(repair = false)
       return unless @f
 
+      # First check the database blob file. Each entry should be readable and
+      # correct.
       each_blob_header do |pos, mark, length, blob_id, crc|
         if (mark & 1 == 1)
+          # We have a non-deleted entry.
           begin
             @f.seek(pos + BLOB_HEADER_LENGTH)
             buf = @f.read(length)
@@ -349,12 +358,22 @@ module PEROBS
           end
         end
       end
-      unless @index.check(self) && @space_list.check(self) &&
-             cross_check_entries
-        return unless repair
 
+      # Now we check the index data. It must be correct and the entries must
+      # match the blob file. All entries in the index must be in the blob file
+      # and vise versa.
+      begin
+        unless @index.check(self) && @space_list.check(self) &&
+          cross_check_entries
+          return unless repair
+
+          regenerate_index_and_spaces
+        end
+      rescue PEROBS::FatalError
         regenerate_index_and_spaces
       end
+
+      sync
     end
 
     # This method clears the index tree and the free space list and
@@ -407,6 +426,11 @@ module PEROBS
         buf = @f.read(BLOB_HEADER_LENGTH)
       rescue => e
         PEROBS.log.fatal "Cannot read blob in flat file DB: #{e.message}"
+      end
+      if buf.nil? || buf.length != BLOB_HEADER_LENGTH
+        PEROBS.log.fatal "Cannot read blob header " +
+          "#{id ? "for ID #{id} " : ''}at address " +
+          "#{addr}"
       end
       header = Header.new(*buf.unpack(BLOB_HEADER_FORMAT))
       if id && header.id != id

@@ -171,11 +171,14 @@ module PEROBS
       # Clear the cache.
       new_db.sync
       # Copy all objects of the existing store to the new store.
+      i = 0
       each do |ref_obj|
         obj = ref_obj._referenced_object
         obj._transfer(new_db)
         obj._sync
+        i += 1
       end
+      PEROBS.log.debug "Copied #{i} objects into new database at #{dir}"
       # Flush the new store and close it.
       new_db.exit
 
@@ -415,6 +418,7 @@ module PEROBS
     def rename_classes(rename_map)
       @class_map.rename(rename_map)
     end
+
     # Internal method. Don't use this outside of this library!
     # Generate a new unique ID that is not used by any other object. It uses
     # random numbers between 0 and 2**64 - 1.
@@ -469,6 +473,7 @@ module PEROBS
 
       # The root_objects object is included in the count, but we only want to
       # count user objects here.
+      PEROBS.log.debug "#{marked_objects - 1} objects marked"
       @stats.marked_objects = marked_objects - 1
     end
 
@@ -477,7 +482,7 @@ module PEROBS
     def sweep
       @stats.swept_objects = @db.delete_unmarked_objects.length
       @cache.reset
-      PEROBS.log.debug "#{@stats.swept_objects} collected"
+      PEROBS.log.debug "#{@stats.swept_objects} objects collected"
       @stats.swept_objects
     end
 

@@ -73,6 +73,12 @@ module PEROBS
       @nodes.close
     end
 
+    # Flush out all unwritten data
+    def sync
+      @ids.sync
+      @nodes.sync
+    end
+
     # Delete all data from the tree.
     def clear
       @nodes.clear

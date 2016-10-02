@@ -48,11 +48,11 @@ module PEROBS
     # Proxy all calls to unknown methods to the referenced object.
     def method_missing(method_sym, *args, &block)
       unless (obj = _referenced_object)
-        PEROBS.log.fatal "Internal consistency error. No object with ID " +
+        ::PEROBS.log.fatal "Internal consistency error. No object with ID " +
           "#{@id} found in the store."
       end
       if obj.respond_to?(:is_poxreference?)
-        PEROBS.log.fatal "POXReference that references a POXReference found."
+        ::PEROBS.log.fatal "POXReference that references a POXReference found."
       end
       obj.send(method_sym, *args, &block)
     end

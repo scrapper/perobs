@@ -74,6 +74,16 @@ module PEROBS
       end
     end
 
+    # Flush out all unwritten data.
+    def sync
+      @free_list.sync
+      begin
+        @f.sync
+      rescue IOError => e
+        PEROBS.log.fatal "Cannot sync blob file #{@file_name}: #{e.message}"
+      end
+    end
+
     # Delete all data.
     def clear
       @f.truncate(0)

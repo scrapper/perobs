@@ -58,6 +58,24 @@ module PEROBS
     end
     @@logger = nil
 
+    # Set log level.
+    # @param l [Logger::WARN, Logger:INFO, etc]
+    def level=(l)
+      @@level = l
+    end
+
+    # Set Logger formatter.
+    # @param f [Proc]
+    def formatter=(f)
+      @@formatter = f
+    end
+
+    # Set Logger options
+    # @param o [Array] Optional parameters for Logger.new().
+    def options=(o)
+      @@options = o
+    end
+
     # Redirect all log messages to the given IO.
     # @param io [IO] Output file descriptor
     def open(io)
