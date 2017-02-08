@@ -91,6 +91,11 @@ module PEROBS
       @free_list.clear
     end
 
+    def empty?
+      sync
+      @f.size == 0
+    end
+
     # Return the address of a free blob storage space. Addresses start at 0
     # and increase linearly.
     # @return [Fixnum] address of a free blob space

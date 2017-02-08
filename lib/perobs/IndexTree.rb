@@ -87,7 +87,6 @@ module PEROBS
       @root = IndexTreeNode.new(self, 0, 0)
     end
 
-
     # Return an IndexTreeNode object that corresponds to the given address.
     # @param nibble [Fixnum] Index of the nibble the node should correspond to
     # @param address [Integer] Address of the node in @nodes or nil

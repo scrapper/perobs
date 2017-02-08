@@ -31,7 +31,7 @@ require 'perobs/FlatFileDB'
 describe PEROBS::FlatFileDB do
 
   before(:all) do
-    @db_dir = generate_db_name('FlatFile')
+    @db_dir = generate_db_name('FlatFileDB')
     FileUtils.mkdir_p(@db_dir)
     @db = PEROBS::FlatFileDB.new(@db_dir)
     @db.open

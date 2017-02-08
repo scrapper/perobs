@@ -292,6 +292,8 @@ module PEROBS
     # implementation. No additional space will be needed on the file system.
     def defragmentize
       distance = 0
+      t = Time.now
+      PEROBS.log.debug "Defragmenting FlatFile"
       # Iterate over all entries.
       each_blob_header do |pos, mark, length, blob_id, crc|
         # Total size of the current entry
@@ -322,6 +324,9 @@ module PEROBS
           distance += entry_bytes
         end
       end
+      PEROBS.log.debug "FlatFile defragmented in #{Time.now - t} seconds"
+      PEROBS.log.debug "#{distance} bytes or " +
+        "#{'%.1f' % (distance.to_f / @f.size * 100.0)}% reclaimed"
 
       @f.flush
       @f.truncate(@f.size - distance)
