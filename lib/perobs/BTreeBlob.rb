@@ -28,6 +28,7 @@
 require 'zlib'
 
 require 'perobs/Log'
+require 'perobs/RobustFile'
 
 module PEROBS
 
@@ -209,7 +210,7 @@ module PEROBS
     def write_to_blobs_file(raw, address)
       begin
         File.write(@blobs_file_name, raw, address)
-      rescue => e
+      rescue IOError => e
         PEROBS.log.fatal "Cannot write blobs file #{@blobs_file_name}: " +
           e.message
       end

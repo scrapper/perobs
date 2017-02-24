@@ -28,6 +28,7 @@
 require 'fileutils'
 
 require 'perobs/Log'
+require 'perobs/RobustFile'
 require 'perobs/DataBase'
 require 'perobs/BTreeBlob'
 
@@ -114,8 +115,8 @@ module PEROBS
     def put_hash(name, hash)
       file_name = File.join(@db_dir, name + '.json')
       begin
-        File.write(file_name, hash.to_json)
-      rescue => e
+        RobustFile.write(file_name, hash.to_json)
+      rescue IOError => e
         PEROBS.log.fatal "Cannot write hash file '#{file_name}': #{e.message}"
       end
     end
