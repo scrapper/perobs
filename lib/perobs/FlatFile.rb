@@ -355,7 +355,8 @@ module PEROBS
       return unless @f
 
       t = Time.now
-      PEROBS.log.info "Checking FlatFile database..."
+      PEROBS.log.info "Checking FlatFile database" +
+        "#{repair ? ' in repair mode' : ''}..."
 
       # First check the database blob file. Each entry should be readable and
       # correct.

@@ -365,7 +365,8 @@ module PEROBS
       else
         PEROBS.log.debug "No errors found"
       end
-      @root_objects.delete_if { |name, id| !@db.check(id, false) }
+      # Delete all broken root objects.
+      @root_objects.delete_if { |name, id| !@db.check(id, repair) }
 
       # Ensure that any fixes are written into the DB.
       sync
@@ -515,13 +516,17 @@ module PEROBS
           end
         else
           # Remove references to bad objects.
-          if ref_obj && repair
-            PEROBS.log.warn "Fixing broken reference to object #{id} in " +
-              "object #{ref_obj._id}:\n" + ref_obj.inspect
-            ref_obj._delete_reference_to_id(id)
+          if ref_obj
+            if repair
+              PEROBS.log.warn "Eliminating broken reference to object #{id} " +
+                "in object #{ref_obj._id}:\n" + ref_obj.inspect
+              ref_obj._delete_reference_to_id(id)
+            else
+              PEROBS.log.fatal "The following object references a " +
+                "non-existing object #{id}:\n" + ref_obj.inspect
+            end
           else
-             PEROBS.log.fatal "The following object references a " +
-               "non-existing object #{id}:\n" + ref_obj.inspect
+            PEROBS.log.warn "Eliminating root object #{id}"
           end
           errors += 1
         end

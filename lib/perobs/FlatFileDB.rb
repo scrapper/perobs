@@ -184,13 +184,11 @@ module PEROBS
     #         false.
     def check(id, repair)
       begin
-        get_object(id)
+        return get_object(id) != nil
       rescue => e
         PEROBS.log.warn "Cannot read object with ID #{id}: #{e.message}"
         return false
       end
-
-      true
     end
 
     # Store the given serialized object into the cluster files. This method is
