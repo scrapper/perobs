@@ -99,16 +99,17 @@ module PEROBS
       # Generate a mask for the least significant bits up to and including the
       # nibble.
       mask = (2 ** ((1 + nibble) * 4)) - 1
-      if address && (node = @node_cache[address & mask])
-        # We have an address and have found the node in the node cache.
-        return node
-      else
+      #if address && (node = @node_cache[address & mask])
+      #  # We have an address and have found the node in the node cache.
+      #  return node
+      #else
+      begin
         # We don't have a IndexTreeNode object yet for this node. Create it
         # with the data from the 'database_index' file.
         node = IndexTreeNode.new(self, nibble, address)
         # Add the node to the node cache if it's up to MAX_CACHED_LEVEL levels
         # down from the root.
-        @node_cache[address & mask] = node if nibble <= MAX_CACHED_LEVEL
+        #@node_cache[address & mask] = node if nibble <= MAX_CACHED_LEVEL
         return node
       end
     end
@@ -123,7 +124,7 @@ module PEROBS
       end
       # First delete the node from the node cache.
       mask = (2 ** ((1 + nibble) * 4)) - 1
-      @node_cache.delete(address & mask)
+      #@node_cache.delete(address & mask)
       # Then delete it from the 'database_index' file.
       @nodes.delete_blob(address)
     end
