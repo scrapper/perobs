@@ -387,12 +387,11 @@ module PEROBS
       # and vise versa.
       begin
         unless @index.check(self) && @space_list.check(self) &&
-          cross_check_entries
-
+               cross_check_entries
           regenerate_index_and_spaces if repair
         end
       rescue PEROBS::FatalError
-        regenerate_index_and_spaces
+        regenerate_index_and_spaces if repair
       end
 
       sync if repair

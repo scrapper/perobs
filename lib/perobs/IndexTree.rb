@@ -25,6 +25,7 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+require 'perobs/Log'
 require 'perobs/FixedSizeBlobFile'
 require 'perobs/IndexTreeNode'
 
@@ -91,6 +92,10 @@ module PEROBS
     # @param nibble [Fixnum] Index of the nibble the node should correspond to
     # @param address [Integer] Address of the node in @nodes or nil
     def get_node(nibble, address = nil)
+      if nibble >= 16
+        # We only support 64 bit keys, so nibble cannot be larger than 15.
+        PEROBS.log.fatal "Nibble must be within 0 - 15 but is #{nibble}"
+      end
       # Generate a mask for the least significant bits up to and including the
       # nibble.
       mask = (2 ** ((1 + nibble) * 4)) - 1
@@ -112,6 +117,10 @@ module PEROBS
     # @param nibble [Fixnum] The corresponding nibble for the node
     # @param address [Integer] The address of the node in @nodes
     def delete_node(nibble, address)
+      if nibble >= 16
+        # We only support 64 bit keys, so nibble cannot be larger than 15.
+        PEROBS.log.fatal "Nibble must be within 0 - 15 but is #{nibble}"
+      end
       # First delete the node from the node cache.
       mask = (2 ** ((1 + nibble) * 4)) - 1
       @node_cache.delete(address & mask)
@@ -149,7 +158,7 @@ module PEROBS
 
     # Check if the index is OK and matches the flat_file data.
     def check(flat_file)
-      @root.check(flat_file)
+      @root.check(flat_file, 0)
     end
 
     # Convert the tree into a human readable form.

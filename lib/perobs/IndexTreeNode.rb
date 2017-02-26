@@ -185,8 +185,14 @@ module PEROBS
     # Recursively check this node and all sub nodes. Compare the found
     # ID/address pairs with the corresponding entry in the given FlatFile.
     # @param flat_file [FlatFile]
+    # @tree_level [Fixnum] Assumed level in the tree. Must correspond with
+    #             @nibble_idx
     # @return [Boolean] true if no errors were found, false otherwise
-    def check(flat_file)
+    def check(flat_file, tree_level)
+      if tree_level >= 16
+        PEROBS.log.error "IndexTreeNode level (#{tree_level}) too large"
+        return false
+      end
       ENTRIES.times do |index|
         case get_entry_type(index)
         when 0
@@ -205,7 +211,7 @@ module PEROBS
           # The entry is a reference to another node. Just follow it and look
           # at the next nibble.
           unless @tree.get_node(@nibble_idx + 1, @entries[index]).
-                 check(flat_file)
+                 check(flat_file, tree_level + 1)
             return false
           end
         else
