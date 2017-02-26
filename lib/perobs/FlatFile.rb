@@ -134,6 +134,9 @@ module PEROBS
 
     # Delete all unmarked objects.
     def delete_unmarked_objects
+      PEROBS.log.info "Deleting unmarked objects..."
+      t = Time.now
+
       deleted_ids = []
       each_blob_header do |pos, mark, length, blob_id, crc|
         if (mark & 3 == 1)
@@ -143,6 +146,8 @@ module PEROBS
       end
       defragmentize
 
+      PEROBS.log.info "#{deleted_ids.length} unmarked objects deleted " +
+        "in #{Time.now - t} seconds"
       deleted_ids
     end
 
@@ -274,8 +279,16 @@ module PEROBS
 
     # Clear alls marks.
     def clear_all_marks
+      t = Time.now
+      PEROBS.log.info "Clearing all marks..."
+
+      total_blob_count = 0
+      marked_blob_count = 0
+
       each_blob_header do |pos, mark, length, blob_id, crc|
+        total_blob_count += 1
         if (mark & 1 == 1)
+          marked_blob_count += 1
           begin
             @f.seek(pos)
             @f.write([ mark & 0b11111101 ].pack('C'))
@@ -286,6 +299,8 @@ module PEROBS
           end
         end
       end
+      PEROBS.log.info "#{marked_blob_count} marks in #{total_blob_count} " +
+        "objects cleared in #{Time.now - t} seconds"
     end
 
     # Eliminate all the holes in the file. This is an in-place
@@ -339,6 +354,9 @@ module PEROBS
     def check(repair = false)
       return unless @f
 
+      t = Time.now
+      PEROBS.log.info "Checking FlatFile database..."
+
       # First check the database blob file. Each entry should be readable and
       # correct.
       each_blob_header do |pos, mark, length, blob_id, crc|
@@ -370,15 +388,15 @@ module PEROBS
       begin
         unless @index.check(self) && @space_list.check(self) &&
           cross_check_entries
-          return unless repair
 
-          regenerate_index_and_spaces
+          regenerate_index_and_spaces if repair
         end
       rescue PEROBS::FatalError
         regenerate_index_and_spaces
       end
 
-      sync
+      sync if repair
+      PEROBS.log.info "check_db completed in #{Time.now - t} seconds"
     end
 
     # This method clears the index tree and the free space list and

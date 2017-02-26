@@ -145,21 +145,14 @@ module PEROBS
 
     # This method must be called to initiate the marking process.
     def clear_marks
-      t = Time.now
-      PEROBS.log.info "Clearing all marks"
       @flat_file.clear_all_marks
-      PEROBS.log.info "All marks cleared in #{Time.now - t} seconds"
     end
 
     # Permanently delete all objects that have not been marked. Those are
     # orphaned and are no longer referenced by any actively used object.
     # @return [Array] List of IDs that have been removed from the DB.
     def delete_unmarked_objects
-      t = Time.now
-      PEROBS.log.info "Deleting unmarked objects"
-      retval = @flat_file.delete_unmarked_objects
-      PEROBS.log.info "Unmarked objects deleted in #{Time.now - t} seconds"
-      retval
+      @flat_file.delete_unmarked_objects
     end
 
     # Mark an object.
@@ -180,10 +173,7 @@ module PEROBS
     # @param repair [TrueClass/FalseClass] True if found errors should be
     #        repaired.
     def check_db(repair = false)
-      t = Time.now
-      PEROBS.log.info "check_db started"
       @flat_file.check(repair)
-      PEROBS.log.info "check_db completed in #{Time.now - t} seconds"
     end
 
     # Check if the stored object is syntactically correct.
