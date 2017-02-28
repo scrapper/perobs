@@ -35,11 +35,6 @@ module PEROBS
   # search in the tree is much faster than the linear search in the FlatFile.
   class IndexTree
 
-    # Determines how many levels of the IndexTree will be kept in memory to
-    # accerlerate the access. A number of 7 will keep up to 21845 entries in
-    # the cache but will accelerate the access to the FlatFile address.
-    MAX_CACHED_LEVEL = 7
-
     attr_reader :nodes, :ids
 
     def initialize(db_dir)
@@ -55,10 +50,6 @@ module PEROBS
       # file which contains the full object ID and the address of the
       # corresponding object in the FlatFile.
       @ids = FixedSizeBlobFile.new(db_dir, 'object_id_index', 2 * 8)
-
-      # The first MAX_CACHED_LEVEL levels of nodes will be cached in memory to
-      # improve access times.
-      @node_cache = {}
     end
 
     # Open the tree files.
@@ -72,6 +63,7 @@ module PEROBS
     def close
       @ids.close
       @nodes.close
+      @root = nil
     end
 
     # Flush out all unwritten data
@@ -84,7 +76,6 @@ module PEROBS
     def clear
       @nodes.clear
       @ids.clear
-      @node_cache = {}
       @root = IndexTreeNode.new(self, 0, 0)
     end
 
@@ -96,22 +87,10 @@ module PEROBS
         # We only support 64 bit keys, so nibble cannot be larger than 15.
         PEROBS.log.fatal "Nibble must be within 0 - 15 but is #{nibble}"
       end
-      # Generate a mask for the least significant bits up to and including the
-      # nibble.
-      mask = (2 ** ((1 + nibble) * 4)) - 1
-      #if address && (node = @node_cache[address & mask])
-      #  # We have an address and have found the node in the node cache.
-      #  return node
-      #else
-      begin
-        # We don't have a IndexTreeNode object yet for this node. Create it
-        # with the data from the 'database_index' file.
-        node = IndexTreeNode.new(self, nibble, address)
-        # Add the node to the node cache if it's up to MAX_CACHED_LEVEL levels
-        # down from the root.
-        #@node_cache[address & mask] = node if nibble <= MAX_CACHED_LEVEL
-        return node
-      end
+      # We don't have a IndexTreeNode object yet for this node. Create it
+      # with the data from the 'database_index' file.
+      node = IndexTreeNode.new(self, nibble, address)
+      return node
     end
 
     # Delete a node from the tree that corresponds to the address.
@@ -122,10 +101,8 @@ module PEROBS
         # We only support 64 bit keys, so nibble cannot be larger than 15.
         PEROBS.log.fatal "Nibble must be within 0 - 15 but is #{nibble}"
       end
-      # First delete the node from the node cache.
-      mask = (2 ** ((1 + nibble) * 4)) - 1
-      #@node_cache.delete(address & mask)
-      # Then delete it from the 'database_index' file.
+
+      # Delete it from the 'database_index' file.
       @nodes.delete_blob(address)
     end
 
@@ -135,12 +112,6 @@ module PEROBS
     # @param id [Integer] ID or key
     # @param value [Integer] value to store
     def put_value(id, value)
-      #MAX_CACHED_LEVEL.downto(0) do |i|
-      #  mask = (2 ** ((1 + i) * 4)) - 1
-      #  if (node = @node_cache[value & mask])
-      #    return node.put_value(id, value)
-      #  end
-      #end
       @root.put_value(id, value)
     end
 

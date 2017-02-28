@@ -44,6 +44,8 @@ module PEROBS
     ENTRY_BYTES = 8
     TYPE_BYTES = 4
     NODE_BYTES = TYPE_BYTES + ENTRIES * ENTRY_BYTES
+    # How many levels of the tree should be kept in memory.
+    CACHED_LEVELS = 4
 
     # Create a new IndexTreeNode.
     # @param tree [IndexTree] The tree this node belongs to
@@ -64,6 +66,9 @@ module PEROBS
         @address = @tree.nodes.free_address
         write_node
       end
+      # These are the pointers that point to the next level of IndexTreeNode
+      # elements.
+      @node_ptrs = ::Array.new(ENTRIES, nil)
     end
 
     # Store a value for the given ID. Existing values will be overwritten.
@@ -96,6 +101,7 @@ module PEROBS
           # The entry of the current node is now a reference to the new node.
           set_entry_type(index, 2)
           @entries[index] = node.address
+          @node_ptrs[index] = node if @nibble_idx < CACHED_LEVELS
           # Store the existing value and the new value with their IDs.
           node.set_entry(existing_id, existing_value)
           node.put_value(id, value)
@@ -103,8 +109,7 @@ module PEROBS
         write_node
       when 2
         # The entry is a reference to another node.
-        node = @tree.get_node(@nibble_idx + 1, @entries[index])
-        node.put_value(id, value)
+        get_node(index).put_value(id, value)
       else
         PEROBS.log.fatal "Illegal node type #{get_entry_type(index)}"
       end
@@ -134,8 +139,7 @@ module PEROBS
       when 2
         # The entry is a reference to another node. Just follow it and look at
         # the next nibble.
-        return @tree.get_node(@nibble_idx + 1, @entries[index]).
-          get_value(id)
+        return get_node(index).get_value(id)
       else
         PEROBS.log.fatal "Illegal node type #{get_entry_type(index)}"
       end
@@ -156,6 +160,7 @@ module PEROBS
         if id == stored_id
           @tree.ids.delete_blob(@entries[index])
           @entries[index] = 0
+          @node_ptrs[index] = nil
           set_entry_type(index, 0)
           write_node
           return true
@@ -165,7 +170,7 @@ module PEROBS
         end
       when 2
         # The entry is a reference to another node.
-        node = @tree.get_node(@nibble_idx + 1, @entries[index])
+        node = get_node(index)
         result = node.delete_value(id)
         if node.empty?
           # If the sub-node is empty after the delete we delete the whole
@@ -210,8 +215,7 @@ module PEROBS
         when 2
           # The entry is a reference to another node. Just follow it and look
           # at the next nibble.
-          unless @tree.get_node(@nibble_idx + 1, @entries[index]).
-                 check(flat_file, tree_level + 1)
+          unless get_node(index).check(flat_file, tree_level + 1)
             return false
           end
         else
@@ -233,8 +237,7 @@ module PEROBS
           id, address = get_id_and_address(@entries[i])
           str += "  #{id} => #{address},\n"
         when 2
-          str += "  " + @tree.get_node(@nibble_idx + 1, @entries[i]).
-            inspect.gsub(/\n/, "\n  ")
+          str += "  " + get_node(i).inspect.gsub(/\n/, "\n  ")
         end
       end
       str + "}\n"
@@ -260,6 +263,17 @@ module PEROBS
 
     def calc_index(id)
       (id >> (4 * @nibble_idx)) & 0xF
+    end
+
+    def get_node(index)
+      unless (node = @node_ptrs[index])
+        node = @tree.get_node(@nibble_idx + 1, @entries[index])
+        # We only cache the first levels of the tree to limit the memory
+        # consumption.
+        @node_ptrs[index] = node if @nibble_idx < CACHED_LEVELS
+      end
+
+      node
     end
 
     def read_node
