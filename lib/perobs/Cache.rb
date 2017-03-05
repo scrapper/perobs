@@ -124,7 +124,7 @@ module PEROBS
     end
 
     # Tell the cache to start a new transaction. If no other transaction is
-    # active, the write cached is flushed before the transaction is started.
+    # active, the write cache is flushed before the transaction is started.
     def begin_transaction
       if @transaction_stack.empty?
         # The new transaction is the top-level transaction. Flush the write
