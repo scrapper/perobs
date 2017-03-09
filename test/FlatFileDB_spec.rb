@@ -52,5 +52,10 @@ describe PEROBS::FlatFileDB do
     expect(File.read(version_file).to_i).to eq(PEROBS::FlatFileDB::VERSION)
   end
 
+  it 'should fail to open the same DB twice' do
+    db2 = PEROBS::FlatFileDB.new(@db_dir)
+    expect { db2.open }.to raise_error(PEROBS::FatalError)
+  end
+
 end
 

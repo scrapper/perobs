@@ -300,6 +300,9 @@ module PEROBS
       if File.exist?(@index_file_name)
         begin
           File.open(@index_file_name, 'rb') do |f|
+            unless f.flock(File::LOCK_NB | File::LOCK_EX)
+              PEROBS.log.fatal 'BTreeDB Database is locked by another process'
+            end
             # Since version 2.3.0, all index files start with a header.
             # Earlier versions did not yet have this header. The header is 24
             # bytes long. The 2nd set of 8 bytes must be 0 to distinguish the
@@ -347,6 +350,7 @@ module PEROBS
               @entries << e
               @entries_by_id[e[ID]] = e
             end
+            f.flock(File::LOCK_UN)
           end
         rescue => e
           PEROBS.log.fatal "BTreeBlob file #{@index_file_name} corrupted: " +
@@ -358,11 +362,15 @@ module PEROBS
     def write_index
       begin
         File.open(@index_file_name, 'wb') do |f|
+          unless f.flock(File::LOCK_NB | File::LOCK_EX)
+            PEROBS.log.fatal 'BTreeDB Database is locked by another process'
+          end
           # See read_index for data format documentation.
           f.write([ PEROBS_MAGIC, 0, 1].pack('QQQ'))
           @entries.each do |entry|
             f.write(entry.pack('QQQCL'))
           end
+          f.flock(File::LOCK_UN)
         end
       rescue => e
         PEROBS.log.fatal "Cannot write BTreeBlob index file " +

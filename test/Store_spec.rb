@@ -479,7 +479,7 @@ describe PEROBS::Store do
       when 4
         # Sync store and reload
         if rand(15) == 0
-          @store.sync
+          @store.exit
           @store = PEROBS::Store.new(@db_file, options)
         end
       when 5

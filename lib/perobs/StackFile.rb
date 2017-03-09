@@ -54,6 +54,9 @@ module PEROBS
       rescue => e
         PEROBS.log.fatal "Cannot open stack file #{@file_name}: #{e.message}"
       end
+      unless @f.flock(File::LOCK_NB | File::LOCK_EX)
+        PEROBS.log.fatal 'Database stack file is locked by another process'
+      end
     end
 
     # Close the stack file. This method must be called before the program is
@@ -61,6 +64,7 @@ module PEROBS
     def close
       begin
         @f.flush
+        @f.flock(File::LOCK_UN)
         @f.close
       rescue IOError => e
         PEROBS.log.fatal "Cannot close stack file #{@file_name}: #{e.message}"

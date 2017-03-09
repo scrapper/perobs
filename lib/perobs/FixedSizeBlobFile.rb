@@ -59,6 +59,9 @@ module PEROBS
       rescue IOError => e
         PEROBS.log.fatal "Cannot open blob file #{@file_name}: #{e.message}"
       end
+      unless @f.flock(File::LOCK_NB | File::LOCK_EX)
+        PEROBS.log.fatal 'Database blob file is locked by another process'
+      end
       @free_list.open
     end
 
@@ -68,6 +71,7 @@ module PEROBS
       @free_list.close
       begin
         @f.flush
+        @f.flock(File::LOCK_UN)
         @f.close
       rescue IOError => e
         PEROBS.log.fatal "Cannot close blob file #{@file_name}: #{e.message}"

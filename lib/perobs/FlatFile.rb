@@ -81,6 +81,9 @@ module PEROBS
         PEROBS.log.fatal "Cannot open flat file database #{file_name}: " +
           e.message
       end
+      unless @f.flock(File::LOCK_NB | File::LOCK_EX)
+        PEROBS.log.fatal 'Database is locked by another process'
+      end
       @index.open
       @space_list.open
     end
@@ -91,6 +94,7 @@ module PEROBS
       @space_list.close
       @index.close
       @f.flush
+      @f.flock(File::LOCK_UN)
       @f.close
       @f = nil
     end
