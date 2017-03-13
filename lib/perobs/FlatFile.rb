@@ -291,7 +291,8 @@ module PEROBS
 
       each_blob_header do |pos, mark, length, blob_id, crc|
         total_blob_count += 1
-        if (mark & 1 == 1)
+        if (mark & 3 == 3)
+          # Clear all valid and marked blocks.
           marked_blob_count += 1
           begin
             @f.seek(pos)
@@ -311,6 +312,8 @@ module PEROBS
     # implementation. No additional space will be needed on the file system.
     def defragmentize
       distance = 0
+      deleted_blobs = 0
+      valid_blobs = 0
       t = Time.now
       PEROBS.log.info "Defragmenting FlatFile"
       # Iterate over all entries.
@@ -319,6 +322,7 @@ module PEROBS
         entry_bytes = BLOB_HEADER_LENGTH + length
         if (mark & 1 == 1)
           # We have found a valid entry.
+          valid_blobs += 1
           if distance > 0
             begin
               # Read current entry into a buffer
@@ -340,11 +344,13 @@ module PEROBS
             end
           end
         else
+          deleted_blobs += 1
           distance += entry_bytes
         end
       end
       PEROBS.log.info "FlatFile defragmented in #{Time.now - t} seconds"
-      PEROBS.log.info "#{distance / 1000} KiB of #{@f.size / 1000} KiB or " +
+      PEROBS.log.info "#{distance / 1000} KiB/#{deleted_blobs} blobs of " +
+        "#{@f.size / 1000} KiB/#{valid_blobs} blobs or " +
         "#{'%.1f' % (distance.to_f / @f.size * 100.0)}% reclaimed"
 
       @f.flush
