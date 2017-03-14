@@ -160,7 +160,6 @@ module PEROBS
 
     # Copy the store content into a new Store. The arguments are identical to
     # Store.new().
-    # @param data_base [String] the name of the database
     # @param options [Hash] various options to affect the operation of the
     def copy(dir, options = {})
       # Make sure all objects are persisted.

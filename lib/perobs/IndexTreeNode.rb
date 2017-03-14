@@ -190,8 +190,8 @@ module PEROBS
     # Recursively check this node and all sub nodes. Compare the found
     # ID/address pairs with the corresponding entry in the given FlatFile.
     # @param flat_file [FlatFile]
-    # @tree_level [Fixnum] Assumed level in the tree. Must correspond with
-    #             @nibble_idx
+    # @param tree_level [Fixnum] Assumed level in the tree. Must correspond
+    #        with @nibble_idx
     # @return [Boolean] true if no errors were found, false otherwise
     def check(flat_file, tree_level)
       if tree_level >= 16
