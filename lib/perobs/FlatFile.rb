@@ -40,7 +40,8 @@ module PEROBS
   # 1 Byte:  Mark byte.
   #          Bit 0: 0 deleted entry, 1 valid entry
   #          Bit 1: 0 unmarked, 1 marked
-  #          Bit 2 - 7: reserved, must be 0
+  #          Bit 2: 0 uncompressed data, 1 compressed data
+  #          Bit 3 - 7: reserved, must be 0
   # 8 bytes: Length of the data blob in bytes
   # 8 bytes: ID of the value in the data blob
   # 4 bytes: CRC32 checksum of the data blob
@@ -50,7 +51,36 @@ module PEROBS
   class FlatFile
 
     # Utility class to hold all the data that is stored in a blob header.
-    class Header < Struct.new(:mark, :length, :id, :crc)
+    class Header
+
+      attr_reader :mark, :length, :id, :crc
+
+      def initialize(mark, length, id, crc)
+        @mark = mark
+        @length = length
+        @id = id
+        @crc = crc
+      end
+
+      def is_valid?
+        bit_set?(0)
+      end
+
+      def is_marked?
+        bit_set?(1)
+      end
+
+      def is_compressed?
+        bit_set?(2)
+      end
+
+      private
+
+      def bit_set?(n)
+        mask = 1 << n
+        @mark & mask == mask
+      end
+
     end
 
     # The 'pack()' format of the header.
@@ -131,7 +161,7 @@ module PEROBS
         @f.write([ 0 ].pack('C'))
         @f.flush
         @space_list.add_space(addr, header.length)
-      rescue => e
+      rescue IOError => e
         PEROBS.log.fatal "Cannot erase blob for ID #{header.id}: #{e.message}"
       end
     end
@@ -142,10 +172,10 @@ module PEROBS
       t = Time.now
 
       deleted_ids = []
-      each_blob_header do |pos, mark, length, blob_id, crc|
-        if (mark & 3 == 1)
-          delete_obj_by_address(pos, blob_id)
-          deleted_ids << blob_id
+      each_blob_header do |pos, header|
+        if header.is_valid? && !header.is_marked?
+          delete_obj_by_address(pos, header.id)
+          deleted_ids << header.id
         end
       end
       defragmentize
@@ -161,6 +191,18 @@ module PEROBS
     # @param raw_obj [String] Raw object as String
     # @return [Integer] position of the written blob in the blob file
     def write_obj_by_id(id, raw_obj)
+      crc = checksum(raw_obj)
+
+      # If the raw_obj is larger then 256 characters we will compress it to
+      # safe some space in the database file. For smaller strings the
+      # performance impact of compression is not compensated by writing
+      # less data to the storage.
+      compressed = false
+      if raw_obj.length > 256
+        raw_obj = Zlib.deflate(raw_obj)
+        compressed = true
+      end
+
       addr, length = find_free_blob(raw_obj.length)
       begin
         if length != -1
@@ -174,12 +216,12 @@ module PEROBS
             PEROBS.log.fatal "Object (#{raw_obj.length}) is longer than " +
               "blob space (#{header.length})."
           end
-          if header.mark != 0
-            PEROBS.log.fatal "Mark (#{header.mark}) is not 0."
+          if header.is_valid?
+            PEROBS.log.fatal "Entry (mark: #{header.mark}) is already used."
           end
         end
         @f.seek(addr)
-        @f.write([ 1, raw_obj.length, id, checksum(raw_obj)].
+        @f.write([ compressed ? (1 << 2) | 1 : 1, raw_obj.length, id, crc].
                  pack(BLOB_HEADER_FORMAT))
         @f.write(raw_obj)
         if length != -1 && raw_obj.length < length
@@ -235,16 +277,26 @@ module PEROBS
         PEROBS.log.fatal "Database index corrupted: Index for object " +
           "#{id} points to object with ID #{header.id}"
       end
+
+      buf = nil
+
       begin
         @f.seek(addr + BLOB_HEADER_LENGTH)
         buf = @f.read(header.length)
-        if checksum(buf) != header.crc
-          PEROBS.log.fatal "Checksum failure while reading blob ID #{id}"
-        end
-        return buf
-      rescue => e
+      rescue IOError => e
         PEROBS.log.fatal "Cannot read blob for ID #{id}: #{e.message}"
       end
+
+      # Uncompress the data if the compression bit is set in the mark byte.
+      if header.is_compressed?
+        buf = Zlib.inflate(buf)
+      end
+
+      if checksum(buf) != header.crc
+        PEROBS.log.fatal "Checksum failure while reading blob ID #{id}"
+      end
+
+      buf
     end
 
     # Mark the object with the given ID.
@@ -262,9 +314,9 @@ module PEROBS
       header = read_blob_header(addr, id)
       begin
         @f.seek(addr)
-        @f.write([ header.mark | 2 ].pack('C'))
+        @f.write([ header.mark | (1 << 1) ].pack('C'))
         @f.flush
-      rescue => e
+      rescue IOError => e
         PEROBS.log.fatal "Marking of FlatFile blob with ID #{id} " +
           "failed: #{e.message}"
       end
@@ -275,7 +327,7 @@ module PEROBS
     def is_marked_by_id?(id)
       if (addr = find_obj_addr_by_id(id))
         header = read_blob_header(addr, id)
-        return (header.mark & 2) == 2
+        return header.is_marked?
       end
 
       false
@@ -289,16 +341,16 @@ module PEROBS
       total_blob_count = 0
       marked_blob_count = 0
 
-      each_blob_header do |pos, mark, length, blob_id, crc|
+      each_blob_header do |pos, header|
         total_blob_count += 1
-        if (mark & 3 == 3)
+        if header.is_valid? && header.is_marked?
           # Clear all valid and marked blocks.
           marked_blob_count += 1
           begin
             @f.seek(pos)
-            @f.write([ mark & 0b11111101 ].pack('C'))
+            @f.write([ header.mark & 0b11111101 ].pack('C'))
             @f.flush
-          rescue => e
+          rescue IOError => e
             PEROBS.log.fatal "Unmarking of FlatFile blob with ID #{blob_id} " +
               "failed: #{e.message}"
           end
@@ -317,10 +369,10 @@ module PEROBS
       t = Time.now
       PEROBS.log.info "Defragmenting FlatFile"
       # Iterate over all entries.
-      each_blob_header do |pos, mark, length, blob_id, crc|
+      each_blob_header do |pos, header|
         # Total size of the current entry
-        entry_bytes = BLOB_HEADER_LENGTH + length
-        if (mark & 1 == 1)
+        entry_bytes = BLOB_HEADER_LENGTH + header.length
+        if header.is_valid?
           # We have found a valid entry.
           valid_blobs += 1
           if distance > 0
@@ -332,14 +384,14 @@ module PEROBS
               @f.seek(pos - distance)
               @f.write(buf)
               # Update the index with the new position
-              @index.put_value(blob_id, pos - distance)
+              @index.put_value(header.id, pos - distance)
               # Mark the space between the relocated current entry and the
               # next valid entry as deleted space.
               @f.write([ 0, distance - BLOB_HEADER_LENGTH, 0, 0 ].
                        pack(BLOB_HEADER_FORMAT))
               @f.flush
-            rescue => e
-              PEROBS.log.fatal "Error while moving blob for ID #{blob_id}: " +
+            rescue IOError => e
+              PEROBS.log.fatal "Error while moving blob for ID #{header.id}: " +
                 e.message
             end
           end
@@ -370,24 +422,28 @@ module PEROBS
 
       # First check the database blob file. Each entry should be readable and
       # correct.
-      each_blob_header do |pos, mark, length, blob_id, crc|
-        if (mark & 1 == 1)
+      each_blob_header do |pos, header|
+        if header.is_valid?
           # We have a non-deleted entry.
           begin
             @f.seek(pos + BLOB_HEADER_LENGTH)
-            buf = @f.read(length)
-            if crc && checksum(buf) != crc
+            buf = @f.read(header.length)
+            # Uncompress the data if the compression bit is set in the mark
+            # byte.
+            buf = Zlib.inflate(buf) if header.is_compressed?
+
+            if header.crc && checksum(buf) != header.crc
               if repair
                 PEROBS.log.error "Checksum failure while checking blob " +
-                  "with ID #{id}. Deleting object."
-                delete_obj_by_address(pos, blob_id)
+                  "with ID #{header.id}. Deleting object."
+                delete_obj_by_address(pos, header.id)
               else
                 PEROBS.log.fatal "Checksum failure while checking blob " +
-                  "with ID #{id}"
+                  "with ID #{header.id}"
               end
             end
-          rescue => e
-            PEROBS.log.fatal "Check of blob with ID #{blob_id} failed: " +
+          rescue IOError => e
+            PEROBS.log.fatal "Check of blob with ID #{header.id} failed: " +
               e.message
           end
         end
@@ -416,11 +472,11 @@ module PEROBS
       @index.clear
       @space_list.clear
 
-      each_blob_header do |pos, mark, length, id, crc|
-        if mark == 0
-          @space_list.add_space(pos, length) if length > 0
+      each_blob_header do |pos, header|
+        if header.is_valid?
+          @index.put_value(header.id, pos)
         else
-          @index.put_value(id, pos)
+          @space_list.add_space(pos, header.length) if header.length > 0
         end
       end
     end
@@ -437,11 +493,12 @@ module PEROBS
 
     def inspect
       s = '['
-      each_blob_header do |pos, mark, length, blob_id, crc|
-        s << "{ :pos => #{pos}, :mark => #{mark}, " +
-             ":length => #{length}, :id => #{blob_id}, :crc => #{crc}"
-        if mark != 0
-          s << ", :value => #{@f.read(length)}"
+      each_blob_header do |pos, header|
+        s << "{ :pos => #{pos}, :mark => #{header.mark}, " +
+             ":length => #{header.length}, :id => #{header.id}, " +
+             ":crc => #{header.crc}"
+        if header.is_valid?
+          s << ", :value => #{@f.read(header.length)}"
         end
         s << " }\n"
       end
@@ -457,7 +514,7 @@ module PEROBS
       begin
         @f.seek(addr)
         buf = @f.read(BLOB_HEADER_LENGTH)
-      rescue => e
+      rescue IOError => e
         PEROBS.log.fatal "Cannot read blob in flat file DB: #{e.message}"
       end
       if buf.nil? || buf.length != BLOB_HEADER_LENGTH
@@ -472,6 +529,22 @@ module PEROBS
       end
 
       return header
+    end
+
+    def each_blob_header(&block)
+      pos = 0
+      begin
+        @f.seek(0)
+        while (buf = @f.read(BLOB_HEADER_LENGTH))
+          header = Header.new(*buf.unpack(BLOB_HEADER_FORMAT))
+          yield(pos, header)
+
+          pos += BLOB_HEADER_LENGTH + header.length
+          @f.seek(pos)
+        end
+      rescue IOError => e
+        PEROBS.log.fatal "Cannot read blob in flat file DB: #{e.message}"
+      end
     end
 
     def find_free_blob(bytes)
@@ -498,41 +571,26 @@ module PEROBS
     end
 
     def cross_check_entries
-      each_blob_header do |pos, mark, length, blob_id, crc|
-        if mark == 0
-          if length > 0
-            unless @space_list.has_space?(pos, length)
+      each_blob_header do |pos, header|
+        if !header.is_valid?
+          if header.length > 0
+            unless @space_list.has_space?(pos, header.length)
               PEROBS.log.error "FlatFile has free space " +
-                "(addr: #{pos}, len: #{length}) that is not in FreeSpaceManager"
+                "(addr: #{pos}, len: #{header.length}) that is not in " +
+                "FreeSpaceManager"
               return false
             end
           end
         else
-          unless @index.get_value(blob_id) == pos
+          unless @index.get_value(header.id) == pos
             PEROBS.log.error "FlatFile blob at address #{pos} is listed " +
-              "in index with address #{@index.get_value(blob_id)}"
+              "in index with address #{@index.get_value(header.id)}"
             return false
           end
         end
       end
 
       true
-    end
-
-    def each_blob_header(&block)
-      pos = 0
-      begin
-        @f.seek(0)
-        while (buf = @f.read(BLOB_HEADER_LENGTH))
-          mark, length, id, crc = buf.unpack(BLOB_HEADER_FORMAT)
-          yield(pos, mark, length, id, crc)
-
-          pos += BLOB_HEADER_LENGTH + length
-          @f.seek(pos)
-        end
-      rescue IOError => e
-        PEROBS.log.fatal "Cannot read blob in flat file DB: #{e.message}"
-      end
     end
 
   end
