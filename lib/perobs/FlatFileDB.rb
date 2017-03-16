@@ -41,7 +41,7 @@ module PEROBS
 
     # This version number increases whenever the on-disk format changes in a
     # way that requires conversion actions after an update.
-    VERSION = 1
+    VERSION = 2
 
     attr_reader :max_blob_size
 
@@ -57,7 +57,7 @@ module PEROBS
       # Create the database directory if it doesn't exist yet.
       ensure_dir_exists(@db_dir)
       PEROBS.log.open(File.join(@db_dir, 'log'))
-      check_version
+      check_version_and_upgrade
 
       # Read the existing DB config.
       @config = get_hash('config')
@@ -202,9 +202,9 @@ module PEROBS
 
     private
 
-    def check_version
+    def check_version_and_upgrade
       version_file = File.join(@db_dir, 'version')
-      version = VERSION
+      version = 1
 
       if File.exist?(version_file)
         begin
@@ -214,12 +214,27 @@ module PEROBS
                            "'#{version_file}': " + e.message
         end
       else
+        # Early versions of PEROBS did not have a version file.
         write_version_file(version_file)
       end
 
       if version > VERSION
         PEROBS.log.fatal "Cannot downgrade the FlatFile database from " +
                          "version #{version} to version #{VERSION}"
+      end
+
+      if version == 1
+        # Version 1 had no support for data compression. Make sure all entries
+        # are compressed to save space.
+        open
+        @flat_file.refresh
+        close
+      end
+
+      # After a successful upgrade change the version number in the DB as
+      # well.
+      if version < VERSION
+        write_version_file(version_file)
       end
     end
 
