@@ -31,6 +31,7 @@ require 'perobs/Log'
 require 'perobs/FlatFileBlobHeader'
 require 'perobs/IndexTree'
 require 'perobs/FreeSpaceManager'
+require 'perobs/SpaceTree'
 
 module PEROBS
 
@@ -45,7 +46,8 @@ module PEROBS
       @db_dir = dir
       @f = nil
       @index = IndexTree.new(dir)
-      @space_list = FreeSpaceManager.new(dir)
+      #@space_list = FreeSpaceManager.new(dir)
+      @space_list = SpaceTree.new(dir)
     end
 
     # Open the flat file for reading and writing.
