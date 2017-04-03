@@ -73,6 +73,7 @@ describe PEROBS::SpaceTree do
 
   it 'should keep values over an close/open' do
     @m.add_space(1, 15)
+    expect(@m.check).to be true
     @m.close
     @m.open
     expect(@m.check).to be true
@@ -85,10 +86,10 @@ describe PEROBS::SpaceTree do
   end
 
   it 'should find the largest node' do
-    node, address, parent = @m.instance_variable_get('@root').find_largest_node(nil)
+    node = @m.instance_variable_get('@root').find_largest_node
     expect(node.size).to eql(32)
-    expect(address).to eql(4)
-    expect(parent.size).to eql(16)
+    expect(node.node_address).to eql(4)
+    expect(node.parent.size).to eql(16)
   end
 
   it 'should support clearing the data' do
@@ -113,7 +114,7 @@ describe PEROBS::SpaceTree do
     expect(@m.get_space(10)).to eql([4, 10])
   end
 
-  it 'should delete an smaller node' do
+  it 'should delete a smaller node' do
     @m.clear
     add_sizes([ 10, 5, 3, 7 ])
     expect(@m.inspect).to eql('[[0, 10], [1, 5], [2, 3], [3, 7]]')
@@ -131,6 +132,12 @@ describe PEROBS::SpaceTree do
     expect(@m.inspect).to eql('[[0, 10], [1, 5]]')
     expect(@m.get_space(5)).to eql([1, 5])
     expect(@m.inspect).to eql('[[0, 10]]')
+
+    @m.clear
+    add_sizes([ 10, 5, 3, 7, 5 ])
+    expect(@m.inspect).to eql('[[0, 10], [1, 5], [2, 3], [4, 5], [3, 7]]')
+    expect(@m.get_space(3)).to eql([2, 3])
+    expect(@m.inspect).to eql('[[0, 10], [1, 5], [4, 5], [3, 7]]')
   end
 
   it 'should delete an larger node' do
@@ -151,6 +158,12 @@ describe PEROBS::SpaceTree do
     expect(@m.inspect).to eql('[[0, 10], [1, 15]]')
     expect(@m.get_space(15)).to eql([1, 15])
     expect(@m.inspect).to eql('[[0, 10]]')
+
+    @m.clear
+    add_sizes([ 10, 5, 15, 20, 17, 22 ])
+    expect(@m.inspect).to eql('[[0, 10], [1, 5], [2, 15], [3, 20], [4, 17], [5, 22]]')
+    expect(@m.get_space(15)).to eql([2, 15])
+    expect(@m.inspect).to eql('[[0, 10], [1, 5], [3, 20], [4, 17], [5, 22]]')
   end
 
   it 'should move largest of small tree' do

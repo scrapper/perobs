@@ -38,8 +38,8 @@ module PEROBS
   # spaces.
   class SpaceTreeNode
 
-    attr_accessor :size, :smaller, :equal, :larger, :blob_address
-    attr_reader :node_address
+    attr_accessor :size, :blob_address
+    attr_reader :node_address, :parent, :smaller, :equal, :larger
 
     # Each node can hold a reference to the parent, a lower, equal or larger
     # size node and the actual value and the address in the FlatFile. Each of
@@ -62,8 +62,12 @@ module PEROBS
       @size = size
       # The root node is always at address 0. Since it's never referenced from
       # another node, 0 means nil pointer.
-      @smaller = @equal = @larger = 0
+      @smaller = @equal = @larger = nil
       @node_address = node_address
+
+      unless node_address.nil? || node_address.is_a?(Integer)
+        PEROBS.log.fatal "node_address is not Integer: #{node_address.class}"
+      end
 
       if node_address
         # This must be an existing node. Try to read it and fill the instance
@@ -81,10 +85,8 @@ module PEROBS
       else
         # This is a new node. Make sure the data is written to the file.
         @node_address = @tree.nodes.free_address
-        write_node
+        self.parent = parent
       end
-
-      @parent = parent ? SpaceTreeNodeLink.new(@tree, parent.node_address) : nil
     end
 
     # Add a new node for the given address and size to the tree.
@@ -101,45 +103,39 @@ module PEROBS
         end
         if node.size == 0
           # This happens only for the root node if the tree is empty.
-          node.size = size
-          node.blob_address = address
-          node.write_node
+          node.set_size_and_address(size, address)
           break
         elsif size < node.size
           # The new size is smaller than this node.
-          if node.smaller != 0
+          if node.smaller
             # There is already a smaller node, so pass it on.
-            node = @tree.get_node(node.smaller)
+            node = node.smaller
           else
             # There is no smaller node yet, so we create a new one as a
             # smaller child of the current node.
             node.set_link('@smaller',
-                          @tree.get_node(nil, node, address, size).node_address)
-            node.write_node
+                          @tree.new_node(node, address, size))
             break
           end
         elsif size > node.size
           # The new size is larger than this node.
-          if node.larger != 0
+          if node.larger
             # There is already a larger node, so pass it on.
-            node = @tree.get_node(node.larger)
+            node = node.larger
           else
             # There is no larger node yet, so we create a new one as a larger
             # child of the current node.
             node.set_link('@larger',
-                          @tree.get_node(nil, node, address, size).node_address)
-            node.write_node
+                          @tree.new_node(node, address, size))
             break
           end
         else
           # Same size as current node. Insert new node as equal child at top of
           # equal list.
-          new_node = @tree.get_node(nil, node, address, size)
+          new_node = @tree.new_node(node, address, size)
           new_node.set_link('@equal', node.equal)
-          new_node.write_node
 
-          node.set_link('@equal', new_node.node_address)
-          node.write_node
+          node.set_link('@equal', new_node)
 
           break
         end
@@ -152,22 +148,50 @@ module PEROBS
     # @param size [Integer] size of the free space
     # @return [Boolean] True if found, otherwise false
     def has_space?(address, size)
-      if size < @size
-        if @smaller != 0
-          return @tree.get_node(@smaller).has_space?(address, size)
+      node = self
+      loop do
+        if size < node.size && node.smaller
+          node = node.smaller
+        elsif size > node.size && node.larger
+          node = node.larger
+        elsif size == node.size && node.equal
+          node = node.equal
+        elsif node.blob_address == address
+          return true
+        else
+          return false
         end
-      elsif size > @size
-        if @larger != 0
-          return @tree.get_node(@larger).has_space?(address, size)
-        end
-      else
-        return true if @blob_address == address
-        if @equal != 0
-          return @tree.get_node(@equal).has_space?(address, size)
+      end
+    end
+
+    # Return an address/size touple that matches exactly the requested size.
+    # Return nil if nothing was found.
+    # @param size [Integer] size of the free space
+    # @return [Array or nil] address, size touple or nil
+    def find_matching_space(size)
+      node = self
+
+      loop do
+        if node.size < size
+          if node.larger
+            # The current space is not yet large enough. If we have a larger sub
+            # node check that one next.
+            node = node.larger
+          else
+            break
+          end
+        elsif node.size == size
+          # We've found a space that is an exact match. Remove it from the
+          # list and return it.
+          address = node.blob_address
+          node.delete_node
+          return [ address, size ]
+        else
+          break
         end
       end
 
-      false
+      return nil
     end
 
     # Return an address/size touple that matches the requested size or is
@@ -175,17 +199,15 @@ module PEROBS
     # Return nil if nothing was found.
     # @param size [Integer] size of the free space
     # @return [Array or nil] address, size touple or nil
-    def find_matching_space(size)
+    def find_equal_or_larger_space(size)
       node = self
-      parent_node = nil
 
       loop do
         if node.size < size
-          if node.larger != 0
+          if node.larger
             # The current space is not yet large enough. If we have a larger sub
             # node check that one next.
-            parent_node = node
-            node = @tree.get_node(node.larger)
+            node = node.larger
           else
             break
           end
@@ -196,14 +218,13 @@ module PEROBS
           # return it.
           actual_size = node.size
           address = node.blob_address
-          node.delete_node(parent_node)
+          node.delete_node
           return [ address, actual_size ]
-        elsif node.smaller != 0
+        elsif node.smaller
           # The current space is larger than size but not large enough for an
           # additional record. So check if we have a perfect match in the
           # smaller brach if available.
-          parent_node = node
-          node = @tree.get_node(node.smaller)
+          node = node.smaller
         else
           break
         end
@@ -212,34 +233,73 @@ module PEROBS
       return nil
     end
 
+    # Collects address and size touples of all nodes in the tree with a
+    # depth-first strategy and stores them in an Array.
+    # @return [Array] Array with [ address, size ] touples.
+    def gather_addresses_and_sizes
+      ary = []
 
-    # Adds address, size touples of of this node and all sub-nodes to the
-    # given Array.
-    # @param ary [Array]
-    def gather_addresses_and_sizes(ary)
-
-      stack = [ self ]
-      while !stack.empty?
-        node = stack.pop
-        ary << [ node.blob_address, node.size ] unless node.size == 0
-
-        stack.push(@tree.get_node(node.larger)) if node.larger != 0
-        stack.push(@tree.get_node(node.equal)) if node.equal != 0
-        stack.push(@tree.get_node(node.smaller)) if node.smaller != 0
+      each do |node, mode, stack|
+        if mode == :on_enter
+          ary << [ node.blob_address, node.size ] unless node.size == 0
+        end
       end
+
+      ary
     end
 
-    def replace_node_address(child_node_address, new_address)
-      if child_node_address == @smaller
-        set_link('@smaller', new_address)
-      elsif child_node_address == @equal
-        set_link('@equal', new_address)
-      elsif child_node_address == @larger
-        set_link('@larger', new_address)
+    # Remove a smaller/equal/larger link from the current node.
+    # @param child_node [SpaceTreeNodeLink] node to remove
+    def unlink_node(child_node)
+      if @smaller == child_node
+        @smaller = nil
+      elsif @equal == child_node
+        @equal = nil
+      elsif @larger == child_node
+        @larger = nil
       else
-        PEROBS.log.fatal "Unknown child node address #{child_node_address}"
+        PEROBS.log.fatal "Cannot unlink unknown child node with address " +
+          "#{child_node.node_address} from #{to_s}"
       end
       write_node
+    end
+
+    # Depth-first iterator for all nodes. The iterator yields the given block
+    # at 5 points for any found node. The mode variable indicates the point.
+    # :on_enter Coming from the parent we've entered the node for the first
+    #           time
+    # :smaller We are about to follow the link to the smaller sub-node
+    # :equal We are about to follow the link to the equal sub-node
+    # :larger We are about to follow the link to the larger sub-node
+    # :on_exit We have completed this node
+    def each
+      # We use a non-recursive implementation to traverse the tree. This stack
+      # keeps track of all the known still to be checked nodes.
+      stack = [ [ self, :on_enter ] ]
+
+      while !stack.empty?
+        node, mode = stack.pop
+
+        case mode
+        when :on_enter
+          yield(node, mode, stack)
+          stack.push([ node, :smaller ])
+        when :smaller
+          yield(node, mode, stack) if node.check_node_link('smaller', stack)
+          stack.push([ node, :equal ])
+          stack.push([ node.smaller, :on_enter]) if node.smaller
+        when :equal
+          yield(node, mode, stack) if node.check_node_link('equal', stack)
+          stack.push([ node, :larger ])
+          stack.push([ node.equal, :on_enter]) if node.equal
+        when :larger
+          yield(node, mode, stack) if node.check_node_link('larger', stack)
+          stack.push([ node, :on_exit])
+          stack.push([ node.larger, :on_enter]) if node.larger
+        when :on_exit
+          yield(node, mode, stack)
+        end
+      end
     end
 
     # Check this node and all sub nodes for possible structural or logical
@@ -248,62 +308,50 @@ module PEROBS
     #        present in the given flat file.
     # @return [false,true] True if OK, false otherwise
     def check(flat_file)
-      # We use a non-recursive implementation to traverse the tree. This stack
-      # keeps track of all the known still to be checked nodes.
-      stack = [ [ self, :smaller ] ]
       node_counter = 0
       max_depth = 0
 
-      while !stack.empty?
+      each do |node, mode, stack|
         max_depth = stack.size if stack.size > max_depth
-        current_node, mode = stack.pop
 
         case mode
         when :smaller
-          stack_addresses = stack.map { |e| e[0].node_address }
-          unless current_node.check_node_links('smaller', stack_addresses)
-            return false
-          end
-          unless current_node.check_node_links('equal', stack_addresses)
-            return false
-          end
-          unless current_node.check_node_links('larger', stack_addresses)
-            return false
-          end
-
-          stack.push([ current_node, :equal ])
-
-          if current_node.smaller != 0
-            node = @tree.get_node(current_node.smaller)
-            if node.size >= current_node.size
-              PEROBS.log.error "Smaller SpaceTreeNode size (#{node.size}) is " +
-                "not smaller than #{current_node.size}" + @tree.text_tree
-                return false
+          if node.smaller
+            smaller_node = node.smaller
+            if smaller_node.size >= node.size
+              PEROBS.log.error "Smaller SpaceTreeNode size " +
+                "(#{smaller_node}) is not smaller than #{node}"
+              return false
             end
-            stack.push([ node, :smaller ])
           end
         when :equal
-          stack.push([ current_node, :larger ])
+          if node.equal
+            equal_node = node.equal
 
-          if current_node.equal != 0
-            node = @tree.get_node(current_node.equal)
+            if equal_node.smaller || equal_node.larger
+              PEROBS.log.error "Equal node #{equal_node} must not have " +
+                "smaller/larger childs"
+              return false
+            end
 
-            return false unless check_equal_nodes(node, current_node.size)
+            if node.size != equal_node.size
+              PEROBS.log.error "Equal SpaceTreeNode size (#{equal_node}) is " +
+                "not equal parent node #{node}"
+              return false
+            end
           end
         when :larger
-          stack.push([ current_node, :finalize ])
-
-          if current_node.larger != 0
-            node = @tree.get_node(current_node.larger)
-            if node.size <= current_node.size
-              PEROBS.log.error "Larger SpaceTreeNode size (#{node.size}) is " +
-                "not larger than #{current_node.size}"
-                return false
+          if node.larger
+            larger_node = node.larger
+            if larger_node.size <= node.size
+              PEROBS.log.error "Larger SpaceTreeNode size " +
+                "(#{larger_node}) is not larger than #{node}"
+              return false
             end
-            stack.push([ node, :smaller ])
           end
-        when :finalize
-          if flat_file && !flat_file.has_space?(@blob_address, @size)
+        when :on_exit
+          if flat_file &&
+             !flat_file.has_space?(node.blob_address, node.size)
             PEROBS.log.error "SpaceTreeNode has space that isn't " +
               "available in the FlatFile."
             return false
@@ -318,167 +366,211 @@ module PEROBS
       return true
     end
 
-    def check_node_links(link, parent_addresses)
-      link_address = instance_variable_get('@' + link)
-
-      if link_address != 0 && link_address == @node_address
-        PEROBS.log.error "#{link} address of node " +
-          "[#{@blob_address}, #{@size}] points to self"
-        return false
-      end
-
-      if link_address != 0 && parent_addresses.include?(link_address)
-        parent = @tree.get_node(link_address)
-        PEROBS.log.error "#{link} address of node " +
-          "[#{@blob_address}, " +
-          "#{@size}] points to parent node " +
-          "[#{parent.blob_address}, #{parent.size}]"
-        stck = parent_addresses.map do |a|
-          n = @tree.get_node(a)
-          [ a, n.blob_address, n.size ]
+    # Check the integrity of the given sub-node link and the parent link
+    # pointing back to this node.
+    # @param link [String] 'smaller', 'equal' or 'larger'
+    # @param stack [Array] List of parent nodes [ address, mode ] touples
+    # @return [Boolean] true of OK, false otherwise
+    def check_node_link(link, stack)
+      if (node = instance_variable_get('@' + link))
+        # Node links must only be of class SpaceTreeNodeLink
+        unless node.nil? || node.is_a?(SpaceTreeNodeLink)
+          PEROBS.log.error "Node link #{link} of node #{to_s} " +
+            "is of class #{node.class}"
+          return false
         end
 
-        return false
+        # Link must not point back to self.
+        if node == self
+          PEROBS.log.error "#{link} address of node " +
+            "#{node.to_s} points to self #{to_s}"
+          return false
+        end
+
+        # Link must not point to any of the parent nodes.
+        if stack.include?(node)
+          PEROBS.log.error "#{link} address of node #{to_s} " +
+            "points to parent node #{node}"
+
+            return false
+        end
+
+        # Parent link of node must point back to self.
+        if node.parent != self
+          PEROBS.log.error "@#{link} node #{node.to_s} does not have parent " +
+            "link pointing " +
+            "to parent node #{to_s}. Pointing at " +
+            "#{node.parent.nil? ? 'nil' : node.parent.to_s} instead."
+
+          return false
+        end
       end
 
       true
     end
 
-    def check_equal_nodes(node, size)
-      loop do
-        if node.smaller != 0 || node.larger != 0
-          PEROBS.log.error "Equal nodes must not have smaller/larger childs"
-          return false
-        end
-
-        if node.size != size
-          PEROBS.log.error "Equal SpaceTreeNode size (#{node.size}) is " +
-            "not equal to #{size}"
-            return false
-        end
-
-        return true if node.equal == 0
-
-        node = @tree.get_node(node.equal)
-      end
-    end
-
-    def delete_node(parent_node)
+    def delete_node
       node = nil
-      address_of_node_to_delete = 0
-      operation = 'nothing'
 
-      if @equal != 0
-        operation = 'equal'
+      if @equal
         # Pull-up equal node by copying it's content into the current node.
-        address_of_node_to_delete = @equal
-        node = @tree.get_node(address_of_node_to_delete)
+        node = @equal
         set_link('@equal', node.equal)
-      elsif @smaller != 0 && @larger == 0
-        operation = 'smaller'
+      elsif @smaller && @larger.nil?
         # The node only has a single sub-node on the smaller branch. Pull-up
         # smaller node and replace it with the current node by copying the
         # content of the sub-node.
-        address_of_node_to_delete = @smaller
-        node = @tree.get_node(address_of_node_to_delete)
+        node = @smaller
         set_link('@smaller', node.smaller)
         set_link('@equal', node.equal)
         set_link('@larger', node.larger)
-      elsif @larger != 0 && @smaller == 0
-        operation = 'larger'
+      elsif @larger && @smaller.nil?
         # The node only has a single sub-node on the larger branch. Pull-up
         # larger node and replace it with the current node.
-        address_of_node_to_delete = @larger
-        node = @tree.get_node(address_of_node_to_delete)
+        node = @larger
         set_link('@smaller', node.smaller)
         set_link('@equal', node.equal)
         set_link('@larger', node.larger)
-      elsif @smaller != 0 && @larger != 0
-        operation = 'move largest of small tree'
+      elsif @smaller && @larger
         # We'll replace the current node with the largest node of the
         # smaller sub-tree by copying the values into this node.
-        node, address_of_node_to_delete, parent_node =
-          @tree.get_node(@smaller).find_largest_node(self)
-        if node.smaller != 0
+        node = @smaller.find_largest_node
+        if node.smaller
+          # The largest node of the @smaller sub-tree has a smaller branch.
           if (smallest_node = node.find_smallest_node) != node &&
-              address_of_node_to_delete != @smaller
+             node != @smaller
+            # Find the smallest node in that branch and attach the old
+            # @smaller branch to its smaller link.
             smallest_node.set_link('@smaller', @smaller)
-            smallest_node.write_node
           end
           set_link('@smaller', node.smaller)
         end
         set_link('@equal', node.equal)
-        if parent_node != self
-          parent_node.replace_node_address(address_of_node_to_delete, 0)
-        else
+        if node.parent == self
           set_link('@smaller', node.smaller)
+        else
+          node.parent.unlink_node(node) if node.parent
         end
       end
 
       if node
         # We have found a node that can replace the node we want to delete.
         # Copy the data from that node into this node.
-        @size = node.size
-        @blob_address = node.blob_address
-        # Update the node file.
-        write_node
+        set_size_and_address(node.size, node.blob_address)
 
         # Delete the just copied node from the file.
-        @tree.delete_node(address_of_node_to_delete)
+        @tree.delete_node(node.node_address)
       else
-        # We have not found a replacement node, so we have to delete this
-        # node by removing the link from the parent and deleting it from the
-        # file.
-        if parent_node
-          parent_node.replace_node_address(@node_address, 0)
+        # The node is a leaf node. We have to delete this node by removing the
+        # link from the parent and deleting it from the file.
+        if @parent
+          @parent.unlink_node(self)
           @tree.delete_node(@node_address)
         else
           # The root node can't be deleted. We just set @size to 0 to mark it
           # as empty.
-          @size = 0
-          write_node
+          set_size_and_address(0, 0)
         end
-      end
-
-      unless @tree.check
-        PEROBS.log.fatal "Delete operation #{operation} failed:" +
-          @tree.text_tree
       end
     end
 
-    def text_tree(prefix)
-      str = "#{prefix}\- #{@node_address} :: [#{@blob_address}, #{@size}]"
-      if @smaller != 0
+    # Textual version of the node data. It has the form
+    # node_address:[blob_address, size] ^parent_node_address
+    # <smaller_node_address >larger_node_address
+    # @return [String]
+    def to_s
+      s = "#{@node_address}:[#{@blob_address}, #{@size}]"
+      if @parent
         begin
-          str += @tree.get_node(@smaller).text_tree(prefix + "  |< ")
+          s += " ^#{@parent.node_address}"
         rescue
-          str += prefix + "  |< @@@@@@@@@@"
+          s += ' ^@'
         end
       end
-      if @equal != 0
+      if @smaller
         begin
-          str += @tree.get_node(@equal).text_tree(prefix + "  |= ")
+          s += " <#{@smaller.node_address}"
         rescue
-          str += prefix + "  |= @@@@@@@@@@"
+          s += ' <@'
         end
       end
-      if @larger != 0
+      if @equal
         begin
-          str += @tree.get_node(@larger).text_tree(prefix + "  |> ")
+          s += " =#{@equal.node_address}"
         rescue
-          str += prefix + "  |> @@@@@@@@@@"
+          s += ' =@'
+        end
+      end
+      if @larger
+        begin
+          s += " >#{@larger.node_address}"
+        rescue
+          s += ' >@'
+        end
+      end
+
+      s
+    end
+
+    def text_tree
+      str = ''
+
+      each do |node, mode, stack|
+        if mode == :on_enter
+          begin
+            branch_mark = node.parent.nil? ? '' :
+              node.parent.smaller == node ? '<' :
+              node.parent.equal == node ? '=' :
+              node.parent.larger == node ? '>' : '@'
+
+            str += "#{node.text_tree_prefix}#{branch_mark}-" +
+              "#{node.smaller || node.equal || node.larger ? 'v-' : '--'}" +
+              "#{node.to_s}\n"
+          rescue
+            str += "#{node.text_tree_prefix}- @@@@@@@@@@\n"
+          end
         end
       end
 
       str
     end
 
+    def text_tree_prefix
+      if (node = @parent)
+        str = '+'
+      else
+        # Prefix start for root node line
+        str = 'o'
+      end
+
+      while node
+        last_child = false
+        if node.parent
+          if node.parent.smaller == node
+            last_child = node.parent.equal.nil? && node.parent.larger.nil?
+          elsif node.parent.equal == node
+            last_child = node.parent.larger.nil?
+          elsif node.parent.larger == node
+            last_child = true
+          end
+        else
+          # Padding for the root node
+          str = '  ' + str
+          break
+        end
+
+        str = (last_child ? '   ' : '|  ') + str
+        node = node.parent
+      end
+
+      str
+    end
+
     def find_smallest_node
-      node_address = @node_address
+      node = self
       loop do
-        node = @tree.get_node(node_address)
-        if node.smaller != 0
-          node_address = node.smaller
+        if node.smaller
+          node = node.smaller
         else
           # We've found a 'leaf' node.
           return node
@@ -486,27 +578,51 @@ module PEROBS
       end
     end
 
-    def find_largest_node(parent_node)
-      node_address = @node_address
+    def find_largest_node
+      node = self
       loop do
-        node = @tree.get_node(node_address)
-        if node.larger != 0
-          node_address = node.larger
+        if node.larger
+          node = node.larger
         else
           # We've found a 'leaf' node.
-          return node, node_address, parent_node
+          return node
         end
-        parent_node = node
       end
     end
 
-    def set_link(name, node_address)
-      instance_variable_set(name, node_address)
+    def set_size_and_address(size, address)
+      @size = size
+      @blob_address = address
+      write_node
+    end
+
+    def set_link(name, node_or_address)
+      if node_or_address
+        # Set the link to the given SpaceTreeNode or node address.
+        instance_variable_set(name,
+                              node = node_or_address.is_a?(SpaceTreeNodeLink) ?
+                              node_or_address :
+                              SpaceTreeNodeLink.new(@tree, node_or_address))
+        # Link the node back to this node via the parent variable.
+        node.parent = self
+      else
+        # Clear the node link.
+        instance_variable_set(name, nil)
+      end
+      write_node
+    end
+
+    def parent=(p)
+      @parent = p ? SpaceTreeNodeLink.new(@tree, p) : nil
+      write_node
     end
 
     def write_node
-      bytes = [ @blob_address, @size, @parent ? @parent.node_address : 0,
-                @smaller, @equal, @larger ].pack(NODE_BYTES_FORMAT)
+      bytes = [ @blob_address, @size,
+                @parent ? @parent.node_address : 0,
+                @smaller ? @smaller.node_address : 0,
+                @equal ? @equal.node_address : 0,
+                @larger ? @larger.node_address : 0].pack(NODE_BYTES_FORMAT)
       @tree.nodes.store_blob(@node_address, bytes)
     end
 
@@ -516,9 +632,18 @@ module PEROBS
       return false unless (bytes = @tree.nodes.retrieve_blob(@node_address))
 
       @blob_address, @size, parent_node_address,
-        @smaller, @equal, @larger = bytes.unpack(NODE_BYTES_FORMAT)
-      @parent = parent_node_address != 0 ?
+        smaller_node_address, equal_node_address,
+        larger_node_address = bytes.unpack(NODE_BYTES_FORMAT)
+      # The parent address can also be 0 as the parent can rightly point back
+      # to the root node which always has the address 0.
+      @parent = @node_address != 0 ?
         SpaceTreeNodeLink.new(@tree, parent_node_address) : nil
+      @smaller = smaller_node_address != 0 ?
+        SpaceTreeNodeLink.new(@tree, smaller_node_address) : nil
+      @equal = equal_node_address != 0 ?
+        SpaceTreeNodeLink.new(@tree, equal_node_address) : nil
+      @larger = larger_node_address != 0 ?
+        SpaceTreeNodeLink.new(@tree, larger_node_address) : nil
 
       true
     end
