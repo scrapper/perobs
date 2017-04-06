@@ -2,7 +2,7 @@
 #
 # = SpaceTreeNodeLink.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2016 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #

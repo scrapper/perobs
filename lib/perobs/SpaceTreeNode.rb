@@ -2,7 +2,7 @@
 #
 # = SpaceTreeNode.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2016 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -94,13 +94,8 @@ module PEROBS
     # @param size [Integer] size of the free space
     def add_space(address, size)
       node = self
-      level = 0
 
       loop do
-        level += 1
-        if level > 64
-          PEROBS.log.fatal "SpaceTreeNode::add_space got lost"
-        end
         if node.size == 0
           # This happens only for the root node if the tree is empty.
           node.set_size_and_address(size, address)
@@ -233,21 +228,6 @@ module PEROBS
       return nil
     end
 
-    # Collects address and size touples of all nodes in the tree with a
-    # depth-first strategy and stores them in an Array.
-    # @return [Array] Array with [ address, size ] touples.
-    def gather_addresses_and_sizes
-      ary = []
-
-      each do |node, mode, stack|
-        if mode == :on_enter
-          ary << [ node.blob_address, node.size ] unless node.size == 0
-        end
-      end
-
-      ary
-    end
-
     # Remove a smaller/equal/larger link from the current node.
     # @param child_node [SpaceTreeNodeLink] node to remove
     def unlink_node(child_node)
@@ -300,6 +280,178 @@ module PEROBS
           yield(node, mode, stack)
         end
       end
+    end
+
+    def delete_node
+      node = nil
+
+      if @equal
+        # Pull-up equal node by copying it's content into the current node.
+        node = @equal
+        set_link('@equal', node.equal)
+      elsif @smaller && @larger.nil?
+        # The node only has a single sub-node on the smaller branch. Pull-up
+        # smaller node and replace it with the current node by copying the
+        # content of the sub-node.
+        node = @smaller
+        set_link('@smaller', node.smaller)
+        set_link('@equal', node.equal)
+        set_link('@larger', node.larger)
+      elsif @larger && @smaller.nil?
+        # The node only has a single sub-node on the larger branch. Pull-up
+        # larger node and replace it with the current node.
+        node = @larger
+        set_link('@smaller', node.smaller)
+        set_link('@equal', node.equal)
+        set_link('@larger', node.larger)
+      elsif @smaller && @larger
+        # We'll replace the current node with the largest node of the
+        # smaller sub-tree by copying the values into this node.
+        node = @smaller.find_largest_node
+        if node.smaller
+          # The largest node of the @smaller sub-tree has a smaller branch.
+          if (smallest_node = node.find_smallest_node) != node &&
+             node != @smaller
+            # Find the smallest node in that branch and attach the old
+            # @smaller branch to its smaller link.
+            smallest_node.set_link('@smaller', @smaller)
+          end
+          set_link('@smaller', node.smaller)
+        end
+        set_link('@equal', node.equal)
+        if node.parent == self
+          set_link('@smaller', node.smaller)
+        else
+          node.parent.unlink_node(node) if node.parent
+        end
+      end
+
+      if node
+        # We have found a node that can replace the node we want to delete.
+        # Copy the data from that node into this node.
+        set_size_and_address(node.size, node.blob_address)
+
+        # Delete the just copied node from the file.
+        @tree.delete_node(node.node_address)
+      else
+        # The node is a leaf node. We have to delete this node by removing the
+        # link from the parent and deleting it from the file.
+        if @parent
+          @parent.unlink_node(self)
+          @tree.delete_node(@node_address)
+        else
+          # The root node can't be deleted. We just set @size to 0 to mark it
+          # as empty.
+          set_size_and_address(0, 0)
+        end
+      end
+    end
+
+    # Find the node with the smallest size in this sub-tree.
+    # @return [SpaceTreeNode]
+    def find_smallest_node
+      node = self
+      loop do
+        if node.smaller
+          node = node.smaller
+        else
+          # We've found a 'leaf' node.
+          return node
+        end
+      end
+    end
+
+    # Find the node with the largest size in this sub-tree.
+    # @return [SpaceTreeNode]
+    def find_largest_node
+      node = self
+      loop do
+        if node.larger
+          node = node.larger
+        else
+          # We've found a 'leaf' node.
+          return node
+        end
+      end
+    end
+
+    def set_size_and_address(size, address)
+      @size = size
+      @blob_address = address
+      write_node
+    end
+
+    def set_link(name, node_or_address)
+      if node_or_address
+        # Set the link to the given SpaceTreeNode or node address.
+        instance_variable_set(name,
+                              node = node_or_address.is_a?(SpaceTreeNodeLink) ?
+                              node_or_address :
+                              SpaceTreeNodeLink.new(@tree, node_or_address))
+        # Link the node back to this node via the parent variable.
+        node.parent = self
+      else
+        # Clear the node link.
+        instance_variable_set(name, nil)
+      end
+      write_node
+    end
+
+    def parent=(p)
+      @parent = p ? SpaceTreeNodeLink.new(@tree, p) : nil
+      write_node
+    end
+    # Collects address and size touples of all nodes in the tree with a
+    # depth-first strategy and stores them in an Array.
+    # @return [Array] Array with [ address, size ] touples.
+    def to_a
+      ary = []
+
+      each do |node, mode, stack|
+        if mode == :on_enter
+          ary << [ node.blob_address, node.size ] unless node.size == 0
+        end
+      end
+
+      ary
+    end
+
+    # Textual version of the node data. It has the form
+    # node_address:[blob_address, size] ^parent_node_address
+    # <smaller_node_address >larger_node_address
+    # @return [String]
+    def to_s
+      s = "#{@node_address}:[#{@blob_address}, #{@size}]"
+      if @parent
+        begin
+          s += " ^#{@parent.node_address}"
+        rescue
+          s += ' ^@'
+        end
+      end
+      if @smaller
+        begin
+          s += " <#{@smaller.node_address}"
+        rescue
+          s += ' <@'
+        end
+      end
+      if @equal
+        begin
+          s += " =#{@equal.node_address}"
+        rescue
+          s += ' =@'
+        end
+      end
+      if @larger
+        begin
+          s += " >#{@larger.node_address}"
+        rescue
+          s += ' >@'
+        end
+      end
+
+      s
     end
 
     # Check this node and all sub nodes for possible structural or logical
@@ -409,110 +561,9 @@ module PEROBS
       true
     end
 
-    def delete_node
-      node = nil
-
-      if @equal
-        # Pull-up equal node by copying it's content into the current node.
-        node = @equal
-        set_link('@equal', node.equal)
-      elsif @smaller && @larger.nil?
-        # The node only has a single sub-node on the smaller branch. Pull-up
-        # smaller node and replace it with the current node by copying the
-        # content of the sub-node.
-        node = @smaller
-        set_link('@smaller', node.smaller)
-        set_link('@equal', node.equal)
-        set_link('@larger', node.larger)
-      elsif @larger && @smaller.nil?
-        # The node only has a single sub-node on the larger branch. Pull-up
-        # larger node and replace it with the current node.
-        node = @larger
-        set_link('@smaller', node.smaller)
-        set_link('@equal', node.equal)
-        set_link('@larger', node.larger)
-      elsif @smaller && @larger
-        # We'll replace the current node with the largest node of the
-        # smaller sub-tree by copying the values into this node.
-        node = @smaller.find_largest_node
-        if node.smaller
-          # The largest node of the @smaller sub-tree has a smaller branch.
-          if (smallest_node = node.find_smallest_node) != node &&
-             node != @smaller
-            # Find the smallest node in that branch and attach the old
-            # @smaller branch to its smaller link.
-            smallest_node.set_link('@smaller', @smaller)
-          end
-          set_link('@smaller', node.smaller)
-        end
-        set_link('@equal', node.equal)
-        if node.parent == self
-          set_link('@smaller', node.smaller)
-        else
-          node.parent.unlink_node(node) if node.parent
-        end
-      end
-
-      if node
-        # We have found a node that can replace the node we want to delete.
-        # Copy the data from that node into this node.
-        set_size_and_address(node.size, node.blob_address)
-
-        # Delete the just copied node from the file.
-        @tree.delete_node(node.node_address)
-      else
-        # The node is a leaf node. We have to delete this node by removing the
-        # link from the parent and deleting it from the file.
-        if @parent
-          @parent.unlink_node(self)
-          @tree.delete_node(@node_address)
-        else
-          # The root node can't be deleted. We just set @size to 0 to mark it
-          # as empty.
-          set_size_and_address(0, 0)
-        end
-      end
-    end
-
-    # Textual version of the node data. It has the form
-    # node_address:[blob_address, size] ^parent_node_address
-    # <smaller_node_address >larger_node_address
+    # Convert the node and all child nodes into a tree like text form.
     # @return [String]
-    def to_s
-      s = "#{@node_address}:[#{@blob_address}, #{@size}]"
-      if @parent
-        begin
-          s += " ^#{@parent.node_address}"
-        rescue
-          s += ' ^@'
-        end
-      end
-      if @smaller
-        begin
-          s += " <#{@smaller.node_address}"
-        rescue
-          s += ' <@'
-        end
-      end
-      if @equal
-        begin
-          s += " =#{@equal.node_address}"
-        rescue
-          s += ' =@'
-        end
-      end
-      if @larger
-        begin
-          s += " >#{@larger.node_address}"
-        rescue
-          s += ' >@'
-        end
-      end
-
-      s
-    end
-
-    def text_tree
+    def to_tree_s
       str = ''
 
       each do |node, mode, stack|
@@ -535,6 +586,8 @@ module PEROBS
       str
     end
 
+    # The indentation and arch routing for the text tree.
+    # @return [String]
     def text_tree_prefix
       if (node = @parent)
         str = '+'
@@ -566,56 +619,7 @@ module PEROBS
       str
     end
 
-    def find_smallest_node
-      node = self
-      loop do
-        if node.smaller
-          node = node.smaller
-        else
-          # We've found a 'leaf' node.
-          return node
-        end
-      end
-    end
-
-    def find_largest_node
-      node = self
-      loop do
-        if node.larger
-          node = node.larger
-        else
-          # We've found a 'leaf' node.
-          return node
-        end
-      end
-    end
-
-    def set_size_and_address(size, address)
-      @size = size
-      @blob_address = address
-      write_node
-    end
-
-    def set_link(name, node_or_address)
-      if node_or_address
-        # Set the link to the given SpaceTreeNode or node address.
-        instance_variable_set(name,
-                              node = node_or_address.is_a?(SpaceTreeNodeLink) ?
-                              node_or_address :
-                              SpaceTreeNodeLink.new(@tree, node_or_address))
-        # Link the node back to this node via the parent variable.
-        node.parent = self
-      else
-        # Clear the node link.
-        instance_variable_set(name, nil)
-      end
-      write_node
-    end
-
-    def parent=(p)
-      @parent = p ? SpaceTreeNodeLink.new(@tree, p) : nil
-      write_node
-    end
+    private
 
     def write_node
       bytes = [ @blob_address, @size,
@@ -625,8 +629,6 @@ module PEROBS
                 @larger ? @larger.node_address : 0].pack(NODE_BYTES_FORMAT)
       @tree.nodes.store_blob(@node_address, bytes)
     end
-
-    private
 
     def read_node
       return false unless (bytes = @tree.nodes.retrieve_blob(@node_address))
