@@ -26,7 +26,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 require 'perobs/Log'
-require 'perobs/FixedSizeBlobFile'
+require 'perobs/EquiBlobsFile'
 require 'perobs/SpaceTreeNodeCache'
 require 'perobs/SpaceTreeNode'
 require 'perobs/FlatFile'
@@ -48,8 +48,8 @@ module PEROBS
       @dir = dir
 
       # This FixedSizeBlobFile contains the nodes of the SpaceTree.
-      @nodes = FixedSizeBlobFile.new(@dir, 'database_spaces',
-                                     SpaceTreeNode::NODE_BYTES)
+      @nodes = EquiBlobsFile.new(@dir, 'database_spaces',
+                                 SpaceTreeNode::NODE_BYTES)
 
       @node_cache = SpaceTreeNodeCache.new(128)
     end
@@ -58,7 +58,7 @@ module PEROBS
     def open
       @nodes.open
       @node_cache.clear
-      @root = SpaceTreeNode.new(self, nil, @nodes.empty? ? nil : 0)
+      @root = SpaceTreeNode.new(self, nil, @nodes.total_entries == 0 ? nil : 0)
       @node_cache.insert(@root)
     end
 
@@ -147,6 +147,7 @@ module PEROBS
     # @param flat_file [FlatFile] Flat file to compare with
     # @return True if space list matches, flase otherwise
     def check(flat_file = nil)
+      @nodes.check
       @root.check(flat_file)
     end
 

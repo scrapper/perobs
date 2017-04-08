@@ -58,6 +58,9 @@ module PEROBS
     def initialize(tree, parent = nil, node_address = nil, blob_address = 0,
                    size = 0)
       @tree = tree
+      if blob_address < 0
+        PEROBS.log.fatal "Node address (#{node_address}) must be larger than 0"
+      end
       @blob_address = blob_address
       @size = size
       # The root node is always at address 0. Since it's never referenced from
