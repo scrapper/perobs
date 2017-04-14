@@ -73,13 +73,13 @@ describe PEROBS::SpaceTree do
 
   it 'should convert the tree into a human readable string' do
 out = <<EOT
-o-v-0:[80, 8] <1 =6 >3
-  +<-v-1:[40, 4] ^0 <2
-  |  +<---2:[20, 2] ^1
-  +=---6:[81, 8] ^0
-  +>-v-3:[160, 16] ^0 <5 >4
-     +<---5:[100, 10] ^3
-     +>---4:[320, 32] ^3
+o-v-1:[80, 8] <2 =7 >4
+  +<-v-2:[40, 4] ^1 <3
+  |  +<---3:[20, 2] ^2
+  +=---7:[81, 8] ^1
+  +>-v-4:[160, 16] ^1 <6 >5
+     +<---6:[100, 10] ^4
+     +>---5:[320, 32] ^4
 EOT
     expect(@m.to_s).to eql out
   end
@@ -101,7 +101,7 @@ EOT
   it 'should find the largest node' do
     node = @m.instance_variable_get('@root').find_largest_node
     expect(node.size).to eql(32)
-    expect(node.node_address).to eql(4)
+    expect(node.node_address).to eql(5)
     expect(node.parent.size).to eql(16)
   end
 

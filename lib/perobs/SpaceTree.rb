@@ -50,6 +50,7 @@ module PEROBS
       # This FixedSizeBlobFile contains the nodes of the SpaceTree.
       @nodes = EquiBlobsFile.new(@dir, 'database_spaces',
                                  SpaceTreeNode::NODE_BYTES)
+      @nodes.first_entry = 1
 
       @node_cache = SpaceTreeNodeCache.new(128)
     end
@@ -58,7 +59,8 @@ module PEROBS
     def open
       @nodes.open
       @node_cache.clear
-      @root = SpaceTreeNode.new(self, nil, @nodes.total_entries == 0 ? nil : 0)
+      @root = SpaceTreeNode.new(self, nil, @nodes.total_entries == 0 ?
+                                           nil : @nodes.first_entry)
       @node_cache.insert(@root)
     end
 

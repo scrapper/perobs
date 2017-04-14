@@ -33,9 +33,10 @@ module PEROBS
   # The blobs can be stored and retrieved and can be deleted again. The
   # EquiBlobsFile manages the storage of the blobs and free storage
   # spaces. The files grows and shrinks as needed. A blob is referenced by its
-  # address. The file has a 4 * 8 bytes long header that stores the total
-  # entry count, the total space count, the offset of the first entry and the
-  # offset of the first space.
+  # address. The address is an Integer that must be larger than 0. The value 0
+  # is used to represent an undefined address or nil. The file has a 4 * 8
+  # bytes long header that stores the total entry count, the total space
+  # count, the offset of the first entry and the offset of the first space.
   class EquiBlobsFile
 
     TOTAL_ENTRIES_OFFSET = 0
@@ -45,6 +46,7 @@ module PEROBS
     HEADER_SIZE = 4 * 8
 
     attr_reader :total_entries, :total_spaces
+    attr_accessor :first_entry
 
     # Create a new stack file in the given directory with the given file name.
     # @param dir [String] Directory
@@ -60,7 +62,7 @@ module PEROBS
       @total_entries = 0
       # The total number of spaces (empty entries) in the file.
       @total_spaces = 0
-      # The file offset of the first entry.
+      # The address of the first entry.
       @first_entry = 0
       # The file offset of the first empty entry.
       @first_space = 0
@@ -121,7 +123,6 @@ module PEROBS
       write_header
     end
 
-
     # Return the address of a free blob storage space. Addresses start at 0
     # and increase linearly.
     # @return [Fixnum] address of a free blob space
@@ -157,6 +158,10 @@ module PEROBS
     # @param address [Fixnum] Address to store the blob
     # @param bytes [String] bytes to store
     def store_blob(address, bytes)
+      unless address >= 0
+        PEROBS.log.fatal "Blob storage address must be larger than 0, " +
+          "not #{address}"
+      end
       if bytes.length != @entry_bytes
         PEROBS.log.fatal "All stack entries must be #{@entry_bytes} " +
           "long. This entry is #{bytes.length} bytes long."
@@ -200,6 +205,11 @@ module PEROBS
     # @param address [Fixnum] Address to store the blob
     # @return [String] blob bytes
     def retrieve_blob(address)
+      unless address >= 0
+        PEROBS.log.fatal "Blob retrieval address must be larger than 0, " +
+          "not #{address}"
+      end
+
       begin
         if (offset = address_to_offset(address)) >= @f.size
           PEROBS.log.fatal "Cannot retrieve blob at address #{address} " +
@@ -224,6 +234,11 @@ module PEROBS
     # Delete the blob at the given address.
     # @param address [Fixnum] Address of blob to delete
     def delete_blob(address)
+      unless address >= 0
+        PEROBS.log.fatal "Blob address must be larger than 0, " +
+          "not #{address}"
+      end
+
       offset = address_to_offset(address)
       begin
         @f.seek(offset)
@@ -489,12 +504,12 @@ module PEROBS
 
     # Translate a blob address to the actual offset in the file.
     def address_to_offset(address)
-      HEADER_SIZE + address * (1 + @entry_bytes)
+      HEADER_SIZE + (address - 1) * (1 + @entry_bytes)
     end
 
     # Translate the file offset to the address of a blob.
     def offset_to_address(offset)
-      (offset - HEADER_SIZE) / (1 + @entry_bytes)
+      (offset - HEADER_SIZE) / (1 + @entry_bytes) + 1
     end
 
     def write_char(c)

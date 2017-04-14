@@ -63,8 +63,6 @@ module PEROBS
       end
       @blob_address = blob_address
       @size = size
-      # The root node is always at address 0. Since it's never referenced from
-      # another node, 0 means nil pointer.
       @smaller = @equal = @larger = nil
       @node_address = node_address
 
