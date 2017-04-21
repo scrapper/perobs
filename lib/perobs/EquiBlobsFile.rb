@@ -128,9 +128,18 @@ module PEROBS
     # @return [Fixnum] address of a free blob space
     def free_address
       if @first_space == 0
-        # There is currently no free entry. Return the entry address at the
+        # There is currently no free entry. Create a new reserved entry at the
         # end of the file.
-        return offset_to_address(@f.size)
+        begin
+          offset = @f.size
+          @f.seek(offset)
+          write_n_bytes([1] + ::Array.new(@entry_bytes, 0))
+          write_header
+          return offset_to_address(offset)
+        rescue IOError => e
+          PEROBS.log.fatal "Cannot create reserved space at #{@first_space} " +
+            "in EquiBlobsFile #{@file_name}: #{e.message}"
+        end
       else
         begin
           free_space_address = offset_to_address(@first_space)
@@ -149,6 +158,10 @@ module PEROBS
           @total_spaces -= 1
           write_header
           return free_space_address
+        rescue IOError => e
+          PEROBS.log.fatal "Cannot mark reserved space at " +
+            "#{free_space_address} in EquiBlobsFile #{@file_name}: " +
+            "#{e.message}"
         end
       end
     end
@@ -185,7 +198,7 @@ module PEROBS
           PEROBS.log.fatal "Marker for entry at address #{address} of " +
             "EquiBlobsFile #{@file_name} must be 1 or 2 but is #{marker}"
         end
-        @f.seek(address_to_offset(address))
+        @f.seek(offset)
         write_char(2)
         @f.write(bytes)
         @f.flush
@@ -205,7 +218,7 @@ module PEROBS
     # @param address [Fixnum] Address to store the blob
     # @return [String] blob bytes
     def retrieve_blob(address)
-      unless address >= 0
+      unless address > 0
         PEROBS.log.fatal "Blob retrieval address must be larger than 0, " +
           "not #{address}"
       end
@@ -522,6 +535,10 @@ module PEROBS
 
     def write_unsigned_int(uint)
       @f.write([ uint ].pack('Q'))
+    end
+
+    def write_n_bytes(bytes)
+      @f.write(bytes.pack("C#{bytes.size}"))
     end
 
     def read_unsigned_int
