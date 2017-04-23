@@ -111,20 +111,20 @@ module PEROBS
     # exists in the tree, the value will be overwritten.
     # @param id [Integer] ID or key
     # @param value [Integer] value to store
-    def put_value(id, value)
+    def insert(id, value)
       @root.put_value(id, value)
     end
 
     # Retrieve the value that was stored with the given ID.
     # @param id [Integer] ID of the value to retrieve
     # @return [Fixnum] value
-    def get_value(id)
+    def get(id)
       @root.get_value(id)
     end
 
     # Delete the value with the given ID.
     # @param [Integer] id
-    def delete_value(id)
+    def remove(id)
       @root.delete_value(id)
     end
 

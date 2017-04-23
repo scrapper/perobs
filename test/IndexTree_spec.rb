@@ -46,52 +46,52 @@ describe PEROBS::StackFile do
   end
 
   it 'should store and retrieve a value' do
-    @t.put_value(0x8, 8)
+    @t.insert(0x8, 8)
     expect(@t.inspect).to eql("{\n  8 => 8,\n}\n")
-    expect(@t.get_value(0x8)).to eql(8)
+    expect(@t.get(0x8)).to eql(8)
   end
 
   it 'should store another value in the same node' do
-    @t.put_value(0x4, 4)
-    expect(@t.get_value(0x4)).to eql(4)
+    @t.insert(0x4, 4)
+    expect(@t.get(0x4)).to eql(4)
   end
 
   it 'should store another value in a new sub-node' do
-    @t.put_value(0x88, 0x88)
+    @t.insert(0x88, 0x88)
     expect(@t.inspect).to eql("{\n  4 => 4,\n  {\n    8 => 8,\n    136 => 136,\n  }\n  }\n")
-    expect(@t.get_value(0x88)).to eql(0x88)
+    expect(@t.get(0x88)).to eql(0x88)
   end
 
   it 'should store one more value in a new sub-node' do
-    @t.put_value(0x888, 0x888)
+    @t.insert(0x888, 0x888)
     expect(@t.inspect).to eql("{\n  4 => 4,\n  {\n    8 => 8,\n    {\n      136 => 136,\n      2184 => 2184,\n    }\n    }\n  }\n")
-    expect(@t.get_value(0x888)).to eql(0x888)
+    expect(@t.get(0x888)).to eql(0x888)
   end
 
   it 'should delete the 0x88 entry' do
-    expect(@t.delete_value(0x88)).to be true
+    expect(@t.remove(0x88)).to be true
     expect(@t.inspect).to eql("{\n  4 => 4,\n  {\n    8 => 8,\n    {\n      2184 => 2184,\n    }\n    }\n  }\n")
   end
 
   it 'should delete all other entries' do
-    expect(@t.delete_value(0x8)).to be true
-    expect(@t.delete_value(0x4)).to be true
-    expect(@t.delete_value(0x888)).to be true
+    expect(@t.remove(0x8)).to be true
+    expect(@t.remove(0x4)).to be true
+    expect(@t.remove(0x888)).to be true
     expect(@t.inspect).to eql("{\n}\n")
   end
 
   it 'should replace an existing value' do
-    @t.put_value(0x8, 1)
-    @t.put_value(0x8, 2)
+    @t.insert(0x8, 1)
+    @t.insert(0x8, 2)
     expect(@t.inspect).to eql("{\n  8 => 2,\n}\n")
-    expect(@t.get_value(0x8)).to eql(2)
+    expect(@t.get(0x8)).to eql(2)
   end
 
   it 'should store lots more values' do
     @ref = [ 28465, 62258, 59640, 40113, 29237, 22890, 43429, 20374, 37393, 48482, 3243, 5751, 23426, 200, 16835, 38979, 31961, 58810, 40284, 53696, 44741, 53939, 16715, 2775, 16708, 49209, 48767, 6138, 36574, 23063, 13374, 33611, 43477, 63753, 22456, 4461, 52257, 62546, 13629, 52716, 54576, 64695, 7514, 22406, 60298, 43935, 50906, 48965, 56244, 12918, 630, 463, 44735, 49868, 10941, 29121, 26034, 21946, 34071, 55514, 35488, 64583, 59245, 43911, 3035, 2848, 3584, 6813, 61754, 877, 28118, 52626, 4454, 19024, 7467, 59573, 7661, 49226, 33151, 25919, 3596, 36407, 41008, 21611, 52627, 6393, 5551, 34773, 26697, 10510, 50726, 7743, 9843, 62188, 24468, 63553, 3728, 60080, 45667, 6165, 38354 ]
-    @ref.each { |v| @t.put_value(v, v) }
+    @ref.each { |v| @t.insert(v, v) }
     @ref.each do |v|
-      expect(@t.get_value(v)).to eql(v)
+      expect(@t.get(v)).to eql(v)
     end
   end
 
@@ -99,7 +99,7 @@ describe PEROBS::StackFile do
     @t.close
     @t.open
     @ref.each do |v|
-      expect(@t.get_value(v)).to eql(v)
+      expect(@t.get(v)).to eql(v)
     end
   end
 
@@ -107,10 +107,10 @@ describe PEROBS::StackFile do
     del = [ 55514, 35488, 64583, 59245, 43911, 3035, 2848, 3584, 6813, 61754, 877, 28118, 52626, 4454, 19024, 7467, 23426, 200, 16835, 38979, 31961, 60080, 45667, 6165, 38354 ]
     del.each do |v|
       @ref.delete(v)
-      expect(@t.delete_value(v)).to be true
+      expect(@t.remove(v)).to be true
     end
     del.each do |v|
-      expect(@t.get_value(v)).to be_nil
+      expect(@t.get(v)).to be_nil
     end
   end
 

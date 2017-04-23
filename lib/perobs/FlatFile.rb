@@ -46,8 +46,8 @@ module PEROBS
     def initialize(dir)
       @db_dir = dir
       @f = nil
-      #@index = IndexTree.new(dir)
-      @index = BTree.new(dir, 77)
+      @index = IndexTree.new(dir)
+      #@index = BTree.new(dir, 77)
       @space_list = FreeSpaceManager.new(dir)
       #@space_list = SpaceTree.new(dir)
     end
@@ -110,7 +110,6 @@ module PEROBS
     # @param addr [Integer] Address of the blob to delete
     # @param id [Integer] ID of the blob to delete
     def delete_obj_by_address(addr, id)
-      #@index.delete_value(id)
       @index.remove(id)
       header = FlatFileBlobHeader.read_at(@f, addr, id)
       begin
@@ -197,7 +196,6 @@ module PEROBS
           @space_list.add_space(space_address, space_length) if space_length > 0
         end
         @f.flush
-        #@index.put_value(id, addr)
         @index.insert(id, addr)
       rescue IOError => e
         PEROBS.log.fatal "Cannot write blob for ID #{id} to FlatFileDB: " +
@@ -211,7 +209,6 @@ module PEROBS
     # @param id [Integer] ID of the object
     # @return [Integer] Offset in the flat file or nil if not found
     def find_obj_addr_by_id(id)
-      #@index.get_value(id)
       @index.get(id)
     end
 
@@ -343,7 +340,6 @@ module PEROBS
               @f.seek(pos - distance)
               @f.write(buf)
               # Update the index with the new position
-              #@index.put_value(header.id, pos - distance)
               @index.insert(header.id, pos - distance)
               # Mark the space between the relocated current entry and the
               # next valid entry as deleted space.
@@ -463,7 +459,6 @@ module PEROBS
 
       each_blob_header do |pos, header|
         if header.is_valid?
-          #@index.put_value(header.id, pos)
           @index.insert(header.id, pos)
         else
           @space_list.add_space(pos, header.length) if header.length > 0
@@ -550,10 +545,7 @@ module PEROBS
             end
           end
         else
-          #unless @index.get_value(header.id) == pos
           unless @index.get(header.id) == pos
-            #PEROBS.log.error "FlatFile blob at address #{pos} is listed " +
-            #  "in index with address #{@index.get_value(header.id)}"
             PEROBS.log.error "FlatFile blob at address #{pos} is listed " +
               "in index with address #{@index.get(header.id)}"
             return false
