@@ -30,6 +30,7 @@ require 'zlib'
 require 'perobs/Log'
 require 'perobs/FlatFileBlobHeader'
 require 'perobs/IndexTree'
+require 'perobs/BTree'
 require 'perobs/FreeSpaceManager'
 require 'perobs/SpaceTree'
 
@@ -45,7 +46,8 @@ module PEROBS
     def initialize(dir)
       @db_dir = dir
       @f = nil
-      @index = IndexTree.new(dir)
+      #@index = IndexTree.new(dir)
+      @index = BTree.new(dir, 77)
       @space_list = FreeSpaceManager.new(dir)
       #@space_list = SpaceTree.new(dir)
     end
@@ -89,6 +91,7 @@ module PEROBS
       rescue IOError => e
         PEROBS.log.fatal "Cannot sync flat file database: #{e.message}"
       end
+      @index.sync
     end
 
     # Delete the blob for the specified ID.
@@ -107,7 +110,8 @@ module PEROBS
     # @param addr [Integer] Address of the blob to delete
     # @param id [Integer] ID of the blob to delete
     def delete_obj_by_address(addr, id)
-      @index.delete_value(id)
+      #@index.delete_value(id)
+      @index.remove(id)
       header = FlatFileBlobHeader.read_at(@f, addr, id)
       begin
         @f.seek(addr)
@@ -193,7 +197,8 @@ module PEROBS
           @space_list.add_space(space_address, space_length) if space_length > 0
         end
         @f.flush
-        @index.put_value(id, addr)
+        #@index.put_value(id, addr)
+        @index.insert(id, addr)
       rescue IOError => e
         PEROBS.log.fatal "Cannot write blob for ID #{id} to FlatFileDB: " +
           e.message
@@ -206,7 +211,8 @@ module PEROBS
     # @param id [Integer] ID of the object
     # @return [Integer] Offset in the flat file or nil if not found
     def find_obj_addr_by_id(id)
-      @index.get_value(id)
+      #@index.get_value(id)
+      @index.get(id)
     end
 
     # Read the object with the given ID.
@@ -337,7 +343,8 @@ module PEROBS
               @f.seek(pos - distance)
               @f.write(buf)
               # Update the index with the new position
-              @index.put_value(header.id, pos - distance)
+              #@index.put_value(header.id, pos - distance)
+              @index.insert(header.id, pos - distance)
               # Mark the space between the relocated current entry and the
               # next valid entry as deleted space.
               FlatFileBlobHeader.new(0, distance - FlatFileBlobHeader::LENGTH,
@@ -456,7 +463,8 @@ module PEROBS
 
       each_blob_header do |pos, header|
         if header.is_valid?
-          @index.put_value(header.id, pos)
+          #@index.put_value(header.id, pos)
+          @index.insert(header.id, pos)
         else
           @space_list.add_space(pos, header.length) if header.length > 0
         end
@@ -542,9 +550,12 @@ module PEROBS
             end
           end
         else
-          unless @index.get_value(header.id) == pos
+          #unless @index.get_value(header.id) == pos
+          unless @index.get(header.id) == pos
+            #PEROBS.log.error "FlatFile blob at address #{pos} is listed " +
+            #  "in index with address #{@index.get_value(header.id)}"
             PEROBS.log.error "FlatFile blob at address #{pos} is listed " +
-              "in index with address #{@index.get_value(header.id)}"
+              "in index with address #{@index.get(header.id)}"
             return false
           end
         end

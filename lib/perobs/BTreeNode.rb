@@ -53,8 +53,10 @@ module PEROBS
     #        if not
     def initialize(tree, parent = nil, node_address = nil, is_leaf = true)
       @tree = tree
-      @dirty = true
       @parent = nil
+      if node_address == 0
+        PEROBS.log.fatal "Node address may not be 0"
+      end
       @node_address = node_address
       @keys = []
       if (@is_leaf = is_leaf)
@@ -85,11 +87,13 @@ module PEROBS
         @node_address = @tree.nodes.free_address
         self.parent = parent
       end
+      mark_as_modified
     end
 
     def BTreeNode::node_bytes(order)
       1 + # is_leaf
       2 + # actual key count
+      2 + # actual value or children count (aka data count)
       8 + # parent address
       8 * order + # keys
       8 * (order + 1) # values or child addresses
@@ -179,14 +183,14 @@ module PEROBS
     def split_node
       unless @parent
         # The node is the root node. We need to create a parent node first.
-        self.parent = @tree.new_node(nil, false)
+        self.parent = @tree.new_node(nil, nil, false)
         @parent.set_child(0, self)
         @tree.set_root(@parent)
       end
 
       # Create the new sibling that will take the 2nd half of the
       # node content.
-      sibling = @tree.new_node(@parent, @is_leaf)
+      sibling = @tree.new_node(@parent, nil, @is_leaf)
       # Determine the index of the middle element that gets moved to the
       # parent. The order must be an uneven number, so adding 1 will get us
       # the middle element.
@@ -207,6 +211,7 @@ module PEROBS
         insert_element(@parent.keys[parent_index], upper_sibling.children[0])
       end
       upper_sibling.copy_elements(0, self, @keys.size, upper_sibling.keys.size)
+      @tree.delete_node(upper_sibling.node_address)
 
       @parent.remove_element(parent_index)
     end
@@ -221,6 +226,7 @@ module PEROBS
         PEROBS.log.fatal "Cannot insert into a full BTreeNode"
       end
 
+      mark_as_modified
       i = search_key_index(key)
       if @keys[i] == key
         # Overwrite existing entries
@@ -239,7 +245,6 @@ module PEROBS
           @children.insert(i + 1, BTreeNodeLink.new(@tree, value_or_child))
         end
       end
-      @dirty = true
     end
 
     # Remove the element at the given index.
@@ -248,8 +253,12 @@ module PEROBS
       first_key = @keys[0]
       removed_value = nil
 
+      mark_as_modified
       # Delete the key at the specified index.
-      @keys.delete_at(index)
+      unless @keys.delete_at(index)
+        PEROBS.log.fatal "Could not remove element #{index} from BTreeNode " +
+          "@#{@node_address}"
+      end
       if @is_leaf
         # For leaf nodes, also delete the corresponding value.
         removed_value = @values.delete_at(index)
@@ -257,7 +266,6 @@ module PEROBS
         # The corresponding child has can be found at 1 index higher.
         @children.delete_at(index + 1)
       end
-      @dirty = true
 
       # Find the lower and upper siblings and the index of the key for this
       # node in the parent node.
@@ -305,8 +313,8 @@ module PEROBS
     end
 
     def parent=(p)
+      mark_as_modified
       @parent = p ? BTreeNodeLink.new(@tree, p) : nil
-      @dirty = true
     end
 
     def set_child(index, child)
@@ -316,17 +324,17 @@ module PEROBS
       else
         @children[index] = nil
       end
-      @dirty = true
+      mark_as_modified
     end
 
     def trim(idx)
+      mark_as_modified
       @keys = @keys[0..idx - 1]
       if @is_leaf
         @values = @values[0..idx - 1]
       else
         @children = @children[0..idx]
       end
-      @dirty = true
     end
 
     # Search the keys of the node that fits the given key. The result is
@@ -397,12 +405,19 @@ module PEROBS
       end
     end
 
+    # Check consistency of the node and all subsequent nodes. In case an error
+    # is found, a message is logged and false is returned.
+    # @return [Boolean] true if tree has no errors
     def check
       each do |node, position, stack|
         if position == 0
           if node.parent && node.keys.size < 1
             node.error "BTreeNode must have at least one entry"
             return false
+          end
+          if node.keys.size > @tree.order
+            node.error "BTreeNode must not have more then #{@tree.order} " +
+              "keys, but has #{node.keys.size} keys"
           end
 
           last_key = nil
@@ -452,7 +467,9 @@ module PEROBS
               end
             end
           end
-        else
+        elsif position <= node.keys.size
+          # These checks are done after we have completed the respective child
+          # node with index 'position - 1'.
           if !node.is_leaf && position <= node.keys.size
             unless node.children[position - 1].keys.last <
                    node.keys[position - 1]
@@ -553,17 +570,36 @@ module PEROBS
     end
 
     def write_node
-      ary = [ @is_leaf ? 1 : 0, @keys.size,
-              @parent ? @parent.node_address : 0 ] +
-        @keys + ::Array.new(@tree.order + 1 - @keys.size, 0)
+      return unless @dirty
+
+      ary = [
+        @is_leaf ? 1 : 0,
+        @keys.size,
+        @is_leaf ? @values.size : @children.size,
+        @parent ? @parent.node_address : 0
+      ] + @keys + ::Array.new(@tree.order - @keys.size, 0)
+
       if @is_leaf
         ary += @values + ::Array.new(@tree.order + 1 - @values.size, 0)
       else
+        if @children.size != @keys.size + 1
+          PEROBS.log.fatal "write_node: Children count #{@children.size} " +
+            "is not #{@keys.size + 1}"
+        end
+        @children.each do |child|
+          PEROBS.log.fatal "write_node: Child must not be nil" unless child
+        end
         ary += @children.map{ |c| c.node_address } +
           ::Array.new(@tree.order + 1 - @children.size, 0)
       end
-      @tree.nodes.store_blob(@node_address, ary.pack(node_bytes_format))
+      bytes = ary.pack(node_bytes_format)
+      @tree.nodes.store_blob(@node_address, bytes)
       @dirty = false
+    end
+
+    def mark_as_modified
+      @tree.mark_node_as_modified(self)
+      @dirty = true
     end
 
     private
@@ -580,38 +616,34 @@ module PEROBS
       @is_leaf = ary[0] == 0 ? false : true
       # This is the number of keys this node has.
       key_count = ary[1]
+      data_count = ary[2]
       # Read the parent node address
-      @parent = ary[2] == 0 ? nil : BTreeNodeLink.new(@tree, ary[2])
+      @parent = ary[3] == 0 ? nil : BTreeNodeLink.new(@tree, ary[3])
       # Read the keys
-      @keys = []
-      key_count.times do |i|
-        @keys << ary[3 + i]
-      end
+      @keys = ary[4, key_count]
 
       if @is_leaf
         # Read the values
-        @values = []
-        key_count.times do |i|
-          @values << ary[3 + @tree.order + 1 + i]
-        end
+        @values = ary[4 + @tree.order, data_count]
       else
         # Read the child addresses
         @children = []
-        (key_count + 1).times do |i|
-          address = ary[3 + @tree.order + 1 + i]
+        data_count.times do |i|
+          address = ary[4 + @tree.order + i]
           unless address > 0
-            PEROBS.log.error "Child address must not be 0"
+            PEROBS.log.fatal "Child address must not be 0"
           end
           @children << BTreeNodeLink.new(@tree, address)
         end
       end
+
       @dirty = false
 
       true
     end
 
     def node_bytes_format
-      "CSQQ#{@tree.order}Q#{@tree.order + 1}"
+      "CSSQQ#{@tree.order}Q#{@tree.order + 1}"
     end
 
     def find_closest_siblings(key)

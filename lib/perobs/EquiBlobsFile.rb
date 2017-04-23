@@ -233,7 +233,8 @@ module PEROBS
         if (marker = read_char) != 2
           PEROBS.log.fatal "Cannot retrieve blob at address #{address} " +
             "of EquiBlobsFile #{@file_name}. Blob is " +
-            marker == 0 ? 'empty' : marker == 1 ? 'reserved' : 'corrupted' + '.'
+            (marker == 0 ? 'empty' : marker == 1 ? 'reserved' : 'corrupted') +
+            '.'
         end
         bytes = @f.read(@entry_bytes)
       rescue IOError => e

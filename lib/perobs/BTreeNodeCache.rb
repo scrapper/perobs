@@ -31,56 +31,53 @@ module PEROBS
 
   class BTreeNodeCache
 
-    # Simple cache that can hold up to size BTreeNode entries. Entries are
-    # hashed with a simple node_address % size function. This keeps the
-    # overhead for managing the cache extremely low yet giving an OK
-    # probability to have cache hits.
-    # @param size [Integer] maximum number of cache entries
     def initialize(size)
-      @size = size
       clear
     end
 
-    # Insert a node into the cache.
-    # @param node [BTreeNode]
-    # @return [BTreeNode] inserted node
-    def insert(node)
-      index = node.node_address % @size
-      if (n = @entries[index]) && n.dirty
-        n.write_node
+    def [](address)
+      if (node = @modified_nodes[address])
+        return node
       end
 
-      @entries[index] = node
+      if (node = @nodes[address])
+        return node
+      end
+
+      nil
     end
 
-    # Retrieve a node reference from the cache.
-    # @param address [Integer] address of the node to retrieve.
-    # @return [BTreeNode] found node or nil
-    def get(address)
-      node = @entries[address % @size]
-      # We can have collisions. Check if the cached node really matches the
-      # requested address.
-      (node && node.node_address == address) ? node : nil
+    def insert(node)
+      unless node
+        PEROBS.log.fatal "nil cannot be cached"
+      end
+
+      @nodes[node.node_address] = node
+    end
+
+    def mark_as_modified(node)
+      @modified_nodes[node.node_address] = node
+      #@nodes[node.node_address] = node
     end
 
     # Remove a node from the cache.
     # @param address [Integer] address of node to remove.
     def delete(address)
-      index = address % @size
-      if (node = @entries[index]) && node.node_address == address
-        node.write_node if node.dirty
-        @entries[index] = nil
-      end
+      @nodes.delete(address)
+      @modified_nodes.delete(address)
     end
 
-    # Flush all dirty entries into the backing store.
-    def sync
-      @entries.each { |node| node.write_node if node && node.dirty } if @entries
+    # Flush all dirty nodes into the backing store.
+    def flush
+      @modified_nodes.each_value { |node| node.write_node }
+      @modified_nodes = {}
+      @nodes.delete_if { |address, node| node.parent }
     end
 
-    # Remove all entries from the cache.
+    # Remove all nodes from the cache.
     def clear
-      @entries = ::Array.new(@size)
+      @nodes = {}
+      @modified_nodes = {}
     end
 
   end

@@ -43,33 +43,36 @@ module PEROBS
       unless order % 2 == 1
         PEROBS.log.fatal "BTree order must be an uneven number, not #{order}"
       end
-      unless order < 2 ** 16
-        PEROBS.log.fatal "BTree order must be smaller than #{2**16}"
+      unless order < 2 ** 16 - 1
+        PEROBS.log.fatal "BTree order must be smaller than #{2**16 - 1}"
       end
       @order = order
 
       # This EquiBlobsFile contains the nodes of the BTree.
       @nodes = EquiBlobsFile.new(@dir, 'index',
                                  BTreeNode::node_bytes(@order))
-      @node_cache = BTreeNodeCache.new(150)
+      @node_cache = BTreeNodeCache.new(8)
     end
 
     def open
-      @node_cache.clear
+      @node_cache.flush
       @nodes.open
-      @root = BTreeNode.new(self, nil, @nodes.total_entries == 0 ?
-                                       nil : @nodes.first_entry)
-      @node_cache.insert(@root)
+      set_root(new_node(nil, @nodes.total_entries == 0 ?
+                             nil : @nodes.first_entry))
     end
 
     def close
-      @node_cache.sync
+      @node_cache.flush
       @nodes.close
       @root = nil
-      @node_cache.clear
     end
 
-    def check
+    def sync
+      @node_cache.flush
+      @nodes.sync
+    end
+
+    def check(foo = nil)
       @root.check
     end
 
@@ -84,6 +87,7 @@ module PEROBS
     # @param value [Integer] value
     def insert(key, value)
       @root.insert(key, value)
+      @node_cache.flush
     end
 
     # Retrieve the value associated with the given key. If no entry was found,
@@ -104,11 +108,18 @@ module PEROBS
       # up. This could happen for a sequence of nodes that all got merged to
       # single child nodes.
       while !@root.is_leaf && @root.children.size == 1
+        old_root = @root
         set_root(@root.children.first)
         @root.parent = nil
+        delete_node(old_root.node_address)
       end
 
+      @node_cache.flush
       removed_value
+    end
+
+    def mark_node_as_modified(node)
+      @node_cache.mark_as_modified(node)
     end
 
     # Delete the node at the given address in the BTree file.
@@ -120,22 +131,26 @@ module PEROBS
 
     # Clear all pools and forget any registered spaces.
     def clear
-      @node_cache.clear
+      @node_cache.flush
       @nodes.clear
-      @root = BTreeNode.new(self)
-      @node_cache.insert(@root)
+      set_root(new_node(nil))
     end
 
     def to_s
       @root.to_s
     end
 
-    # Create a new BTreeNode.
+    # Create a new BTreeNode. If the node_address is not nil, the node data is
+    # read from the backing store. The parent and is_leaf arguments are
+    # ignored in this case.
     # @param parent [BTreeNode] parent node
+    # @param node_address [Integer or nil] address of the node to create
     # @param is_leaf[Boolean] True if node is a leaf node, false otherweise
-    def new_node(parent, is_leaf)
-      node = BTreeNode.new(self, parent, nil, is_leaf)
+    def new_node(parent, node_address = nil, is_leaf = true)
+      node = BTreeNode.new(self, parent, node_address, is_leaf)
       @node_cache.insert(node)
+
+      node
     end
 
     # Return the BTreeNode that matches the given node address. If a blob
@@ -144,11 +159,11 @@ module PEROBS
     # @param node_address [Integer] Address of the node in the BTree file
     # @return [BTreeNode]
     def get_node(node_address)
-      if (node = @node_cache.get(node_address))
+      if (node = @node_cache[node_address])
         return node
       end
 
-      @node_cache.insert(BTreeNode.new(self, nil, node_address))
+      new_node(nil, node_address)
     end
 
   end

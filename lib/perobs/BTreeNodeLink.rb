@@ -50,17 +50,49 @@ module PEROBS
       else
         PEROBS.log.fatal "Unsupported argument type #{node_or_address.class}"
       end
+      if @node_address == 0
+        PEROBS.log.fatal "Node address may not be 0"
+      end
     end
 
     # All calls to a BTreeNodeLink object will be forwarded to the
     # corresponding BTreeNode object. If that
     def method_missing(method, *args, &block)
+      #$stderr.puts "Method missing: #{method}"
       get_node.send(method, *args, &block)
     end
 
     # Make it properly introspectable.
     def respond_to?(method, include_private = false)
       get_node.respond_to?(method)
+    end
+
+    def is_leaf
+      get_node.is_leaf
+    end
+
+    def keys
+      get_node.keys
+    end
+
+    def values
+      get_node.values
+    end
+
+    def children
+      get_node.children
+    end
+
+    def get(key)
+      get_node.get(key)
+    end
+
+    def search_key_index(key)
+      get_node.search_key_index(key)
+    end
+
+    def insert_element(key, voc)
+      get_node.insert_element(key, voc)
     end
 
     # Compare this node to another node.
@@ -72,6 +104,10 @@ module PEROBS
     # Compare this node to another node.
     # @return [Boolean] true if node address is not identical, false otherwise
     def !=(node)
+      if node.nil?
+        return !@node_address.nil?
+      end
+
       @node_address != node.node_address
     end
 
