@@ -40,3 +40,16 @@ def generate_db_name(caller_file)
   db_name
 end
 
+def capture_io
+  PEROBS.log.open(io = StringIO.new)
+  begin
+    yield
+  ensure
+    PEROBS.log.open($stderr)
+  end
+
+  io.rewind
+  io.read
+end
+
+
