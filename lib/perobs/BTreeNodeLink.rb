@@ -111,6 +111,10 @@ module PEROBS
       @node_address != node.node_address
     end
 
+    def is_top?
+      get_node.is_top?
+    end
+
     # Check the link to a sub-node. This method silently ignores all errors if
     # the sub-node does not exist.
     # @return [Boolean] True if link is OK, false otherweise
@@ -126,8 +130,6 @@ module PEROBS
     def to_s
       get_node.to_s
     end
-
-    private
 
     def get_node
       @tree.get_node(@node_address)

@@ -58,14 +58,7 @@ module PEROBS
         PEROBS.log.fatal "EquiBlobsFile entry size must be at least 8"
       end
       @entry_bytes = entry_bytes
-      # The total number of entries stored in the file.
-      @total_entries = 0
-      # The total number of spaces (empty entries) in the file.
-      @total_spaces = 0
-      # The address of the first entry.
-      @first_entry = 0
-      # The file offset of the first empty entry.
-      @first_space = 0
+      reset_counters
 
       # The File handle.
       @f = nil
@@ -98,9 +91,18 @@ module PEROBS
         @f.flush
         @f.flock(File::LOCK_UN)
         @f.close
+        @f = nil
       rescue IOError => e
         PEROBS.log.fatal "Cannot close blob file #{@file_name}: #{e.message}"
       end
+    end
+
+    # Erase the backing store. This method should only be called when the file
+    # has not been opened.
+    def erase
+      PEROBS.log.fatal 'Cannot call EquiBlobsFile::erase while it is open' if @f
+      File.delete(@file_name) if File.exist?(@file_name)
+      reset_counters
     end
 
     # Flush out all unwritten data.
@@ -116,10 +118,7 @@ module PEROBS
     def clear
       @f.truncate(0)
       @f.flush
-      @total_entries = 0
-      @total_spaces = 0
-      @first_entry = 0
-      @first_space = 0
+      reset_counters
       write_header
     end
 
@@ -256,10 +255,10 @@ module PEROBS
       offset = address_to_offset(address)
       begin
         @f.seek(offset)
-        if (marker = read_char) != 2
+        if (marker = read_char) != 1 && marker != 2
           PEROBS.log.fatal "Cannot delete blob stored at address #{address} " +
             "of EquiBlobsFile #{@file_name}. Blob is " +
-            marker == 0 ? 'empty' : marker == 1 ? 'reserved' : 'corrupted' + '.'
+            (marker == 0 ? 'empty' : 'corrupted') + '.'
         end
         @f.seek(address_to_offset(address))
         write_char(0)
@@ -297,6 +296,17 @@ module PEROBS
     end
 
     private
+
+    def reset_counters
+      # The total number of entries stored in the file.
+      @total_entries = 0
+      # The total number of spaces (empty entries) in the file.
+      @total_spaces = 0
+      # The address of the first entry.
+      @first_entry = 0
+      # The file offset of the first empty entry.
+      @first_space = 0
+    end
 
     def read_header
       begin

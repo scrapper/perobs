@@ -179,5 +179,21 @@ describe PEROBS::EquiBlobsFile do
     expect(@bf.check).to be true
   end
 
+  it 'should not allow erase when open' do
+    expect{ capture_io{ @bf.erase } }.to raise_error(PEROBS::FatalError)
+  end
+
+  it 'should support erasing the file' do
+    @bf.close
+    @bf.erase
+    @bf.open
+    expect(@bf.total_entries).to eql(0)
+    expect(@bf.total_spaces).to eql(0)
+    expect(@bf.check).to be true
+    @bf.store_blob(1,'XXXXXXXX')
+    expect(@bf.total_entries).to eql(1)
+    expect(@bf.check).to be true
+  end
+
 end
 

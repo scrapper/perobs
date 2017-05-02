@@ -47,8 +47,20 @@ describe PEROBS::LockFile do
 
   it 'should support taking and releasing the lock' do
     lock = PEROBS::LockFile.new(@file)
+    expect(lock.is_locked?).to be false
     expect(lock.lock).to be true
+    expect(lock.is_locked?).to be true
     expect(lock.unlock).to be true
+  end
+
+  it 'should fail the unlock after a forced unlock' do
+    lock = PEROBS::LockFile.new(@file)
+    expect(lock.lock).to be true
+    expect(lock.is_locked?).to be true
+    lock.forced_unlock
+    expect(lock.is_locked?).to be false
+    out = capture_io{ expect(lock.unlock).to be false }
+    expect(out).to include('There is no current lock to release')
   end
 
   it 'should fail if the lock is already taken' do
@@ -66,7 +78,7 @@ describe PEROBS::LockFile do
     pid = Process.fork do
       lock1 = PEROBS::LockFile.new(@file)
       expect(lock1.lock).to be true
-      sleep 3
+      sleep 5
       expect(lock1.unlock).to be true
     end
 

@@ -87,6 +87,8 @@ module PEROBS
         @node_address = @tree.nodes.free_address
         self.parent = parent
       end
+      # TODO: Why are read-in nodes set as modified. This could trigger
+      # unnecessary node writes.
       mark_as_modified
     end
 
@@ -313,8 +315,8 @@ module PEROBS
     end
 
     def parent=(p)
-      mark_as_modified
       @parent = p ? BTreeNodeLink.new(@tree, p) : nil
+      mark_as_modified
     end
 
     def set_child(index, child)
@@ -490,6 +492,10 @@ module PEROBS
       end
 
       true
+    end
+
+    def is_top?
+      @parent.nil? || @parent.parent.nil? || @parent.parent.parent.nil?
     end
 
     def to_s

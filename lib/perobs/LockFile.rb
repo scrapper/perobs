@@ -83,12 +83,17 @@ module PEROBS
             return true
           else
             # We did not manage to take the lock file.
-            if @file.mtime < Time.now - @timeout_secs
+            if @file.mtime <= Time.now - @timeout_secs
               pid = @file.read.to_i
               PEROBS.log.info "Old lock file found for PID #{pid}. " +
                 "Removing lock."
-              send_signal('TERM', pid)
-              send_signal('KILL', pid)
+              if is_running?(pid)
+                send_signal('TERM', pid)
+                # Give the process 3 seconds to terminate gracefully.
+                sleep 3
+                # Then send a SIGKILL to ensure it's gone.
+                send_signal('KILL', pid) if is_running?(pid)
+              end
               @file.close
               File.delete(@file_name) if File.exist?(@file_name)
             else
@@ -106,20 +111,26 @@ module PEROBS
       end
 
       PEROBS.log.info "Failed to get lock file #{@file_name} due to timeout"
-      return false
+      false
+    end
+
+    # Check if the lock has been taken.
+    # @return [Boolean] true if taken, false otherweise.
+    def is_locked?
+      File.exist?(@file_name)
     end
 
     # Release the lock again.
     def unlock
       unless @file
-        PEROBS.log.fatal "There is no current lock to release"
+        PEROBS.log.error "There is no current lock to release"
+        return false
       end
 
       begin
         @file.flock(File::LOCK_UN)
         @file.close
-        @file = nil
-        File.delete(@file_name)
+        forced_unlock
         PEROBS.log.debug "Lock file #{@file_name} for PID #{$$} has been " +
           "released"
       rescue => e
@@ -128,7 +139,21 @@ module PEROBS
         return false
       end
 
-      return true
+      true
+    end
+
+    # Erase the lock file. It's essentially a forced unlock method.
+    def forced_unlock
+      @file = nil
+      if File.exist?(@file_name)
+        begin
+          File.delete(@file_name)
+          PEROBS.log.debug "Lock file #{@file_name} has been deleted."
+        rescue IOError => e
+          PEROBS.log.error "Cannot delete lock file #{@file_name}: " +
+            e.message
+        end
+      end
     end
 
     private
@@ -138,6 +163,15 @@ module PEROBS
         Process.kill(name, pid)
       rescue => e
         PEROBS.log.info "Process kill error: #{e.message}"
+      end
+    end
+
+    def is_running?(pid)
+      begin
+        Process.getpgid(pid)
+        true
+      rescue Errno::ESRCH
+        false
       end
     end
 

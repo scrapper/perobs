@@ -46,8 +46,8 @@ module PEROBS
     def initialize(dir)
       @db_dir = dir
       @f = nil
-      @index = IndexTree.new(dir)
-      #@index = BTree.new(dir, 77)
+      #@index = IndexTree.new(dir)
+      @index = BTree.new(dir, 65)
       @space_list = FreeSpaceManager.new(dir)
       #@space_list = SpaceTree.new(dir)
     end
@@ -68,6 +68,10 @@ module PEROBS
       end
       unless @f.flock(File::LOCK_NB | File::LOCK_EX)
         PEROBS.log.fatal 'Database is locked by another process'
+      end
+      unless @index.is_consistent?
+        @index.erase
+        regenerate_index_and_spaces
       end
       @index.open
       @space_list.open

@@ -33,7 +33,7 @@ describe PEROBS::BTree do
   before(:all) do
     @db_dir = generate_db_name('BTree')
     FileUtils.mkdir_p(@db_dir)
-    @m = PEROBS::BTree.new(@db_dir, 11)
+    @m = PEROBS::BTree.new(@db_dir, 'btree', 11)
   end
 
   after(:all) do
@@ -65,6 +65,13 @@ describe PEROBS::BTree do
 
   it 'should support clearing the tree' do
     @m.clear
+    expect(@m.check).to be true
+  end
+
+  it 'should support erasing the backing store' do
+    @m.close
+    @m.erase
+    @m.open
     expect(@m.check).to be true
   end
 

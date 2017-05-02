@@ -25,18 +25,31 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+require 'perobs/LockFile'
 require 'perobs/EquiBlobsFile'
 require 'perobs/BTreeNodeCache'
 require 'perobs/BTreeNode'
 
 module PEROBS
 
+  # This BTree class is very similar to a classic BTree implementation. It
+  # manages a tree that is always balanced. The BTree is stored in the
+  # specified directory and partially kept in memory to speed up operations.
+  # The order of the tree specifies how many keys each node will be able to
+  # hold. Leaf nodes will have a value associated with each key. Branch nodes
+  # have N + 1 references to child nodes instead.
   class BTree
 
     attr_reader :order, :nodes
 
-    def initialize(dir, order)
+    # Create a new BTree object.
+    # @param dir [String] Directory to store the tree file
+    # @param name [String] Base name of the BTree related files in 'dir'
+    # @param order [Integer] The maximum number of keys per node. This number
+    #        must be odd and larger than 2 and smaller than 2**16 - 1.
+    def initialize(dir, name, order)
       @dir = dir
+      @name = name
       unless order > 2
         PEROBS.log.fatal "BTree order must be larger than 2, not #{order}"
       end
@@ -49,36 +62,75 @@ module PEROBS
       @order = order
 
       # This EquiBlobsFile contains the nodes of the BTree.
-      @nodes = EquiBlobsFile.new(@dir, 'index',
+      @nodes = EquiBlobsFile.new(@dir, @name,
                                  BTreeNode::node_bytes(@order))
-      @node_cache = BTreeNodeCache.new(8)
+      @node_cache = BTreeNodeCache.new
+
+      # This BTree implementation uses a write cache to improve write
+      # performance of multiple successive read/write operations. This also
+      # means that data may not be written on the backing store until the
+      # sync() or close() methods have been called. A bug in the program or a
+      # premature program termination can lead to data loss. To detect such
+      # situations, we use a lock file whenever there are pending writes.
+      @is_dirty = false
+      @dirty_flag = LockFile.new(File.join(@dir, name + '.dirty'),
+                                 { :timeout_secs => 0 })
     end
 
+    # Open the tree file.
     def open
-      @node_cache.flush
+      @node_cache.clear
       @nodes.open
       set_root(new_node(nil, @nodes.total_entries == 0 ?
                              nil : @nodes.first_entry))
     end
 
+    # Close the tree file.
     def close
-      @node_cache.flush
+      sync
       @nodes.close
       @root = nil
     end
 
-    def sync
-      @node_cache.flush
-      @nodes.sync
+    # Clear all pools and forget any registered spaces.
+    def clear
+      @node_cache.clear
+      @nodes.clear
+      set_root(new_node(nil))
     end
 
+    # Erase the backing store of the BTree. This method should only be called
+    # when not having the BTree open. And it obviously and permanently erases
+    # all stored data from the BTree.
+    def erase
+      @nodes.erase
+      @dirty_flag.forced_unlock
+    end
+
+    # Flush all pending modifications into the tree file.
+    def sync
+      @node_cache.flush(true)
+      @nodes.sync
+      @dirty_flag.unlock if @dirty_flag.is_locked?
+    end
+
+    # Return true if the BTree data was properly synced by calling close()
+    # before the application was terminated.
+    def is_consistent?
+      !@dirty_flag.is_locked?
+    end
+
+    # Check if the tree file contains any errors.
+    # @return [Boolean] true if no erros were found, false otherwise
     def check(foo = nil)
       @root.check
     end
 
+    # Register a new node as root node of the tree.
     def set_root(node)
       @root = node
       @nodes.first_entry = node.node_address
+      @node_cache.set_root(node)
     end
 
     # Insert a new value into the tree using the key as a unique index. If the
@@ -119,6 +171,10 @@ module PEROBS
     end
 
     def mark_node_as_modified(node)
+      unless @is_dirty
+        @dirty_flag.lock
+        @is_dirty = true
+      end
       @node_cache.mark_as_modified(node)
     end
 
@@ -127,13 +183,6 @@ module PEROBS
     def delete_node(address)
       @node_cache.delete(address)
       @nodes.delete_blob(address)
-    end
-
-    # Clear all pools and forget any registered spaces.
-    def clear
-      @node_cache.flush
-      @nodes.clear
-      set_root(new_node(nil))
     end
 
     def to_s

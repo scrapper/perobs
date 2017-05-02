@@ -31,7 +31,7 @@ module PEROBS
 
   class BTreeNodeCache
 
-    def initialize(size)
+    def initialize
       clear
     end
 
@@ -40,43 +40,64 @@ module PEROBS
         return node
       end
 
-      if (node = @nodes[address])
+      if (node = @top_nodes[address])
+        return node
+      end
+
+      if (node = @ephemeral_nodes[address])
         return node
       end
 
       nil
     end
 
+    def set_root(node)
+      node = node.get_node if node.is_a?(BTreeNodeLink)
+
+      @top_nodes = {}
+      @top_nodes[node.node_address] = node
+    end
+
     def insert(node)
       unless node
         PEROBS.log.fatal "nil cannot be cached"
       end
+      node = node.get_node if node.is_a?(BTreeNodeLink)
 
-      @nodes[node.node_address] = node
+      @ephemeral_nodes[node.node_address] = node
+
+      if !@top_nodes.include?(node) && node.is_top?
+        @top_nodes[node.node_address] = node
+      end
     end
 
     def mark_as_modified(node)
+      node = node.get_node if node.is_a?(BTreeNodeLink)
       @modified_nodes[node.node_address] = node
-      #@nodes[node.node_address] = node
+      insert(node)
     end
 
     # Remove a node from the cache.
     # @param address [Integer] address of node to remove.
     def delete(address)
-      @nodes.delete(address)
+      @ephemeral_nodes.delete(address)
+      @top_nodes.delete(address)
       @modified_nodes.delete(address)
     end
 
     # Flush all dirty nodes into the backing store.
-    def flush
-      @modified_nodes.each_value { |node| node.write_node }
-      @modified_nodes = {}
-      @nodes.delete_if { |address, node| node.parent }
+    def flush(now = false)
+      if now || @modified_nodes.size > 1024
+        @modified_nodes.each_value { |node| node.write_node }
+        @modified_nodes = {}
+      end
+      @ephemeral_nodes = {}
     end
 
     # Remove all nodes from the cache.
     def clear
-      @nodes = {}
+      @top_nodes = {}
+      @ephemeral_nodes = {}
       @modified_nodes = {}
     end
 
