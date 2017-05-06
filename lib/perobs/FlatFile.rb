@@ -47,7 +47,7 @@ module PEROBS
       @db_dir = dir
       @f = nil
       #@index = IndexTree.new(dir)
-      @index = BTree.new(dir, 65)
+      @index = BTree.new(dir, 'index', 65)
       @space_list = FreeSpaceManager.new(dir)
       #@space_list = SpaceTree.new(dir)
     end
