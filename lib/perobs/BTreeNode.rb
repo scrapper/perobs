@@ -25,6 +25,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+require 'zlib'
+
 require 'perobs/BTree'
 require 'perobs/BTreeNodeLink'
 
@@ -87,9 +89,6 @@ module PEROBS
         @node_address = @tree.nodes.free_address
         self.parent = parent
       end
-      # TODO: Why are read-in nodes set as modified. This could trigger
-      # unnecessary node writes.
-      mark_as_modified
     end
 
     def BTreeNode::node_bytes(order)
@@ -98,7 +97,8 @@ module PEROBS
       2 + # actual value or children count (aka data count)
       8 + # parent address
       8 * order + # keys
-      8 * (order + 1) # values or child addresses
+      8 * (order + 1) + # values or child addresses
+      4 # CRC32 checksum
     end
 
     # Insert or replace the given value by using the key as unique address.
@@ -377,7 +377,22 @@ module PEROBS
       @keys[pi] < key ? pi + 1 : pi
     end
 
+    # Iterate over all the key/value pairs in this node and all sub-nodes.
+    # @yield [key, value]
     def each
+      traverse do |node, position, stack|
+        if node.is_leaf && position < node.keys.size
+          yield(node.keys[position], node.values[position])
+        end
+      end
+    end
+
+    # This is a generic tree iterator. It yields before it descends into the
+    # child node and after (which is identical to before the next child
+    # descend). It yields the node, the position and the stack of parent
+    # nodes.
+    # @yield [node, position, stack]
+    def traverse
       # We use a non-recursive implementation to traverse the tree. This stack
       # keeps track of all the known still to be checked nodes.
       stack = [ [ self, 0 ] ]
@@ -409,9 +424,10 @@ module PEROBS
 
     # Check consistency of the node and all subsequent nodes. In case an error
     # is found, a message is logged and false is returned.
+    # @yield [key, value]
     # @return [Boolean] true if tree has no errors
     def check
-      each do |node, position, stack|
+      traverse do |node, position, stack|
         if position == 0
           if node.parent && node.keys.size < 1
             node.error "BTreeNode must have at least one entry"
@@ -472,20 +488,25 @@ module PEROBS
         elsif position <= node.keys.size
           # These checks are done after we have completed the respective child
           # node with index 'position - 1'.
-          if !node.is_leaf && position <= node.keys.size
-            unless node.children[position - 1].keys.last <
-                   node.keys[position - 1]
-              node.error "Child #{node.children[position - 1].node_address} " +
-                "has too large key #{node.children[position - 1].keys.last}. " +
-                "Must be smaller than #{node.keys[position - 1]}."
+          index = position - 1
+          if !node.is_leaf
+            unless node.children[index].keys.last < node.keys[index]
+              node.error "Child #{node.children[index].node_address} " +
+                "has too large key #{node.children[index].keys.last}. " +
+                "Must be smaller than #{node.keys[index]}."
               return false
             end
             unless node.children[position].keys.first >=
-                   node.keys[position - 1]
+                   node.keys[index]
               node.error "Child #{node.children[position].node_address} " +
                 "has too small key #{node.children[position].keys.first}. " +
-                "Must be larger than or equal to #{node.keys[position - 1]}."
+                "Must be larger than or equal to #{node.keys[index]}."
               return false
+            end
+          else
+            if block_given?
+              # If a block was given, call this block with the key and value.
+              return false unless yield(node.keys[index], node.values[index])
             end
           end
         end
@@ -501,7 +522,7 @@ module PEROBS
     def to_s
       str = ''
 
-      each do |node, position, stack|
+      traverse do |node, position, stack|
         if position == 0
           begin
             str += "#{node.parent ? node.parent.tree_prefix + '  +' : 'o'}" +
@@ -599,6 +620,7 @@ module PEROBS
           ::Array.new(@tree.order + 1 - @children.size, 0)
       end
       bytes = ary.pack(node_bytes_format)
+      bytes += [ Zlib::crc32(bytes) ].pack('L')
       @tree.nodes.store_blob(@node_address, bytes)
       @dirty = false
     end
@@ -613,6 +635,10 @@ module PEROBS
     def read_node
       return false unless (bytes = @tree.nodes.retrieve_blob(@node_address))
 
+      unless Zlib::crc32(bytes) != 0
+        PEROBS.log.error "Checksum failure in BTreeNode entry @#{node_address}"
+        return false
+      end
       ary = bytes.unpack(node_bytes_format)
       # Read is_leaf
       if ary[0] != 0 && ary[0] != 1
@@ -649,6 +675,7 @@ module PEROBS
     end
 
     def node_bytes_format
+      # This does not include the 4 bytes for the CRC32 checksum
       "CSSQQ#{@tree.order}Q#{@tree.order + 1}"
     end
 

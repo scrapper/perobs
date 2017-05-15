@@ -37,9 +37,9 @@ module PEROBS
 
     # Create a new BTreeNodeLink object.
     # @param tree [BTree] The BTree that holds the nodes.
-    # @param node [BTreeNode or BTreeNodeLink or Integer] a
-    #             BTreeNode, BTreeNodeLink reference or the node
-    #             address in the file.
+    # @param node_or_address [BTreeNode or BTreeNodeLink or Integer] a
+    #        BTreeNode, BTreeNodeLink reference or the node
+    #        address in the file.
     def initialize(tree, node_or_address)
       @tree = tree
       if node_or_address.is_a?(BTreeNode) ||

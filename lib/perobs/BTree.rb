@@ -122,8 +122,8 @@ module PEROBS
 
     # Check if the tree file contains any errors.
     # @return [Boolean] true if no erros were found, false otherwise
-    def check(foo = nil)
-      @root.check
+    def check(&block)
+      @root.check(&block)
     end
 
     # Register a new node as root node of the tree.
@@ -170,6 +170,15 @@ module PEROBS
       removed_value
     end
 
+    # Iterate over all key/value pairs that are stored in the tree.
+    # @yield [key, value]
+    def each(&block)
+      @root.each(&block)
+    end
+
+    # Mark the given node as being modified. This will cause the dirty_flag
+    # lock to be taken and the @is_dirty flag to be set.
+    # @param node [BTreeNode] node to mark
     def mark_node_as_modified(node)
       unless @is_dirty
         @dirty_flag.lock
@@ -185,6 +194,7 @@ module PEROBS
       @nodes.delete_blob(address)
     end
 
+    # @return [String] Human reable form of the tree.
     def to_s
       @root.to_s
     end

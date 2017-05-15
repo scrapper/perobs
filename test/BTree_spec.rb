@@ -63,6 +63,26 @@ describe PEROBS::BTree do
     end
   end
 
+  it 'should iterate over the stored key and value pairs' do
+    i = 0
+    @m.each do |k, v|
+      expect(k).to eql(i)
+      expect(v).to eql(2 * i)
+      i += 1
+    end
+    expect(i).to eql(101)
+  end
+
+  it 'should yield the key/value pairs on check' do
+    i = 0
+    @m.check do |k, v|
+      expect(k).to eql(k)
+      expect(v).to eql(2 * k)
+      i += 1
+    end
+    expect(i).to eql(101)
+  end
+
   it 'should support clearing the tree' do
     @m.clear
     expect(@m.check).to be true

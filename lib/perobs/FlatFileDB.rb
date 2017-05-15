@@ -70,14 +70,14 @@ module PEROBS
     def open
       @flat_file = FlatFile.new(@db_dir)
       @flat_file.open
-      PEROBS.log.info "FlatFile opened"
+      PEROBS.log.info "FlatFile '#{@db_dir}' opened"
     end
 
     # Close the FlatFileDB.
     def close
       @flat_file.close
       @flat_file = nil
-      PEROBS.log.info "FlatFile closed"
+      PEROBS.log.info "FlatFile '#{@db_dir}' closed"
     end
 
     # Delete the entire database. The database is no longer usable after this
@@ -235,6 +235,8 @@ module PEROBS
       # well.
       if version < VERSION
         write_version_file(version_file)
+        PEROBS.log.warn "Update of FlatFileDB '#{@db_dir}' from version " +
+          "#{version} to version #{VERSION} completed"
       end
     end
 

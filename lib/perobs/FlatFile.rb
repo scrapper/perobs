@@ -49,7 +49,7 @@ module PEROBS
       #@index = IndexTree.new(dir)
       @index = BTree.new(dir, 'index', 65)
       @space_list = FreeSpaceManager.new(dir)
-      #@space_list = SpaceTree.new(dir)
+      #@ space_list = SpaceTree.new(dir)
     end
 
     # Open the flat file for reading and writing.
@@ -442,8 +442,10 @@ module PEROBS
       # match the blob file. All entries in the index must be in the blob file
       # and vise versa.
       begin
-        unless @index.check(self) && @space_list.check(self) &&
-               cross_check_entries
+        index_ok = @index.check do |id, address|
+          has_id_at?(id, address)
+        end
+        unless index_ok && @space_list.check(self) && cross_check_entries
           regenerate_index_and_spaces if repair
         end
       rescue PEROBS::FatalError

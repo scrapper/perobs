@@ -37,9 +37,9 @@ module PEROBS
 
     # Create a new SpaceTreeNodeLink object.
     # @param tree [SpaceTree] The SpaceTree that holds the nodes.
-    # @param node [SpaceTreeNode or SpaceTreeNodeLink or Integer] a
-    #             SpaceTreeNode, SpaceTreeNodeLink reference or the node
-    #             address in the file.
+    # @param node_or_address [SpaceTreeNode or SpaceTreeNodeLink or Integer] a
+    #        SpaceTreeNode, SpaceTreeNodeLink reference or the node
+    #        address in the file.
     def initialize(tree, node_or_address)
       @tree = tree
       if node_or_address.is_a?(SpaceTreeNode) ||
