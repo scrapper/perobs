@@ -55,12 +55,14 @@ module PEROBS
     # Open the flat file for reading and writing.
     def open
       file_name = File.join(@db_dir, 'database.blobs')
+      new_db_created = false
       begin
         if File.exist?(file_name)
           @f = File.open(file_name, 'rb+')
         else
           PEROBS.log.info 'New database.blobs file created'
           @f = File.open(file_name, 'wb+')
+          new_db_created = true
         end
       rescue IOError => e
         PEROBS.log.fatal "Cannot open flat file database #{file_name}: " +
@@ -69,12 +71,20 @@ module PEROBS
       unless @f.flock(File::LOCK_NB | File::LOCK_EX)
         PEROBS.log.fatal 'Database is locked by another process'
       end
-      unless @index.is_consistent?
+
+      begin
+        @index.open(!new_db_created)
+        @space_list.open
+      rescue FatalError
+        # Ensure that the index is really closed.
+        @index.close
+        # Erase it completely
         @index.erase
+        # Then create it again.
+        @index.open
+        @space_list.open
         regenerate_index_and_spaces
       end
-      @index.open
-      @space_list.open
     end
 
     # Close the flat file. This method must be called to ensure that all data
@@ -82,10 +92,13 @@ module PEROBS
     def close
       @space_list.close
       @index.close
-      @f.flush
-      @f.flock(File::LOCK_UN)
-      @f.close
-      @f = nil
+
+      if @f
+        @f.flush
+        @f.flock(File::LOCK_UN)
+        @f.close
+        @f = nil
+      end
     end
 
     # Force outstanding data to be written to the filesystem.

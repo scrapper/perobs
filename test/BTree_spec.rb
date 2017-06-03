@@ -40,6 +40,10 @@ describe PEROBS::BTree do
     FileUtils.rm_rf(@db_dir)
   end
 
+  it 'should gracefully handle calling close when not open' do
+    @m.close
+  end
+
   it 'should open the BTree' do
     @m.open
     expect(@m.to_s).to eql("o--- @1\n")

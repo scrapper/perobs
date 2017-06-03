@@ -44,18 +44,13 @@ end
 
 describe PEROBS::FlatFileDB do
 
-  before(:all) do
+  before(:each) do
     @db_dir = generate_db_name(__FILE__)
     FileUtils.mkdir_p(@db_dir)
     @store = PEROBS::Store.new(@db_dir, :engine => PEROBS::FlatFileDB)
-    @db = @store.db
   end
 
   after(:each) do
-    @db.check_db
-  end
-
-  after(:all) do
     FileUtils.rm_rf(@db_dir)
   end
 
@@ -80,9 +75,40 @@ describe PEROBS::FlatFileDB do
     File.write(version_file, '1')
 
     # Open the store again
-    @store = PEROBS::Store.new(@db_dir, :engine => PEROBS::FlatFileDB)
-    @db = @store.db
+    store = PEROBS::Store.new(@db_dir, :engine => PEROBS::FlatFileDB)
     expect(File.read(version_file).to_i).to eql(PEROBS::FlatFileDB::VERSION)
+    expect(store['o'].b).to eql(42)
+  end
+
+  it 'should refuse a version downgrade' do
+    # Close the store
+    @store.exit
+
+    # Manually downgrade the version file to version 1
+    version_file = File.join(@db_dir, 'version')
+    File.write(version_file, '1000000')
+
+    # Open the store again
+    expect { PEROBS::Store.new(@db_dir, :engine => PEROBS::FlatFileDB) }.to raise_error(PEROBS::FatalError)
+  end
+
+  it 'should recover from a lost index file' do
+    @store['o'] = @store.new(FlatFileDB_O)
+    @store.exit
+
+    File.delete(File.join(@db_dir, 'index.blobs'))
+    store = PEROBS::Store.new(@db_dir, :engine => PEROBS::FlatFileDB)
+    expect(store['o'].b).to eql(42)
+  end
+
+  it 'should repair a damaged index file' do
+    @store['o'] = @store.new(FlatFileDB_O)
+    @store.exit
+
+    File.write(File.join(@db_dir, 'index.blobs'), '*' * 500)
+    store = PEROBS::Store.new(@db_dir, :engine => PEROBS::FlatFileDB)
+    store.check(true)
+    expect(store['o'].b).to eql(42)
   end
 
 end

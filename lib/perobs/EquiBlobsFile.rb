@@ -45,7 +45,7 @@ module PEROBS
     FIRST_SPACE_OFFSET = 3 * 8
     HEADER_SIZE = 4 * 8
 
-    attr_reader :total_entries, :total_spaces
+    attr_reader :total_entries, :total_spaces, :file_name
     attr_accessor :first_entry
 
     # Create a new stack file in the given directory with the given file name.
@@ -88,10 +88,12 @@ module PEROBS
     # terminated to avoid data loss.
     def close
       begin
-        @f.flush
-        @f.flock(File::LOCK_UN)
-        @f.close
-        @f = nil
+        if @f
+          @f.flush
+          @f.flock(File::LOCK_UN)
+          @f.close
+          @f = nil
+        end
       rescue IOError => e
         PEROBS.log.fatal "Cannot close blob file #{@file_name}: #{e.message}"
       end
@@ -108,7 +110,7 @@ module PEROBS
     # Flush out all unwritten data.
     def sync
       begin
-        @f.flush
+        @f.flush if @f
       rescue IOError => e
         PEROBS.log.fatal "Cannot sync blob file #{@file_name}: #{e.message}"
       end
@@ -293,6 +295,11 @@ module PEROBS
       end
 
       true
+    end
+
+    # Check if the file exists and is larger than 0.
+    def file_exist?
+      File.exist?(@file_name) && File.size(@file_name) > 0
     end
 
     private

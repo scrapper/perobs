@@ -128,11 +128,6 @@ module PEROBS
       @root.delete_value(id)
     end
 
-    # This method is not supported yet.
-    def is_consistent?
-      true
-    end
-
     # Check if the index is OK and matches the flat_file data.
     def check(flat_file)
       @root.check(flat_file, 0)

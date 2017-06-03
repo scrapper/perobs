@@ -78,7 +78,15 @@ module PEROBS
     end
 
     # Open the tree file.
-    def open
+    def open(file_must_exist = false)
+      if @dirty_flag.is_locked?
+        PEROBS.log.fatal "Index file #{@nodes.file_name} is already " +
+          "locked"
+      end
+      if file_must_exist && !@nodes.file_exist?
+        PEROBS.log.fatal "Index file #{@nodes.file_name} does not exist"
+      end
+
       @node_cache.clear
       @nodes.open
       set_root(new_node(nil, @nodes.total_entries == 0 ?
@@ -112,12 +120,6 @@ module PEROBS
       @node_cache.flush(true)
       @nodes.sync
       @dirty_flag.unlock if @dirty_flag.is_locked?
-    end
-
-    # Return true if the BTree data was properly synced by calling close()
-    # before the application was terminated.
-    def is_consistent?
-      !@dirty_flag.is_locked?
     end
 
     # Check if the tree file contains any errors.
