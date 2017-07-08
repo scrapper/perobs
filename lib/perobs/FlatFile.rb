@@ -48,8 +48,8 @@ module PEROBS
       @f = nil
       #@index = IndexTree.new(dir)
       @index = BTree.new(dir, 'index', 65)
-      @space_list = FreeSpaceManager.new(dir)
-      #@ space_list = SpaceTree.new(dir)
+      #@space_list = FreeSpaceManager.new(dir)
+      @space_list = SpaceTree.new(dir)
     end
 
     # Open the flat file for reading and writing.
@@ -60,16 +60,17 @@ module PEROBS
         if File.exist?(file_name)
           @f = File.open(file_name, 'rb+')
         else
-          PEROBS.log.info 'New database.blobs file created'
+          PEROBS.log.info "New FlatFile database '#{file_name}' created"
           @f = File.open(file_name, 'wb+')
           new_db_created = true
         end
       rescue IOError => e
-        PEROBS.log.fatal "Cannot open flat file database #{file_name}: " +
+        PEROBS.log.fatal "Cannot open FlatFile database #{file_name}: " +
           e.message
       end
       unless @f.flock(File::LOCK_NB | File::LOCK_EX)
-        PEROBS.log.fatal 'Database is locked by another process'
+        PEROBS.log.fatal "FlatFile database '#{file_name}' is locked by " +
+          "another process"
       end
 
       begin
@@ -82,7 +83,14 @@ module PEROBS
         @index.erase
         # Then create it again.
         @index.open
+
+        # Ensure that the spaces list is really closed.
+        @space_list.close
+        # Erase it completely
+        @space_list.erase
+        # Then create it again
         @space_list.open
+
         regenerate_index_and_spaces
       end
     end

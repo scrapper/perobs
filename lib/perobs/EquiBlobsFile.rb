@@ -100,7 +100,7 @@ module PEROBS
     end
 
     # Erase the backing store. This method should only be called when the file
-    # has not been opened.
+    # is not currently open.
     def erase
       PEROBS.log.fatal 'Cannot call EquiBlobsFile::erase while it is open' if @f
       File.delete(@file_name) if File.exist?(@file_name)

@@ -71,6 +71,12 @@ module PEROBS
       @node_cache.clear
     end
 
+    # Erase the SpaceTree file. This method cannot be called while the file is
+    # open.
+    def erase
+      @nodes.erase
+    end
+
     # Add a new space with a given address and size.
     # @param address [Integer] Starting address of the space
     # @param size [Integer] size of the space in bytes
