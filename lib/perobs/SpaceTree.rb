@@ -34,7 +34,7 @@ require 'perobs/FlatFile'
 module PEROBS
 
   # The SpaceTree keeps a complete list of all empty spaces in the FlatFile.
-  # Spaces are stored with size and address. The Tree is Tenerary Tree. The
+  # Spaces are stored with size and address. The Tree is Tenary Tree. The
   # nodes can link to other nodes with smaller spaces, same spaces and bigger
   # spaces. The advantage of the ternary tree is that all nodes have equal
   # size which drastically simplifies the backing store operation.
@@ -49,8 +49,7 @@ module PEROBS
 
       # This EquiBlobsFile contains the nodes of the SpaceTree.
       @nodes = EquiBlobsFile.new(@dir, 'database_spaces',
-                                 SpaceTreeNode::NODE_BYTES)
-      @nodes.first_entry = 1
+                                 SpaceTreeNode::NODE_BYTES, 1)
 
       @node_cache = SpaceTreeNodeCache.new(128)
     end

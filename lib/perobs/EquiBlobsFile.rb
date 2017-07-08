@@ -52,12 +52,13 @@ module PEROBS
     # @param dir [String] Directory
     # @param name [String] File name
     # @param entry_bytes [Fixnum] Number of bytes each entry must have
-    def initialize(dir, name, entry_bytes)
+    def initialize(dir, name, entry_bytes, first_entry_default = 0)
       @file_name = File.join(dir, name + '.blobs')
       if entry_bytes < 8
         PEROBS.log.fatal "EquiBlobsFile entry size must be at least 8"
       end
       @entry_bytes = entry_bytes
+      @first_entry_default = first_entry_default
       reset_counters
 
       # The File handle.
@@ -310,7 +311,7 @@ module PEROBS
       # The total number of spaces (empty entries) in the file.
       @total_spaces = 0
       # The address of the first entry.
-      @first_entry = 0
+      @first_entry = @first_entry_default
       # The file offset of the first empty entry.
       @first_space = 0
     end

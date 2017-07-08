@@ -632,6 +632,9 @@ module PEROBS
     end
 
     def read_node
+      unless @node_address > 0
+        PEROBS.log.fatal "@node_address must be larger than 0"
+      end
       return false unless (bytes = @tree.nodes.retrieve_blob(@node_address))
 
       @blob_address, @size, parent_node_address,
@@ -639,7 +642,7 @@ module PEROBS
         larger_node_address = bytes.unpack(NODE_BYTES_FORMAT)
       # The parent address can also be 0 as the parent can rightly point back
       # to the root node which always has the address 0.
-      @parent = @node_address != 0 ?
+      @parent = parent_node_address != 0 ?
         SpaceTreeNodeLink.new(@tree, parent_node_address) : nil
       @smaller = smaller_node_address != 0 ?
         SpaceTreeNodeLink.new(@tree, smaller_node_address) : nil
