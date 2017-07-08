@@ -47,7 +47,7 @@ module PEROBS
     def initialize(dir)
       @dir = dir
 
-      # This FixedSizeBlobFile contains the nodes of the SpaceTree.
+      # This EquiBlobsFile contains the nodes of the SpaceTree.
       @nodes = EquiBlobsFile.new(@dir, 'database_spaces',
                                  SpaceTreeNode::NODE_BYTES)
       @nodes.first_entry = 1
