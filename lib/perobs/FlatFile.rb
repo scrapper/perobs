@@ -29,9 +29,7 @@ require 'zlib'
 
 require 'perobs/Log'
 require 'perobs/FlatFileBlobHeader'
-require 'perobs/IndexTree'
 require 'perobs/BTree'
-require 'perobs/FreeSpaceManager'
 require 'perobs/SpaceTree'
 
 module PEROBS
@@ -46,9 +44,7 @@ module PEROBS
     def initialize(dir)
       @db_dir = dir
       @f = nil
-      #@index = IndexTree.new(dir)
       @index = BTree.new(dir, 'index', 65)
-      #@space_list = FreeSpaceManager.new(dir)
       @space_list = SpaceTree.new(dir)
     end
 
