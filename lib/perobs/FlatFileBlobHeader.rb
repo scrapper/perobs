@@ -70,10 +70,17 @@ module PEROBS
       begin
         buf = file.read(LENGTH)
       rescue IOError => e
-        PEROBS.log.fatal "Cannot read blob header in flat file DB: #{e.message}"
+        PEROBS.log.error "Cannot read blob header in flat file DB: #{e.message}"
+        return nil
       end
 
       return nil unless buf
+
+      if buf.length != LENGTH
+        PEROBS.log.error "Incomplete FlatFileBlobHeader: Only #{buf.length} " +
+          "bytes of #{LENGTH} could be read"
+        return nil
+      end
 
       FlatFileBlobHeader.new(*buf.unpack(FORMAT))
     end

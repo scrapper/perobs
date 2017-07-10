@@ -266,7 +266,12 @@ module PEROBS
 
       # Uncompress the data if the compression bit is set in the mark byte.
       if header.is_compressed?
-        buf = Zlib.inflate(buf)
+        begin
+          buf = Zlib.inflate(buf)
+        rescue Zlib::BufError, Zlib::DataError
+          PEROBS.log.fatal "Corrupted compressed block with ID " +
+            "#{header.id} found."
+        end
       end
 
       if checksum(buf) != header.crc
@@ -436,7 +441,19 @@ module PEROBS
             buf = @f.read(header.length)
             # Uncompress the data if the compression bit is set in the mark
             # byte.
-            buf = Zlib.inflate(buf) if header.is_compressed?
+            if header.is_compressed?
+              begin
+                buf = Zlib.inflate(buf)
+              rescue Zlib::BufError, Zlib::DataError
+                if repair
+                  PEROBS.log.error "Corrupted compressed block with ID " +
+                    "#{header.id} found. Deleting object."
+                else
+                  PEROBS.log.fatal "Corrupted compressed block with ID " +
+                    "#{header.id} found."
+                end
+              end
+            end
 
             if header.crc && checksum(buf) != header.crc
               if repair
