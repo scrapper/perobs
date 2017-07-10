@@ -360,7 +360,11 @@ module PEROBS
         errors += check_object(id, repair)
       end
       if errors > 0
-        PEROBS.log.warn "#{errors} errors found in #{objects} objects"
+        if repair
+          PEROBS.log.warn "#{errors} errors found in #{objects} objects"
+        else
+          PEROBS.log.fatal "#{errors} errors found in #{objects} objects"
+        end
       else
         PEROBS.log.debug "No errors found"
       end
@@ -517,15 +521,15 @@ module PEROBS
           # Remove references to bad objects.
           if ref_obj
             if repair
-              PEROBS.log.warn "Eliminating broken reference to object #{id} " +
+              PEROBS.log.error "Eliminating broken reference to object #{id} " +
                 "in object #{ref_obj._id}:\n" + ref_obj.inspect
               ref_obj._delete_reference_to_id(id)
             else
-              PEROBS.log.fatal "The following object references a " +
+              PEROBS.log.error "The following object references a " +
                 "non-existing object #{id}:\n" + ref_obj.inspect
             end
           else
-            PEROBS.log.warn "Eliminating root object #{id}"
+            PEROBS.log.error "Eliminating root object #{id}"
           end
           errors += 1
         end
