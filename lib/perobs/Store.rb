@@ -532,13 +532,13 @@ module PEROBS
           if ref_obj
             if repair
               PEROBS.log.error "Removing reference to " +
-                "#{obj ? 'broken' : 'non-existing'} object #{id} " +
-                "in object #{ref_obj._id}:\n" + ref_obj.inspect
+                "#{obj ? 'broken' : 'non-existing'} object #{id} from:\n" +
+                ref_obj.inspect
               ref_obj._delete_reference_to_id(id)
             else
               PEROBS.log.error "The following object references a " +
-                "#{obj ? 'broken' : 'non-existing object'} " +
-                "#{id}:\n" + ref_obj.inspect
+                "#{obj ? 'broken' : 'non-existing'} object #{id}:\n" +
+                ref_obj.inspect
             end
           end
           errors += 1
