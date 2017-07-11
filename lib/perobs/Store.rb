@@ -518,7 +518,7 @@ module PEROBS
         # Get the next PEROBS object to check
         ref_obj, id = todo_list.pop
 
-        if (obj = object_by_id(id)) && @db.check(id, repair)
+        if (obj = object_by_id(id)) && (obj_ok = @db.check(id, repair))
           # The object exists and is OK. Mark is as checked.
           @db.mark(id)
           # Now look at all other objects referenced by this object.
@@ -531,15 +531,15 @@ module PEROBS
           # Remove references to bad objects.
           if ref_obj
             if repair
-              PEROBS.log.error "Eliminating broken reference to object #{id} " +
+              PEROBS.log.error "Removing reference to " +
+                "#{obj ? 'broken' : 'non-existing'} object #{id} " +
                 "in object #{ref_obj._id}:\n" + ref_obj.inspect
               ref_obj._delete_reference_to_id(id)
             else
               PEROBS.log.error "The following object references a " +
-                "non-existing object #{id}:\n" + ref_obj.inspect
+                "#{obj ? 'broken' : 'non-existing object'} " +
+                "#{id}:\n" + ref_obj.inspect
             end
-          else
-            PEROBS.log.error "Eliminating root object #{id}"
           end
           errors += 1
         end
