@@ -347,32 +347,42 @@ module PEROBS
       # All objects must have in-db version.
       sync
       # Run basic consistency checks first.
-      @db.check_db(repair)
+      errors = @db.check_db(repair)
 
       # We will use the mark to mark all objects that we have checked already.
       # Before we start, we need to clear all marks.
       @db.clear_marks
 
-      errors = 0
       objects = 0
       @root_objects.each do |name, id|
         objects += 1
         errors += check_object(id, repair)
       end
+
+      # Delete all broken root objects.
+      if repair
+        @root_objects.delete_if do |name, id|
+          unless (res = !@db.check(id, repair))
+            PEROBS.log.error "Discarding broken root object '#{name}'" +
+              "with ID #{id}"
+          end
+          errors += 1
+          res
+        end
+      end
+
       if errors > 0
         if repair
-          PEROBS.log.warn "#{errors} errors found in #{objects} objects"
+          PEROBS.log.error "#{errors} errors found in #{objects} objects"
         else
           PEROBS.log.fatal "#{errors} errors found in #{objects} objects"
         end
       else
         PEROBS.log.debug "No errors found"
       end
-      # Delete all broken root objects.
-      @root_objects.delete_if { |name, id| !@db.check(id, repair) }
 
       # Ensure that any fixes are written into the DB.
-      sync
+      sync if repair
 
       errors
     end

@@ -424,8 +424,12 @@ module PEROBS
       defragmentize
     end
 
+    # Check (and repair) the FlatFile.
+    # @param repair [Boolean] True if errors should be fixed.
+    # @return [Integer] Number of errors found
     def check(repair = false)
-      return unless @f
+      errors = 0
+      return errors unless @f
 
       t = Time.now
       PEROBS.log.info "Checking FlatFile database" +
@@ -439,31 +443,30 @@ module PEROBS
           begin
             @f.seek(pos + FlatFileBlobHeader::LENGTH)
             buf = @f.read(header.length)
+            if buf.length != header.length
+              PEROBS.log.error "Premature end of file in blob with ID " +
+                "#{header.id}."
+              discard_damaged_blob(pos, header.id) if repair
+              errors += 1
+            end
+
             # Uncompress the data if the compression bit is set in the mark
             # byte.
             if header.is_compressed?
               begin
                 buf = Zlib.inflate(buf)
               rescue Zlib::BufError, Zlib::DataError
-                if repair
-                  PEROBS.log.error "Corrupted compressed block with ID " +
-                    "#{header.id} found. Deleting object."
-                else
-                  PEROBS.log.fatal "Corrupted compressed block with ID " +
-                    "#{header.id} found."
-                end
+                PEROBS.log.error "Corrupted compressed block with ID " +
+                  "#{header.id} found."
+                discard_damaged_blob(pos, header.id) if repair
+                errors += 1
               end
             end
 
             if header.crc && checksum(buf) != header.crc
-              if repair
-                PEROBS.log.error "Checksum failure while checking blob " +
-                  "with ID #{header.id}. Deleting object."
-                delete_obj_by_address(pos, header.id)
-              else
-                PEROBS.log.fatal "Checksum failure while checking blob " +
-                  "with ID #{header.id}"
-              end
+              PEROBS.log.fatal "Checksum failure while checking blob " +
+                "with ID #{header.id}"
+              discard_damaged_blob(pos, header.id) if repair
             end
           rescue IOError => e
             PEROBS.log.fatal "Check of blob with ID #{header.id} failed: " +
@@ -483,11 +486,15 @@ module PEROBS
           regenerate_index_and_spaces if repair
         end
       rescue PEROBS::FatalError
+        errors += 1
         regenerate_index_and_spaces if repair
       end
 
       sync if repair
-      PEROBS.log.info "check_db completed in #{Time.now - t} seconds"
+      PEROBS.log.info "check_db completed in #{Time.now - t} seconds. " +
+        "#{errors} errors found."
+
+      errors
     end
 
     # This method clears the index tree and the free space list and
@@ -594,6 +601,17 @@ module PEROBS
       end
 
       true
+    end
+
+    def discard_damaged_blob(addr, id)
+      begin
+        @f.seek(addr)
+        @f.write([ 0 ].pack('C'))
+        @f.flush
+        PEROBS.log.error "Discarding corrupted data blob for ID #{id}"
+      rescue IOError => e
+        PEROBS.log.fatal "Cannot discard blob for ID #{id}: #{e.message}"
+      end
     end
 
   end

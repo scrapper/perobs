@@ -148,7 +148,8 @@ module PEROBS
         node = node.children[i]
       end
 
-      PEROBS.log.fatal 'Could not find proper node to get from'
+      PEROBS.log.fatal "Could not find proper node to get from while " +
+        "looking for key #{key}"
     end
 
     # Return the value that matches the given key and remove the value from

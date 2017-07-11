@@ -102,7 +102,7 @@ module PEROBS
     end
 
     # This method should only be used during store repair operations. It will
-    # delete all referenced to the given object ID.
+    # delete all references to the given object ID.
     # @param id [Fixnum/Bignum] targeted object ID
     def _delete_reference_to_id(id)
       @data.delete_if do |v|

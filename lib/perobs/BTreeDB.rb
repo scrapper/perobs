@@ -182,8 +182,10 @@ module PEROBS
     # Basic consistency check.
     # @param repair [TrueClass/FalseClass] True if found errors should be
     #        repaired.
+    # @return number of errors found
     def check_db(repair = false)
       each_blob { |blob| blob.check(repair) }
+      0
     end
 
     # Check if the stored object is syntactically correct.

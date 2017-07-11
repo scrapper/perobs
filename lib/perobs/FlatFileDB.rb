@@ -172,6 +172,7 @@ module PEROBS
     # Basic consistency check.
     # @param repair [TrueClass/FalseClass] True if found errors should be
     #        repaired.
+    # @return number of errors found
     def check_db(repair = false)
       @flat_file.check(repair)
     end
@@ -185,10 +186,18 @@ module PEROBS
     def check(id, repair)
       begin
         return get_object(id) != nil
-      rescue => e
-        PEROBS.log.warn "Cannot read object with ID #{id}: #{e.message}"
-        return false
+      rescue PEROBS::FatalError => e
+        PEROBS.log.error "Cannot read object with ID #{id}: #{e.message}"
+        if repair
+          begin
+            PEROBS.log.error "Discarding broken object with ID #{id}"
+            @flat_file.delete_obj_by_id(id)
+          rescue PEROBS::FatalError
+          end
+        end
       end
+
+      return false
     end
 
     # Store the given serialized object into the cluster files. This method is
