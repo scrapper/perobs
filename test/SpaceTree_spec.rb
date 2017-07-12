@@ -206,11 +206,11 @@ EOT
   it 'should support a real-world traffic pattern' do
     address = 0
     spaces = []
-    0.upto(100) do
+    0.upto(200) do
       case rand(3)
       when 0
         # Insert new values
-        rand(15).times do
+        rand(9).times do
           size = 20 + rand(50)
           @m.add_space(address, size)
           spaces << [address, size]
@@ -218,7 +218,7 @@ EOT
         end
       when 1
         # Remove some values
-        rand(13).times do
+        rand(7).times do
           size = 20 + rand(60)
           if (space = @m.get_space(size))
             expect(spaces.include?(space)).to be true
@@ -227,6 +227,9 @@ EOT
         end
       when 2
         expect(@m.check).to be true
+        spaces.each do |address, size|
+          expect(@m.has_space?(address, size)).to be true
+        end
       end
     end
   end

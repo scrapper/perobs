@@ -537,8 +537,6 @@ module PEROBS
       s + ']'
     end
 
-
-
     private
 
     def each_blob_header(&block)
@@ -581,6 +579,8 @@ module PEROBS
     end
 
     def cross_check_entries
+      errors = 0
+
       each_blob_header do |pos, header|
         if !header.is_valid?
           if header.length > 0
@@ -588,27 +588,27 @@ module PEROBS
               PEROBS.log.error "FlatFile has free space " +
                 "(addr: #{pos}, len: #{header.length}) that is not in " +
                 "FreeSpaceManager"
-              return false
+              errors += 1
             end
           end
         else
           unless @index.get(header.id) == pos
             PEROBS.log.error "FlatFile blob at address #{pos} is listed " +
               "in index with address #{@index.get(header.id)}"
-            return false
+            errors += 1
           end
         end
       end
 
-      true
+      errors == 0
     end
 
     def discard_damaged_blob(addr, id)
       begin
+        PEROBS.log.error "Discarding corrupted data blob for ID #{id}"
         @f.seek(addr)
         @f.write([ 0 ].pack('C'))
         @f.flush
-        PEROBS.log.error "Discarding corrupted data blob for ID #{id}"
       rescue IOError => e
         PEROBS.log.fatal "Cannot discard blob for ID #{id}: #{e.message}"
       end

@@ -146,14 +146,14 @@ module PEROBS
     def has_space?(address, size)
       node = self
       loop do
-        if size < node.size && node.smaller
+        if node.blob_address == address
+          return true
+        elsif size < node.size && node.smaller
           node = node.smaller
         elsif size > node.size && node.larger
           node = node.larger
         elsif size == node.size && node.equal
           node = node.equal
-        elsif node.blob_address == address
-          return true
         else
           return false
         end
