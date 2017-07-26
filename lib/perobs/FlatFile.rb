@@ -39,13 +39,16 @@ module PEROBS
   # blob data bytes.
   class FlatFile
 
+    # The number of entries in a single BTree node of the index file.
+    INDEX_BTREE_ORDER = 65
+
     # Create a new FlatFile object for a database in the given path.
     # @param dir [String] Directory path for the data base file
     def initialize(dir)
       @db_dir = dir
       @f = nil
-      @index = BTree.new(dir, 'index', 65)
-      @space_list = SpaceTree.new(dir)
+      @index = BTree.new(@db_dir, 'index', INDEX_BTREE_ORDER)
+      @space_list = SpaceTree.new(@db_dir)
     end
 
     # Open the flat file for reading and writing.
@@ -448,7 +451,12 @@ module PEROBS
         "#{repair ? ' in repair mode' : ''}..."
 
       # First check the database blob file. Each entry should be readable and
-      # correct.
+      # correct and all IDs must be unique. We use a shadow index to keep
+      # track of the already found IDs.
+      new_index = BTree.new(@db_dir, 'new-index', INDEX_BTREE_ORDER)
+      new_index.erase
+      new_index.open
+
       each_blob_header do |pos, header|
         if header.is_valid?
           # We have a non-deleted entry.
@@ -476,16 +484,38 @@ module PEROBS
             end
 
             if header.crc && checksum(buf) != header.crc
-              PEROBS.log.fatal "Checksum failure while checking blob " +
+              PEROBS.log.error "Checksum failure while checking blob " +
                 "with ID #{header.id}"
               discard_damaged_blob(pos, header.id) if repair
+              errors += 1
             end
           rescue IOError => e
             PEROBS.log.fatal "Check of blob with ID #{header.id} failed: " +
               e.message
           end
+
+          # Check if the ID has already been found in the file.
+          if (previous_address = new_index.get(header.id))
+            PEROBS.log.error "Multiple blobs for ID #{header.id} found. " +
+              "Addresses: #{previous_address}, #{pos}"
+            @f.seek(previous_address)
+            previous_header = FlatFileBlobHeader.read(@f)
+            # We have two blobs with the same ID and we must discard one of
+            # them. As we haven't checked the index file yet, we must rely on
+            # other information to make a choice. For now, we discard the
+            # smaller one in the hope to minimize data loss.
+            discard_damaged_blob(header.length < previous_header.length ?
+                                 pos : previous_address, header.id) if repair
+          else
+            # ID is unique so far. Add it to the shadow index.
+            new_index.insert(header.id, pos)
+          end
+
         end
       end
+      # We no longer need the new index.
+      new_index.close
+      new_index.erase
 
       # Now we check the index data. It must be correct and the entries must
       # match the blob file. All entries in the index must be in the blob file
