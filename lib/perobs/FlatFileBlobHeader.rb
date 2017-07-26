@@ -31,7 +31,7 @@ module PEROBS
 
   # The FlatFile blob header has the following structure:
   #
-  # 1 Byte:  Mark byte.
+  # 1 Byte:  Flags byte.
   #          Bit 0: 0 deleted entry, 1 valid entry
   #          Bit 1: 0 unmarked, 1 marked
   #          Bit 2: 0 uncompressed data, 1 compressed data
@@ -40,7 +40,7 @@ module PEROBS
   # 8 bytes: ID of the value in the data blob
   # 4 bytes: CRC32 checksum of the data blob
   #
-  # If the bit 0 of the mark byte is 0, only the length is valid. The blob is
+  # If the bit 0 of the flags byte is 0, only the length is valid. The blob is
   # empty. Only of bit 0 is set then entry is valid.
   class FlatFileBlobHeader
 
@@ -49,15 +49,15 @@ module PEROBS
     # The length of the header in bytes.
     LENGTH = 21
 
-    attr_reader :mark, :length, :id, :crc
+    attr_reader :flags, :length, :id, :crc
 
-    # Create a new FlatFileBlobHeader with the given mark, length, id and crc.
-    # @param mark [Fixnum] 8 bit number, see above
+    # Create a new FlatFileBlobHeader with the given flags, length, id and crc.
+    # @param flags [Fixnum] 8 bit number, see above
     # @param length [Fixnum] length of the header in bytes
     # @param id [Integer] ID of the blob entry
     # @param crc [Fixnum] CRC32 checksum of the blob entry
-    def initialize(mark, length, id, crc)
-      @mark = mark
+    def initialize(flags, length, id, crc)
+      @flags = flags
       @length = length
       @id = id
       @crc = crc
@@ -116,7 +116,7 @@ module PEROBS
     # @param file [File]
     def write(file)
       begin
-        file.write([ @mark, @length, @id, @crc].pack(FORMAT))
+        file.write([ @flags, @length, @id, @crc].pack(FORMAT))
       rescue IOError => e
         PEROBS.log.fatal "Cannot write blob header into flat file DB: " +
           e.message
@@ -142,7 +142,7 @@ module PEROBS
 
     def bit_set?(n)
       mask = 1 << n
-      @mark & mask == mask
+      @flags & mask == mask
     end
 
   end

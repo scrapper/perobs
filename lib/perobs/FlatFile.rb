@@ -203,7 +203,7 @@ module PEROBS
               "blob space (#{header.length})."
           end
           if header.is_valid?
-            PEROBS.log.fatal "Entry (mark: #{header.mark}) is already used."
+            PEROBS.log.fatal "Entry (flags: #{header.flags}) is already used."
           end
         end
         @f.seek(addr)
@@ -279,7 +279,7 @@ module PEROBS
         PEROBS.log.fatal "Cannot read blob for ID #{id}: #{e.message}"
       end
 
-      # Uncompress the data if the compression bit is set in the mark byte.
+      # Uncompress the data if the compression bit is set in the flags byte.
       if header.is_compressed?
         begin
           buf = Zlib.inflate(buf)
@@ -311,7 +311,7 @@ module PEROBS
       header = FlatFileBlobHeader.read_at(@f, addr, id)
       begin
         @f.seek(addr)
-        @f.write([ header.mark | (1 << 1) ].pack('C'))
+        @f.write([ header.flags | (1 << 1) ].pack('C'))
         @f.flush
       rescue IOError => e
         PEROBS.log.fatal "Marking of FlatFile blob with ID #{id} " +
@@ -345,7 +345,7 @@ module PEROBS
           marked_blob_count += 1
           begin
             @f.seek(pos)
-            @f.write([ header.mark & 0b11111101 ].pack('C'))
+            @f.write([ header.flags & 0b11111101 ].pack('C'))
             @f.flush
           rescue IOError => e
             PEROBS.log.fatal "Unmarking of FlatFile blob with ID #{blob_id} " +
@@ -568,7 +568,7 @@ module PEROBS
     def inspect
       s = '['
       each_blob_header do |pos, header|
-        s << "{ :pos => #{pos}, :mark => #{header.mark}, " +
+        s << "{ :pos => #{pos}, :flags => #{header.flags}, " +
              ":length => #{header.length}, :id => #{header.id}, " +
              ":crc => #{header.crc}"
         if header.is_valid?
