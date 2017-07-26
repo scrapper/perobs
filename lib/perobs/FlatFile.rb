@@ -136,14 +136,8 @@ module PEROBS
     def delete_obj_by_address(addr, id)
       @index.remove(id)
       header = FlatFileBlobHeader.read_at(@f, addr, id)
-      begin
-        @f.seek(addr)
-        @f.write([ 0 ].pack('C'))
-        @f.flush
-        @space_list.add_space(addr, header.length)
-      rescue IOError => e
-        PEROBS.log.fatal "Cannot erase blob for ID #{header.id}: #{e.message}"
-      end
+      FlatFileBlobHeader.clear_flags(@f, addr)
+      @space_list.add_space(addr, header.length)
     end
 
     # Delete all unmarked objects.
@@ -228,8 +222,7 @@ module PEROBS
         if old_addr
           # If we had an existing object stored for the ID we have to mark
           # this entry as deleted now.
-          @f.seek(old_addr)
-          @f.write([ 0 ].pack('C'))
+          FlatFileBlobHeader.clear_flags(@f, old_addr)
         end
         @f.flush
         @index.insert(id, addr)
@@ -498,8 +491,8 @@ module PEROBS
           if (previous_address = new_index.get(header.id))
             PEROBS.log.error "Multiple blobs for ID #{header.id} found. " +
               "Addresses: #{previous_address}, #{pos}"
-            @f.seek(previous_address)
-            previous_header = FlatFileBlobHeader.read(@f)
+            previous_header = FlatFileBlobHeader.read_at(@f, previous_address,
+                                                         header.id)
             # We have two blobs with the same ID and we must discard one of
             # them. As we haven't checked the index file yet, we must rely on
             # other information to make a choice. For now, we discard the
@@ -646,14 +639,8 @@ module PEROBS
     end
 
     def discard_damaged_blob(addr, id)
-      begin
-        PEROBS.log.error "Discarding corrupted data blob for ID #{id}"
-        @f.seek(addr)
-        @f.write([ 0 ].pack('C'))
-        @f.flush
-      rescue IOError => e
-        PEROBS.log.fatal "Cannot discard blob for ID #{id}: #{e.message}"
-      end
+      PEROBS.log.error "Discarding corrupted data blob for ID #{id}"
+      FlatFileBlobHeader.clear_flags(@f, addr)
     end
 
   end

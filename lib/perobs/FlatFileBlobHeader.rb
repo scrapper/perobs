@@ -123,6 +123,19 @@ module PEROBS
       end
     end
 
+    # Reset all the flags bit to 0. This marks the blob as invalid.
+    # @param file [File] The file handle of the blob file.
+    # @param addr [Integer] The address of the header
+    def FlatFileBlobHeader::clear_flags(file, addr)
+      begin
+        file.seek(addr)
+        file.write([ 0 ].pack('C'))
+        file.flush
+      rescue IOError => e
+        PEROBS.log.fatal "Cannot erase blob for ID #{@id}: #{e.message}"
+      end
+    end
+
     # Return true if the header is for a non-empty blob.
     def is_valid?
       bit_set?(0)
