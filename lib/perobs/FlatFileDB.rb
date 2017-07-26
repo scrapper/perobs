@@ -127,7 +127,6 @@ module PEROBS
     # Store the given object into the cluster files.
     # @param obj [Hash] Object as defined by PEROBS::ObjectBase
     def put_object(obj, id)
-      @flat_file.delete_obj_by_id(id)
       @flat_file.write_obj_by_id(id, serialize(obj))
     end
 
@@ -205,7 +204,6 @@ module PEROBS
     # @param raw [String] Serialized Object as defined by PEROBS::ObjectBase
     # @param id [Fixnum or Bignum] Object ID
     def put_raw_object(raw, id)
-      @flat_file.delete_obj_(id)
       @flat_file.write_obj_by_id(id, raw)
     end
 

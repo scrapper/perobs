@@ -162,12 +162,18 @@ module PEROBS
       deleted_ids
     end
 
-    # Write the given object into the file. This method assumes that no other
-    # entry with the given ID exists already in the file.
+    # Write the given object into the file. This method never uses in-place
+    # updates for existing objects. A new copy is inserted first and only when
+    # the insert was successful, the old copy is deleted and the index
+    # updated.
     # @param id [Integer] ID of the object
     # @param raw_obj [String] Raw object as String
     # @return [Integer] position of the written blob in the blob file
     def write_obj_by_id(id, raw_obj)
+      # Check if we have already an object with the given ID. We'll save the
+      # address for later use.
+      old_addr = find_obj_addr_by_id(id)
+
       crc = checksum(raw_obj)
 
       # If the raw_obj is larger then 256 characters we will compress it to
@@ -215,6 +221,12 @@ module PEROBS
           FlatFileBlobHeader.new(0, space_length, 0, 0).write(@f)
           # Register the new space with the space list.
           @space_list.add_space(space_address, space_length) if space_length > 0
+        end
+        if old_addr
+          # If we had an existing object stored for the ID we have to mark
+          # this entry as deleted now.
+          @f.seek(old_addr)
+          @f.write([ 0 ].pack('C'))
         end
         @f.flush
         @index.insert(id, addr)
