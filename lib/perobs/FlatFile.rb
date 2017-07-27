@@ -136,7 +136,7 @@ module PEROBS
     def delete_obj_by_address(addr, id)
       @index.remove(id)
       header = FlatFileBlobHeader.read_at(@f, addr, id)
-      FlatFileBlobHeader.clear_flags(@f, addr)
+      header.clear_flags
       @space_list.add_space(addr, header.length)
     end
 
@@ -200,9 +200,9 @@ module PEROBS
             PEROBS.log.fatal "Entry (flags: #{header.flags}) is already used."
           end
         end
-        @f.seek(addr)
-        FlatFileBlobHeader.new(compressed ? (1 << 2) | 1 : 1, raw_obj.length,
-                               id, crc).write(@f)
+        flags = 1 << FlatFileBlobHeader::VALID_FLAG_BIT
+        flags |= (1 << FlatFileBlobHeader::COMPRESSED_FLAG_BIT) if compressed
+        FlatFileBlobHeader.new(@f, addr, flags, raw_obj.length, id, crc).write
         @f.write(raw_obj)
         if length != -1 && raw_obj.length < length
           # The new object was not appended and it did not completely fill the
@@ -215,14 +215,15 @@ module PEROBS
           end
           space_address = @f.pos
           space_length = length - FlatFileBlobHeader::LENGTH - raw_obj.length
-          FlatFileBlobHeader.new(0, space_length, 0, 0).write(@f)
+          FlatFileBlobHeader.new(@f, space_address, 0, space_length,
+                                 0, 0).write
           # Register the new space with the space list.
           @space_list.add_space(space_address, space_length) if space_length > 0
         end
         if old_addr
           # If we had an existing object stored for the ID we have to mark
           # this entry as deleted now.
-          FlatFileBlobHeader.clear_flags(@f, old_addr)
+          FlatFileBlobHeader::read_at(@f, old_addr).clear_flags
         end
         @f.flush
         @index.insert(id, addr)
@@ -301,15 +302,7 @@ module PEROBS
     # @param addr [Integer] Offset in the file
     # @param id [Integer] ID of the object
     def mark_obj_by_address(addr, id)
-      header = FlatFileBlobHeader.read_at(@f, addr, id)
-      begin
-        @f.seek(addr)
-        @f.write([ header.flags | (1 << 1) ].pack('C'))
-        @f.flush
-      rescue IOError => e
-        PEROBS.log.fatal "Marking of FlatFile blob with ID #{id} " +
-          "failed: #{e.message}"
-      end
+      FlatFileBlobHeader.read_at(@f, addr, id).set_mark_flag
     end
 
     # Return true if the object with the given ID is marked, false otherwise.
@@ -336,14 +329,7 @@ module PEROBS
         if header.is_valid? && header.is_marked?
           # Clear all valid and marked blocks.
           marked_blob_count += 1
-          begin
-            @f.seek(pos)
-            @f.write([ header.flags & 0b11111101 ].pack('C'))
-            @f.flush
-          rescue IOError => e
-            PEROBS.log.fatal "Unmarking of FlatFile blob with ID #{blob_id} " +
-              "failed: #{e.message}"
-          end
+          header.clear_mark_flag
         end
       end
       PEROBS.log.info "#{marked_blob_count} marks in #{total_blob_count} " +
@@ -377,8 +363,9 @@ module PEROBS
               @index.insert(header.id, pos - distance)
               # Mark the space between the relocated current entry and the
               # next valid entry as deleted space.
-              FlatFileBlobHeader.new(0, distance - FlatFileBlobHeader::LENGTH,
-                                     0, 0).write(@f)
+              FlatFileBlobHeader.new(@f, @f.pos, 0,
+                                     distance - FlatFileBlobHeader::LENGTH,
+                                     0, 0).write
               @f.flush
             rescue IOError => e
               PEROBS.log.fatal "Error while moving blob for ID #{header.id}: " +
@@ -459,7 +446,7 @@ module PEROBS
             if buf.length != header.length
               PEROBS.log.error "Premature end of file in blob with ID " +
                 "#{header.id}."
-              discard_damaged_blob(pos, header.id) if repair
+              discard_damaged_blob(header) if repair
               errors += 1
             end
 
@@ -471,7 +458,7 @@ module PEROBS
               rescue Zlib::BufError, Zlib::DataError
                 PEROBS.log.error "Corrupted compressed block with ID " +
                   "#{header.id} found."
-                discard_damaged_blob(pos, header.id) if repair
+                discard_damaged_blob(header) if repair
                 errors += 1
               end
             end
@@ -479,7 +466,7 @@ module PEROBS
             if header.crc && checksum(buf) != header.crc
               PEROBS.log.error "Checksum failure while checking blob " +
                 "with ID #{header.id}"
-              discard_damaged_blob(pos, header.id) if repair
+              discard_damaged_blob(header) if repair
               errors += 1
             end
           rescue IOError => e
@@ -498,7 +485,7 @@ module PEROBS
             # other information to make a choice. For now, we discard the
             # smaller one in the hope to minimize data loss.
             discard_damaged_blob(header.length < previous_header.length ?
-                                 pos : previous_address, header.id) if repair
+                                 header : previous_header) if repair
           else
             # ID is unique so far. Add it to the shadow index.
             new_index.insert(header.id, pos)
@@ -638,9 +625,9 @@ module PEROBS
       errors == 0
     end
 
-    def discard_damaged_blob(addr, id)
-      PEROBS.log.error "Discarding corrupted data blob for ID #{id}"
-      FlatFileBlobHeader.clear_flags(@f, addr)
+    def discard_damaged_blob(header)
+      PEROBS.log.error "Discarding corrupted data blob for ID #{header.id}"
+      header.clear_flags
     end
 
   end

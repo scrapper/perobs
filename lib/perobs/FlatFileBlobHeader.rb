@@ -48,15 +48,22 @@ module PEROBS
     FORMAT = 'CQQL'
     # The length of the header in bytes.
     LENGTH = 21
+    VALID_FLAG_BIT = 0
+    MARK_FLAG_BIT = 1
+    COMPRESSED_FLAG_BIT = 2
 
     attr_reader :flags, :length, :id, :crc
 
     # Create a new FlatFileBlobHeader with the given flags, length, id and crc.
+    # @param file [File] the FlatFile that contains the header
+    # @param addr [Integer] the offset address of the header in the file
     # @param flags [Fixnum] 8 bit number, see above
     # @param length [Fixnum] length of the header in bytes
     # @param id [Integer] ID of the blob entry
     # @param crc [Fixnum] CRC32 checksum of the blob entry
-    def initialize(flags, length, id, crc)
+    def initialize(file, addr, flags, length, id, crc)
+      @file = file
+      @addr = addr
       @flags = flags
       @length = length
       @id = id
@@ -68,6 +75,7 @@ module PEROBS
     # @return FlatFileBlobHeader
     def FlatFileBlobHeader::read(file)
       begin
+        addr = file.pos
         buf = file.read(LENGTH)
       rescue IOError => e
         PEROBS.log.error "Cannot read blob header in flat file DB: #{e.message}"
@@ -82,7 +90,7 @@ module PEROBS
         return nil
       end
 
-      FlatFileBlobHeader.new(*buf.unpack(FORMAT))
+      FlatFileBlobHeader.new(file, addr, *buf.unpack(FORMAT))
     end
 
     # Read the header from the given File.
@@ -103,7 +111,7 @@ module PEROBS
           "#{id ? "for ID #{id} " : ''}at address " +
           "#{addr}"
       end
-      header = FlatFileBlobHeader.new(*buf.unpack(FORMAT))
+      header = FlatFileBlobHeader.new(file, addr, *buf.unpack(FORMAT))
       if id && header.id != id
         PEROBS.log.fatal "Mismatch between FlatFile index and blob file " +
           "found for entry with ID #{id}/#{header.id}"
@@ -114,9 +122,10 @@ module PEROBS
 
     # Write the header to a given File.
     # @param file [File]
-    def write(file)
+    def write
       begin
-        file.write([ @flags, @length, @id, @crc].pack(FORMAT))
+        @file.seek(@addr)
+        @file.write([ @flags, @length, @id, @crc].pack(FORMAT))
       rescue IOError => e
         PEROBS.log.fatal "Cannot write blob header into flat file DB: " +
           e.message
@@ -126,36 +135,72 @@ module PEROBS
     # Reset all the flags bit to 0. This marks the blob as invalid.
     # @param file [File] The file handle of the blob file.
     # @param addr [Integer] The address of the header
-    def FlatFileBlobHeader::clear_flags(file, addr)
+    def clear_flags
       begin
-        file.seek(addr)
-        file.write([ 0 ].pack('C'))
-        file.flush
+        @file.seek(@addr)
+        @file.write([ 0 ].pack('C'))
+        @file.flush
       rescue IOError => e
-        PEROBS.log.fatal "Cannot erase blob for ID #{@id}: #{e.message}"
+        PEROBS.log.fatal "Clearing flags of FlatFileBlobHeader with ID " +
+          "#{@id} failed: #{e.message}"
       end
     end
 
     # Return true if the header is for a non-empty blob.
     def is_valid?
-      bit_set?(0)
+      bit_set?(VALID_FLAG_BIT)
     end
 
     # Return true if the blob has been marked.
     def is_marked?
-      bit_set?(1)
+      bit_set?(MARK_FLAG_BIT)
+    end
+
+    # Set the mark bit.
+    # @param file [File] The file handle of the blob file.
+    # @param addr [Integer] The address of the header
+    def set_mark_flag
+      set_flag(MARK_FLAG_BIT)
+      write_flags
+    end
+
+    # Clear the mark bit.
+    # @param file [File] The file handle of the blob file.
+    # @param addr [Integer] The address of the header
+    def clear_mark_flag
+      clear_flag(MARK_FLAG_BIT)
+      write_flags
     end
 
     # Return true if the blob contains compressed data.
     def is_compressed?
-      bit_set?(2)
+      bit_set?(COMPRESSED_FLAG_BIT)
     end
 
     private
 
+    def write_flags
+      begin
+        @file.seek(@addr)
+        @file.write([ @flags ].pack('C'))
+        @file.flush
+      rescue IOError => e
+        PEROBS.log.fatal "Writing flags of FlatFileBlobHeader with ID #{@id} " +
+          "failed: #{e.message}"
+      end
+    end
+
     def bit_set?(n)
       mask = 1 << n
       @flags & mask == mask
+    end
+
+    def set_flag(n)
+      @flags |= (1 << n)
+    end
+
+    def clear_flag(n)
+      @flags &= ~(1 << n) & 0xFF
     end
 
   end
