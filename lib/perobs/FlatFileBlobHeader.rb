@@ -35,7 +35,8 @@ module PEROBS
   #          Bit 0: 0 deleted entry, 1 valid entry
   #          Bit 1: 0 unmarked, 1 marked
   #          Bit 2: 0 uncompressed data, 1 compressed data
-  #          Bit 3 - 7: reserved, must be 0
+  #          Bit 3: 0 current entry, 1 outdated entry
+  #          Bit 4 - 7: reserved, must be 0
   # 8 bytes: Length of the data blob in bytes
   # 8 bytes: ID of the value in the data blob
   # 4 bytes: CRC32 checksum of the data blob
@@ -51,6 +52,7 @@ module PEROBS
     VALID_FLAG_BIT = 0
     MARK_FLAG_BIT = 1
     COMPRESSED_FLAG_BIT = 2
+    OUTDATED_FLAG_BIT = 3
 
     attr_reader :flags, :length, :id, :crc
 
@@ -157,16 +159,12 @@ module PEROBS
     end
 
     # Set the mark bit.
-    # @param file [File] The file handle of the blob file.
-    # @param addr [Integer] The address of the header
     def set_mark_flag
       set_flag(MARK_FLAG_BIT)
       write_flags
     end
 
     # Clear the mark bit.
-    # @param file [File] The file handle of the blob file.
-    # @param addr [Integer] The address of the header
     def clear_mark_flag
       clear_flag(MARK_FLAG_BIT)
       write_flags
@@ -175,6 +173,18 @@ module PEROBS
     # Return true if the blob contains compressed data.
     def is_compressed?
       bit_set?(COMPRESSED_FLAG_BIT)
+    end
+
+    # Set the outdated bit. The entry will be invalid as soon as the current
+    # transaction has been completed.
+    def set_outdated_flag
+      set_flag(OUTDATED_FLAG_BIT)
+      write_flags
+    end
+
+    # Return true if the blob contains outdated data.
+    def is_outdated?
+      bit_set?(OUTDATED_FLAG_BIT)
     end
 
     private

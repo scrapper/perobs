@@ -505,6 +505,9 @@ describe PEROBS::Store do
           expect(@store[key].name).to eq(ref[key])
         end
       end
+      #ref.each do |k, v|
+      #  expect(@store[k].name).to eq(v), "failure in mode #{i}"
+      #end
     end
 
     ref.each do |k, v|

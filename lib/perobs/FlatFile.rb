@@ -167,9 +167,14 @@ module PEROBS
     # @param raw_obj [String] Raw object as String
     # @return [Integer] position of the written blob in the blob file
     def write_obj_by_id(id, raw_obj)
-      # Check if we have already an object with the given ID. We'll save the
-      # address for later use.
-      old_addr = find_obj_addr_by_id(id)
+      # Check if we have already an object with the given ID. We'll mark it as
+      # outdated and save the header for later deletion. In case this
+      # operation is aborted or interrupted we ensure that we either have the
+      # old or the new version available.
+      if (old_addr = find_obj_addr_by_id(id))
+        old_header = FlatFileBlobHeader.read_at(@f, old_addr)
+        old_header.set_outdated_flag
+      end
 
       crc = checksum(raw_obj)
 
@@ -223,9 +228,11 @@ module PEROBS
         if old_addr
           # If we had an existing object stored for the ID we have to mark
           # this entry as deleted now.
-          FlatFileBlobHeader::read_at(@f, old_addr).clear_flags
+          old_header.clear_flags
+        else
+          @f.flush
         end
-        @f.flush
+        # Once the blob has been written we can update the index as well.
         @index.insert(id, addr)
       rescue IOError => e
         PEROBS.log.fatal "Cannot write blob for ID #{id} to FlatFileDB: " +
@@ -480,12 +487,20 @@ module PEROBS
               "Addresses: #{previous_address}, #{pos}"
             previous_header = FlatFileBlobHeader.read_at(@f, previous_address,
                                                          header.id)
-            # We have two blobs with the same ID and we must discard one of
-            # them. As we haven't checked the index file yet, we must rely on
-            # other information to make a choice. For now, we discard the
-            # smaller one in the hope to minimize data loss.
-            discard_damaged_blob(header.length < previous_header.length ?
-                                 header : previous_header) if repair
+            if repair
+              # We have two blobs with the same ID and we must discard one of
+              # them.
+              if header.is_outdated?
+                discard_damaged_blob(header)
+              elsif previous_header.is_outdated?
+                discard_damaged_blob(previous_header)
+              else
+                PEROBS.log.error "None of the blobs with same ID have " +
+                  "the outdated flag set. Deleting the smaller one."
+                discard_damaged_blob(header.length < previous_header.length ?
+                                     header : previous_header)
+              end
+            end
           else
             # ID is unique so far. Add it to the shadow index.
             new_index.insert(header.id, pos)
