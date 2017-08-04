@@ -261,6 +261,10 @@ module PEROBS
       while !stack.empty?
         node, mode = stack.pop
 
+        # Empty trees only have a dummy node that has no parent, and a size
+        # and address of 0.
+        break if node.size == 0 && node.blob_address == 0 && node.parent.nil?
+
         case mode
         when :on_enter
           yield(node, mode, stack)
@@ -410,7 +414,7 @@ module PEROBS
 
       each do |node, mode, stack|
         if mode == :on_enter
-          ary << [ node.blob_address, node.size ] unless node.size == 0
+          ary << [ node.blob_address, node.size ]
         end
       end
 
@@ -505,7 +509,8 @@ module PEROBS
         when :on_exit
           if flat_file &&
              !flat_file.has_space?(node.blob_address, node.size)
-            PEROBS.log.error "SpaceTreeNode has space that isn't " +
+            PEROBS.log.error "SpaceTreeNode has space at offset " +
+              "#{node.blob_address} of size #{node.size} that isn't " +
               "available in the FlatFile."
             return false
           end
