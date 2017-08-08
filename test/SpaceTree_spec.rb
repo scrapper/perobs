@@ -183,19 +183,21 @@ EOT
     @m.clear
     add_sizes([ 5, 3, 7 ])
     expect(@m.get_space(5)).to eql([0, 5])
+    expect(@m.check).to be true
     expect(@m.to_a).to eql([[1, 3], [2, 7]])
 
     @m.clear
     add_sizes([ 10, 5, 3, 7, 15, 7 ])
     expect(@m.to_a).to eql([[0, 10], [1, 5], [2, 3], [3, 7], [5, 7], [4, 15]])
     expect(@m.get_space(10)).to eql([0, 10])
+    expect(@m.check).to be true
     expect(@m.to_a).to eql([[3, 7], [1, 5], [2, 3], [5, 7], [4, 15]])
 
     @m.clear
     add_sizes([ 10, 5, 3, 7, 15, 7, 6 ])
     expect(@m.to_a).to eql([[0, 10], [1, 5], [2, 3], [3, 7], [6, 6], [5, 7], [4, 15]])
     expect(@m.get_space(10)).to eql([0, 10])
-    expect(@m.to_a).to eql([[3, 7], [6, 6], [1, 5], [2, 3], [5, 7], [4, 15]])
+    expect(@m.to_a).to eql([[3, 7], [1, 5], [2, 3], [6, 6], [5, 7], [4, 15]])
 
     @m.clear
     add_sizes([ 10, 5, 3, 15, 13, 17 ])
@@ -206,12 +208,12 @@ EOT
   it 'should support a real-world traffic pattern' do
     address = 0
     spaces = []
-    0.upto(200) do
+    0.upto(500) do
       case rand(3)
       when 0
         # Insert new values
         rand(9).times do
-          size = 20 + rand(50)
+          size = 20 + rand(5000)
           @m.add_space(address, size)
           spaces << [address, size]
           address += size
@@ -219,7 +221,7 @@ EOT
       when 1
         # Remove some values
         rand(7).times do
-          size = 20 + rand(60)
+          size = 20 + rand(6000)
           if (space = @m.get_space(size))
             expect(spaces.include?(space)).to be true
             spaces.delete(space)

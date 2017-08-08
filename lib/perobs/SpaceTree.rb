@@ -70,6 +70,11 @@ module PEROBS
       @node_cache.clear
     end
 
+    def set_root(node)
+      @root = node
+    end
+
+
     # Erase the SpaceTree file. This method cannot be called while the file is
     # open.
     def erase

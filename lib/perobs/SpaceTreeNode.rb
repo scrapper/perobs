@@ -270,15 +270,15 @@ module PEROBS
           yield(node, mode, stack)
           stack.push([ node, :smaller ])
         when :smaller
-          yield(node, mode, stack) if node.check_node_link('smaller', stack)
+          yield(node, mode, stack) if node.smaller
           stack.push([ node, :equal ])
           stack.push([ node.smaller, :on_enter]) if node.smaller
         when :equal
-          yield(node, mode, stack) if node.check_node_link('equal', stack)
+          yield(node, mode, stack) if node.equal
           stack.push([ node, :larger ])
           stack.push([ node.equal, :on_enter]) if node.equal
         when :larger
-          yield(node, mode, stack) if node.check_node_link('larger', stack)
+          yield(node, mode, stack) if node.larger
           stack.push([ node, :on_exit])
           stack.push([ node.larger, :on_enter]) if node.larger
         when :on_exit
@@ -288,65 +288,64 @@ module PEROBS
     end
 
     def delete_node
-      node = nil
-
       if @equal
-        # Pull-up equal node by copying it's content into the current node.
-        node = @equal
-        set_link('@equal', node.equal)
+        # Replace the current node with the next @equal node.
+        @equal.set_link('@smaller', @smaller) if @smaller
+        @equal.set_link('@larger', @larger) if @larger
+        relink_parent(@equal)
       elsif @smaller && @larger.nil?
-        # The node only has a single sub-node on the smaller branch. Pull-up
-        # smaller node and replace it with the current node by copying the
-        # content of the sub-node.
-        node = @smaller
-        set_link('@smaller', node.smaller)
-        set_link('@equal', node.equal)
-        set_link('@larger', node.larger)
+        # We have no @larger node, so we can just replace the current node
+        # with the @smaller node.
+        relink_parent(@smaller)
       elsif @larger && @smaller.nil?
-        # The node only has a single sub-node on the larger branch. Pull-up
-        # larger node and replace it with the current node.
-        node = @larger
-        set_link('@smaller', node.smaller)
-        set_link('@equal', node.equal)
-        set_link('@larger', node.larger)
+        # We have no @smaller node, wo we can just replace the current node
+        # with the @larger node.
+        relink_parent(@larger)
       elsif @smaller && @larger
-        # We'll replace the current node with the largest node of the
-        # smaller sub-tree by copying the values into this node.
+        # Find the largest node in the smaller sub-node. This node will
+        # replace the current node.
         node = @smaller.find_largest_node
-        if node.smaller
-          # The largest node of the @smaller sub-tree has a smaller branch.
-          if (smallest_node = node.find_smallest_node) != node &&
-             node != @smaller
-            # Find the smallest node in that branch and attach the old
-            # @smaller branch to its smaller link.
-            smallest_node.set_link('@smaller', @smaller)
-          end
-          set_link('@smaller', node.smaller)
+        if node != @smaller
+          # If the found node is not the direct @smaller node, attach the
+          # smaller sub-node of the found node to the parent of the found
+          # node.
+          node.relink_parent(node.smaller)
+          # The @smaller sub node of the current node is attached to the
+          # @smaller link of the found node.
+          node.set_link('@smaller', @smaller)
         end
-        set_link('@equal', node.equal)
-        if node.parent == self
-          set_link('@smaller', node.smaller)
-        else
-          node.parent.unlink_node(node) if node.parent
-        end
-      end
-
-      if node
-        # We have found a node that can replace the node we want to delete.
-        # Copy the data from that node into this node.
-        set_size_and_address(node.size, node.blob_address)
-
-        # Delete the just copied node from the file.
-        @tree.delete_node(node.node_address)
+        # Attach the @larger sub-node of the current node to the @larger link
+        # of the found node.
+        node.set_link('@larger', @larger)
+        # Point the link in the parent of the current node to the found node.
+        relink_parent(node)
       else
-        # The node is a leaf node. We have to delete this node by removing the
-        # link from the parent and deleting it from the file.
-        if @parent
-          @parent.unlink_node(self)
-          @tree.delete_node(@node_address)
+        # The node is a leaf node.
+        relink_parent(nil)
+      end
+      @tree.delete_node(@node_address) if @parent
+    end
+
+    # Replace the link in the parent node of the current node that points to
+    # the current node with the given node.
+    # @param node [SpaceTreeNode]
+    def relink_parent(node)
+      if @parent
+        if @parent.smaller == self
+          @parent.set_link('@smaller', node)
+        elsif @parent.equal == self
+          @parent.set_link('@equal', node)
+        elsif @parent.larger == self
+          @parent.set_link('@larger', node)
         else
-          # The root node can't be deleted. We just set @size to 0 to mark it
-          # as empty.
+          PEROBS.log.fatal "Cannot relink unknown child node with address " +
+            "#{node.node_address} from #{to_s}"
+        end
+      else
+        if node
+          @tree.set_root(node)
+          node.parent = nil
+        else
           set_size_and_address(0, 0)
         end
       end
@@ -406,6 +405,12 @@ module PEROBS
       @parent = p ? SpaceTreeNodeLink.new(@tree, p) : nil
       write_node
     end
+    # Compare this node to another node.
+    # @return [Boolean] true if node address is identical, false otherwise
+    def ==(node)
+      node && @node_address == node.node_address
+    end
+
     # Collects address and size touples of all nodes in the tree with a
     # depth-first strategy and stores them in an Array.
     # @return [Array] Array with [ address, size ] touples.
@@ -474,6 +479,7 @@ module PEROBS
         case mode
         when :smaller
           if node.smaller
+            return false unless node.check_node_link('smaller', stack)
             smaller_node = node.smaller
             if smaller_node.size >= node.size
               PEROBS.log.error "Smaller SpaceTreeNode size " +
@@ -483,6 +489,7 @@ module PEROBS
           end
         when :equal
           if node.equal
+            return false unless node.check_node_link('equal', stack)
             equal_node = node.equal
 
             if equal_node.smaller || equal_node.larger
@@ -499,6 +506,7 @@ module PEROBS
           end
         when :larger
           if node.larger
+            return false unless node.check_node_link('larger', stack)
             larger_node = node.larger
             if larger_node.size <= node.size
               PEROBS.log.error "Larger SpaceTreeNode size " +
