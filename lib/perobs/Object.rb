@@ -161,6 +161,7 @@ module PEROBS
           instance_variable_set(ivar, nil)
         end
       end
+      mark_as_modified
     end
 
     # Restore the persistent data from a single data structure.
