@@ -347,6 +347,7 @@ module PEROBS
     # implementation. No additional space will be needed on the file system.
     def defragmentize
       distance = 0
+      new_file_size = 0
       deleted_blobs = 0
       valid_blobs = 0
       t = Time.now
@@ -379,6 +380,7 @@ module PEROBS
                 e.message
             end
           end
+          new_file_size = pos + FlatFileBlobHeader::LENGTH + header.length
         else
           deleted_blobs += 1
           distance += entry_bytes
@@ -390,7 +392,7 @@ module PEROBS
         "#{'%.1f' % (distance.to_f / @f.size * 100.0)}% reclaimed"
 
       @f.flush
-      @f.truncate(@f.size - distance)
+      @f.truncate(new_file_size)
       @f.flush
       @space_list.clear
 
@@ -455,6 +457,7 @@ module PEROBS
                 "#{header.id}."
               discard_damaged_blob(header) if repair
               errors += 1
+              next
             end
 
             # Uncompress the data if the compression bit is set in the mark
@@ -467,6 +470,7 @@ module PEROBS
                   "#{header.id} found."
                 discard_damaged_blob(header) if repair
                 errors += 1
+                next
               end
             end
 
@@ -475,6 +479,7 @@ module PEROBS
                 "with ID #{header.id}"
               discard_damaged_blob(header) if repair
               errors += 1
+              next
             end
           rescue IOError => e
             PEROBS.log.fatal "Check of blob with ID #{header.id} failed: " +
@@ -500,6 +505,7 @@ module PEROBS
                 discard_damaged_blob(header.length < previous_header.length ?
                                      header : previous_header)
               end
+              next
             end
           else
             # ID is unique so far. Add it to the shadow index.
@@ -641,7 +647,8 @@ module PEROBS
     end
 
     def discard_damaged_blob(header)
-      PEROBS.log.error "Discarding corrupted data blob for ID #{header.id}"
+      PEROBS.log.error "Discarding corrupted data blob for ID #{header.id} " +
+        "at offset #{header.addr}"
       header.clear_flags
     end
 

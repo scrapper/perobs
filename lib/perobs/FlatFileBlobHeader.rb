@@ -54,7 +54,7 @@ module PEROBS
     COMPRESSED_FLAG_BIT = 2
     OUTDATED_FLAG_BIT = 3
 
-    attr_reader :flags, :length, :id, :crc
+    attr_reader :addr, :flags, :length, :id, :crc
 
     # Create a new FlatFileBlobHeader with the given flags, length, id and crc.
     # @param file [File] the FlatFile that contains the header
