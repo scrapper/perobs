@@ -189,11 +189,11 @@ module PEROBS
     # the storage backend. The Store object is no longer usable after this
     # method was called.
     def exit
-      if @cache.in_transaction?
+      if @cache && @cache.in_transaction?
         PEROBS.log.fatal 'You cannot call exit() during a transaction'
       end
-      @cache.flush
-      @db.close
+      @cache.flush if @cache
+      @db.close if @db
       @db = @class_map = @in_memory_objects = @stats = @cache = @root_objects =
         nil
     end
