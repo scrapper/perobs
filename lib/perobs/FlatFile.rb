@@ -202,7 +202,8 @@ module PEROBS
               "blob space (#{header.length})."
           end
           if header.is_valid?
-            PEROBS.log.fatal "Entry (flags: #{header.flags}) is already used."
+            PEROBS.log.fatal "Entry at address #{addr} with flags: " +
+              "#{header.flags} is already used for ID #{header.id}."
           end
         end
         flags = 1 << FlatFileBlobHeader::VALID_FLAG_BIT
