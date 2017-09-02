@@ -120,7 +120,7 @@ module PEROBS
     #                      :json : About half as fast as marshal, but the
     #                      format is rock solid and portable between
     #                      languages. It only supports basic Ruby data types
-    #                      like String, Fixnum, Float, Array, Hash. This is
+    #                      like String, Integer, Float, Array, Hash. This is
     #                      the default option.
     #                      :yaml : Can also handle most Ruby data types and is
     #                      portable between Ruby versions (1.9 and later).
@@ -221,7 +221,7 @@ module PEROBS
     # For library internal use only!
     # This method will create a new PEROBS object.
     # @param klass [BasicObject] Class of the object to create
-    # @param id [Fixnum, Bignum] Requested object ID
+    # @param id [Integer] Requested object ID
     # @param args [Array] Arguments to pass to the object constructor.
     # @return [BasicObject] Newly constructed PEROBS object
     def _construct_po(klass, id, *args)
@@ -297,7 +297,7 @@ module PEROBS
     # from the back-end storage. The garbage collector is not invoked
     # automatically. Depending on your usage pattern, you need to call this
     # method periodically.
-    # @return [Fixnum] The number of collected objects
+    # @return [Integer] The number of collected objects
     def gc
       if @cache.in_transaction?
         PEROBS.log.fatal 'You cannot call gc() during a transaction'
@@ -342,7 +342,7 @@ module PEROBS
     # unreadable object is found, the reference will simply be deleted.
     # @param repair [TrueClass/FalseClass] true if a repair attempt should be
     #        made.
-    # @return [Fixnum] The number of references to bad objects found.
+    # @return [Integer] The number of references to bad objects found.
     def check(repair = false)
       # All objects must have in-db version.
       sync
@@ -436,7 +436,7 @@ module PEROBS
     # Internal method. Don't use this outside of this library!
     # Generate a new unique ID that is not used by any other object. It uses
     # random numbers between 0 and 2**64 - 1.
-    # @return [Fixnum or Bignum]
+    # @return [Integer]
     def _new_id
       begin
         # Generate a random number. It's recommended to not store more than
@@ -454,7 +454,7 @@ module PEROBS
     # happens the object finalizer is triggered and calls _forget() to
     # remove the object from this hash again.
     # @param obj [BasicObject] Object to register
-    # @param id [Fixnum or Bignum] object ID
+    # @param id [Integer] object ID
     def _register_in_memory(obj, id)
       @in_memory_objects[id] = WeakRef.new(obj)
     end
@@ -462,7 +462,7 @@ module PEROBS
     # Remove the object from the in-memory list. This is an internal method
     # and should never be called from user code. It will be called from a
     # finalizer, so many restrictions apply!
-    # @param id [Fixnum or Bignum] Object ID of object to remove from the list
+    # @param id [Integer] Object ID of object to remove from the list
     def _collect(id, ignore_errors = false)
       @in_memory_objects.delete(id)
     end
@@ -502,10 +502,10 @@ module PEROBS
 
     # Check the object with the given start_id and all other objects that are
     # somehow reachable from the start object.
-    # @param start_id [Fixnum or Bignum] ID of the top-level object to start
+    # @param start_id [Integer] ID of the top-level object to start
     #        with
     # @param repair [Boolean] Delete refernces to broken objects if true
-    # @return [Fixnum] The number of references to bad objects.
+    # @return [Integer] The number of references to bad objects.
     def check_object(start_id, repair)
       errors = 0
       @db.mark(start_id)

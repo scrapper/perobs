@@ -81,7 +81,7 @@ module PEROBS
     # PEROBS users should never call this method or equivalents of derived
     # methods directly.
     # @param p [PEROBS::Handle] PEROBS handle
-    # @param size [Fixnum] The requested size of the Array
+    # @param size [Integer] The requested size of the Array
     # @param default [Any] The default value that is returned when no value is
     #        stored for a specific key.
     def initialize(p, size = 0, default = nil)
@@ -94,7 +94,7 @@ module PEROBS
 
     # Return a list of all object IDs of all persistend objects that this Array
     # is referencing.
-    # @return [Array of Fixnum or Bignum] IDs of referenced objects
+    # @return [Array of Integer] IDs of referenced objects
     def _referenced_object_ids
       @data.each.select do |v|
         v && v.respond_to?(:is_poxreference?)
@@ -103,7 +103,7 @@ module PEROBS
 
     # This method should only be used during store repair operations. It will
     # delete all references to the given object ID.
-    # @param id [Fixnum/Bignum] targeted object ID
+    # @param id [Integer] targeted object ID
     def _delete_reference_to_id(id)
       @data.delete_if do |v|
         v && v.respond_to?(:is_poxreference?) && v.id == id

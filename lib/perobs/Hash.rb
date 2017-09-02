@@ -92,7 +92,7 @@ module PEROBS
 
     # Return a list of all object IDs of all persistend objects that this Hash
     # is referencing.
-    # @return [Array of Fixnum or Bignum] IDs of referenced objects
+    # @return [Array of Integer] IDs of referenced objects
     def _referenced_object_ids
       @data.each_value.select { |v| v && v.respond_to?(:is_poxreference?) }.
         map { |o| o.id }
@@ -100,7 +100,7 @@ module PEROBS
 
     # This method should only be used during store repair operations. It will
     # delete all referenced to the given object ID.
-    # @param id [Fixnum/Bignum] targeted object ID
+    # @param id [Integer] targeted object ID
     def _delete_reference_to_id(id)
       @data.delete_if do |k, v|
         v && v.respond_to?(:is_poxreference?) && v.id == id

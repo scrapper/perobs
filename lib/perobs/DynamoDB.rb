@@ -85,7 +85,7 @@ module PEROBS
     end
 
     # Return true if the object with given ID exists
-    # @param id [Fixnum or Bignum]
+    # @param id [Integer]
     def include?(id)
       !dynamo_get_item(id.to_s).nil?
     end
@@ -116,7 +116,7 @@ module PEROBS
     end
 
     # Load the given object from the filesystem.
-    # @param id [Fixnum or Bignum] object ID
+    # @param id [Integer] object ID
     # @return [Hash] Object as defined by PEROBS::ObjectBase or nil if ID does
     #         not exist
     def get_object(id)
@@ -148,13 +148,13 @@ module PEROBS
     end
 
     # Mark an object.
-    # @param id [Fixnum or Bignum] ID of the object to mark
+    # @param id [Integer] ID of the object to mark
     def mark(id)
       dynamo_mark_item(id.to_s, true)
     end
 
     # Check if the object is marked.
-    # @param id [Fixnum or Bignum] ID of the object to check
+    # @param id [Integer] ID of the object to check
     def is_marked?(id)
       dynamo_is_marked?(id.to_s)
     end
@@ -167,7 +167,7 @@ module PEROBS
     end
 
     # Check if the stored object is syntactically correct.
-    # @param id [Fixnum/Bignum] Object ID
+    # @param id [Integer] Object ID
     # @param repair [TrueClass/FalseClass] True if an repair attempt should be
     #        made.
     # @return [TrueClass/FalseClass] True if the object is OK, otherwise

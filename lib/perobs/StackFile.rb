@@ -36,7 +36,7 @@ module PEROBS
     # Create a new stack file in the given directory with the given file name.
     # @param dir [String] Directory
     # @param name [String] File name
-    # @param entry_bytes [Fixnum] Number of bytes each entry must have
+    # @param entry_bytes [Integer] Number of bytes each entry must have
     def initialize(dir, name, entry_bytes)
       @file_name = File.join(dir, name + '.stack')
       @entry_bytes = entry_bytes

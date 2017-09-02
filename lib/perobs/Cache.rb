@@ -37,7 +37,7 @@ module PEROBS
   class Cache
 
     # Create a new Cache object.
-    # @param bits [Fixnum] Number of bits for the cache index. This parameter
+    # @param bits [Integer] Number of bits for the cache index. This parameter
     #        heavilty affects the performance and memory consumption of the
     #        cache.
     def initialize(bits = 16)
@@ -94,7 +94,7 @@ module PEROBS
     end
 
     # Return the PEROBS::Object with the specified ID or nil if not found.
-    # @param id [Fixnum or Bignum] ID of the cached PEROBS::ObjectBase
+    # @param id [Integer] ID of the cached PEROBS::ObjectBase
     #def object_by_id(id)
     #  idx = id & @mask
     #  # The index is just a hash. We still need to check if the object IDs are

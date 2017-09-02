@@ -56,7 +56,7 @@ describe PEROBS::BTreeDB do
     expect(@db.include?(0)).to be false
     h = {
           'String' => 'What god has wrought',
-          'Fixnum' => 42,
+          'Integer' => 42,
           'Float' => 3.14,
           'True' => true,
           'False' => false,
@@ -75,7 +75,7 @@ describe PEROBS::BTreeDB do
       expect(@db.include?(0)).to be false
       h = {
         'String' => 'What god has wrought',
-        'Fixnum' => 42,
+        'Integer' => 42,
         'Float' => 3.14,
         'True' => true,
         'False' => false,

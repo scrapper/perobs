@@ -51,7 +51,7 @@ module PEROBS
     # Create a new stack file in the given directory with the given file name.
     # @param dir [String] Directory
     # @param name [String] File name
-    # @param entry_bytes [Fixnum] Number of bytes each entry must have
+    # @param entry_bytes [Integer] Number of bytes each entry must have
     def initialize(dir, name, entry_bytes, first_entry_default = 0)
       @file_name = File.join(dir, name + '.blobs')
       if entry_bytes < 8
@@ -127,7 +127,7 @@ module PEROBS
 
     # Return the address of a free blob storage space. Addresses start at 0
     # and increase linearly.
-    # @return [Fixnum] address of a free blob space
+    # @return [Integer] address of a free blob space
     def free_address
       if @first_space == 0
         # There is currently no free entry. Create a new reserved entry at the
@@ -170,7 +170,7 @@ module PEROBS
 
     # Store the given byte blob at the specified address. If the blob space is
     # already in use the content will be overwritten.
-    # @param address [Fixnum] Address to store the blob
+    # @param address [Integer] Address to store the blob
     # @param bytes [String] bytes to store
     def store_blob(address, bytes)
       unless address >= 0
@@ -217,7 +217,7 @@ module PEROBS
     end
 
     # Retrieve a blob from the given address.
-    # @param address [Fixnum] Address to store the blob
+    # @param address [Integer] Address to store the blob
     # @return [String] blob bytes
     def retrieve_blob(address)
       unless address > 0
@@ -248,7 +248,7 @@ module PEROBS
     end
 
     # Delete the blob at the given address.
-    # @param address [Fixnum] Address of blob to delete
+    # @param address [Integer] Address of blob to delete
     def delete_blob(address)
       unless address >= 0
         PEROBS.log.fatal "Blob address must be larger than 0, " +

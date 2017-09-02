@@ -140,7 +140,7 @@ module PEROBS
 
     # Return a list of all object IDs that the attributes of this instance are
     # referencing.
-    # @return [Array of Fixnum or Bignum] IDs of referenced objects
+    # @return [Array of Integer] IDs of referenced objects
     def _referenced_object_ids
       ids = []
       _all_attributes.each do |attr|
@@ -152,7 +152,7 @@ module PEROBS
 
     # This method should only be used during store repair operations. It will
     # delete all references to the given object ID.
-    # @param id [Fixnum/Bignum] targeted object ID
+    # @param id [Integer] targeted object ID
     def _delete_reference_to_id(id)
       _all_attributes.each do |attr|
         ivar = ('@' + attr.to_s).to_sym

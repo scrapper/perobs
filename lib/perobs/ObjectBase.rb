@@ -207,7 +207,7 @@ module PEROBS
     end
 
     # Restore the object state from the storage back-end.
-    # @param level [Fixnum] the transaction nesting level
+    # @param level [Integer] the transaction nesting level
     def _restore(level)
       # Find the most recently stored state of this object. This could be on
       # any previous stash level or in the regular object DB. If the object

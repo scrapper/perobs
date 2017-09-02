@@ -169,8 +169,8 @@ describe PEROBS::Array do
 
   it 'should support collect!()' do
     a = cpa([ 1, 'cat', 1..1 ])
-    expect(a.collect! { |e| e.class }).to eq([ Fixnum, String, Range ])
-    pcheck { expect(a).to eq([ Fixnum, String, Range ]) }
+    expect(a.collect! { |e| e.class }).to eq([ Integer, String, Range ])
+    pcheck { expect(a).to eq([ Integer, String, Range ]) }
 
     a = cpa([ 1, 'cat', 1..1 ])
     expect(a.collect! { 99 }).to eq([ 99, 99, 99])
@@ -179,8 +179,8 @@ describe PEROBS::Array do
 
   it 'should support map!()' do
     a = cpa([ 1, 'cat', 1..1 ])
-    expect(a.map! { |e| e.class }).to eq([ Fixnum, String, Range ])
-    pcheck { expect(a).to eq([ Fixnum, String, Range ]) }
+    expect(a.map! { |e| e.class }).to eq([ Integer, String, Range ])
+    pcheck { expect(a).to eq([ Integer, String, Range ]) }
 
     a = cpa([ 1, 'cat', 1..1 ])
     expect(a.map! { 99 }).to eq([ 99, 99, 99])

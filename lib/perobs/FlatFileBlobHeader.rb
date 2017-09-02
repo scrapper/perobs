@@ -59,10 +59,10 @@ module PEROBS
     # Create a new FlatFileBlobHeader with the given flags, length, id and crc.
     # @param file [File] the FlatFile that contains the header
     # @param addr [Integer] the offset address of the header in the file
-    # @param flags [Fixnum] 8 bit number, see above
-    # @param length [Fixnum] length of the header in bytes
+    # @param flags [Integer] 8 bit number, see above
+    # @param length [Integer] length of the header in bytes
     # @param id [Integer] ID of the blob entry
-    # @param crc [Fixnum] CRC32 checksum of the blob entry
+    # @param crc [Integer] CRC32 checksum of the blob entry
     def initialize(file, addr, flags, length, id, crc)
       @file = file
       @addr = addr

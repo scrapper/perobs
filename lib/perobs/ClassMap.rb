@@ -47,14 +47,14 @@ module PEROBS
 
     # Get the ID for a given class.
     # @param klass [String] Class
-    # @return [Fixnum] ID. If klass is not yet known a new ID will be
+    # @return [Integer] ID. If klass is not yet known a new ID will be
     #         allocated.
     def class_to_id(klass)
       @by_class[klass] || new_id(klass)
     end
 
     # Get the klass for a given ID.
-    # @param id [Fixnum]
+    # @param id [Integer]
     # @return [String] String version of the class
     def id_to_class(id)
       @by_id[id]

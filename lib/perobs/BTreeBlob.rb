@@ -65,7 +65,7 @@ module PEROBS
     end
 
     # Write the given bytes with the given ID into the DB.
-    # @param id [Fixnum or Bignum] ID
+    # @param id [Integer] ID
     # @param raw [String] sequence of bytes
     def write_object(id, raw)
       if @entries.length > @btreedb.max_blob_size
@@ -87,7 +87,7 @@ module PEROBS
     end
 
     # Read the entry for the given ID and return it as bytes.
-    # @param id [Fixnum or Bignum] ID
+    # @param id [Integer] ID
     # @return [String] sequence of bytes or nil if ID is unknown
     def read_object(id)
       return nil unless (index_entry = find(id))
@@ -95,7 +95,7 @@ module PEROBS
     end
 
     # Find the data for the object with given id.
-    # @param id [Fixnum or Bignum] Object ID
+    # @param id [Integer] Object ID
     # @return [Array] Returns an Array that represents the index entry for the
     #         given object.
     def find(id)
@@ -109,7 +109,7 @@ module PEROBS
     end
 
     # Set a mark on the entry with the given ID.
-    # @param id [Fixnum or Bignum] ID of the entry
+    # @param id [Integer] ID of the entry
     def mark(id)
       found = false
       @entries.each do |entry|
@@ -129,7 +129,7 @@ module PEROBS
     end
 
     # Check if the entry for a given ID is marked.
-    # @param id [Fixnum or Bignum] ID of the entry
+    # @param id [Integer] ID of the entry
     # @param ignore_errors [Boolean] If set to true no errors will be raised
     #        for non-existing objects.
     # @return [TrueClass or FalseClass] true if marked, false otherwise
@@ -205,8 +205,8 @@ module PEROBS
 
     # Write a string of bytes into the file at the given address.
     # @param raw [String] bytes to write
-    # @param address [Fixnum] offset in the file
-    # @return [Fixnum] number of bytes written
+    # @param address [Integer] offset in the file
+    # @return [Integer] number of bytes written
     def write_to_blobs_file(raw, address)
       begin
         File.write(@blobs_file_name, raw, address)
@@ -236,9 +236,9 @@ module PEROBS
 
     # Reserve the bytes needed for the specified number of bytes with the
     # given ID.
-    # @param id [Fixnum or Bignum] ID of the entry
-    # @param bytes [Fixnum] number of bytes for this entry
-    # @return [Fixnum] the start address of the reserved blob
+    # @param id [Integer] ID of the entry
+    # @param bytes [Integer] number of bytes for this entry
+    # @return [Integer] the start address of the reserved blob
     def reserve_bytes(id, bytes, crc32)
       # index of first blob after the last seen entry
       end_of_last_entry = 0
