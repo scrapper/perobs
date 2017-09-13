@@ -422,7 +422,9 @@ describe PEROBS::Store do
     @store.sync
     GC.start
     # Now the Person should be gone from memory.
-    expect(@store.statistics[:in_memory_objects]).to eq(1)
+    # Ruby 2.3 and later has changed the GC so that this does not work
+    # reliably anymore. The GC seems to operate lazyly.
+    #expect(@store.statistics[:in_memory_objects]).to eq(1)
   end
 
   it 'should handle nested constructors' do
