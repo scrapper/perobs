@@ -116,7 +116,8 @@ module PEROBS
       header = FlatFileBlobHeader.new(file, addr, *buf.unpack(FORMAT))
       if id && header.id != id
         PEROBS.log.fatal "Mismatch between FlatFile index and blob file " +
-          "found for entry with ID #{id}/#{header.id}"
+          "found. FlatFile has entry with ID #{header.id} at address " +
+          "#{addr}. Index has ID #{id} for this address."
       end
 
       return header

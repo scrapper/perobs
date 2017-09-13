@@ -70,6 +70,11 @@ module PEROBS
       @node_cache.clear
     end
 
+    # Flush all pending writes to the file system.
+    def sync
+      @nodes.sync
+    end
+
     def set_root(node)
       @root = node
     end

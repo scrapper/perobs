@@ -116,6 +116,7 @@ module PEROBS
         PEROBS.log.fatal "Cannot sync flat file database: #{e.message}"
       end
       @index.sync
+      @space_list.sync
     end
 
     # Delete the blob for the specified ID.
@@ -550,11 +551,21 @@ module PEROBS
 
       each_blob_header do |pos, header|
         if header.is_valid?
-          @index.insert(header.id, pos)
+          if (duplicate_pos = @index.get(header.id))
+            PEROBS.log.error "FlatFile contains multiple blobs for ID " +
+              "#{header.id}. First blob is at address #{duplicate_pos}. " +
+              "Other blob found at address #{pos}."
+            @space_list.add_space(pos, header.length) if header.length > 0
+            discard_damaged_blob(header)
+          else
+            @index.insert(header.id, pos)
+          end
         else
           @space_list.add_space(pos, header.length) if header.length > 0
         end
       end
+
+      sync
     end
 
     def has_space?(address, size)
