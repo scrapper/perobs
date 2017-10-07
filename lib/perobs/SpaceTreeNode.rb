@@ -51,43 +51,97 @@ module PEROBS
     # Create a new SpaceTreeNode object. If node_address is not nil, the data
     # will be read from the SpaceTree file at the given node_address.
     # @param tree [SpaceTree] Tree that the object should belong to
-    # @param parent [SpaceTreeNode] Parent node in the tree
     # @param node_address [Integer] Address of the node in the file
     # @param blob_address [Integer] Address of the free space blob
     # @param size [Integer] Size of the free space blob
-    def initialize(tree, parent = nil, node_address = nil, blob_address = 0,
-                   size = 0)
+    # @param parent [SpaceTreeNode] Parent node in the tree
+    # @param smaller [SpaceTreeNode] smaller node in the tree
+    # @param equal [SpaceTreeNode] equal node in the tree
+    # @param larger [SpaceTreeNode] larger node in the tree
+    def initialize(tree, node_address, blob_address = 0, size = 0,
+                   parent = nil, smaller = nil, equal = nil, larger = nil)
       @tree = tree
-      if blob_address < 0
+      if node_address <= 0
         PEROBS.log.fatal "Node address (#{node_address}) must be larger than 0"
+      end
+      @node_address = node_address
+      if blob_address < 0
+        PEROBS.log.fatal "Blob address (#{node_address}) must be larger than 0"
       end
       @blob_address = blob_address
       @size = size
-      @smaller = @equal = @larger = nil
-      @node_address = node_address
+      @parent = parent
+      @smaller = smaller
+      @equal = equal
+      @larger = larger
 
-      unless node_address.nil? || node_address.is_a?(Integer)
-        PEROBS.log.fatal "node_address is not Integer: #{node_address.class}"
+      ObjectSpace.define_finalizer(
+        self, SpaceTreeNode._finalize(@tree, @node_address))
+      @tree.cache.insert_unmodified(self)
+    end
+
+    # This method generates the destructor for the objects of this class. It
+    # is done this way to prevent the Proc object hanging on to a reference to
+    # self which would prevent the object from being collected. This internal
+    # method is not intended for users to call.
+    def SpaceTreeNode._finalize(tree, node_address)
+      proc { tree.cache._collect(node_address) }
+    end
+
+    # Create a new SpaceTreeNode. This method should be used for the creation
+    # of new nodes instead of calling the constructor directly.
+    # @param tree [SpaceTree] The tree the node should belong to
+    # @param node_address [Integer] Address of the node in the file
+    # @param blob_address [Integer] Address of the free space blob
+    # @param size [Integer] Size of the free space blob
+    # @param parent [SpaceTreeNode] Parent node in the tree
+    def SpaceTreeNode::create(tree, blob_address = 0, size = 0, parent = nil)
+      node_address = tree.nodes.free_address
+
+      node = SpaceTreeNode.new(tree, node_address, blob_address, size, parent)
+      node.save
+
+      node
+    end
+
+    # Restore a node from the backing store at the given address and tree.
+    # @param tree [SpaceTree] The tree the node belongs to
+    # @param node_address [Integer] The address in the file.
+    def SpaceTreeNode::load(tree, node_address)
+      unless node_address > 0
+        PEROBS.log.fatal "node_address (#{node_address}) must be larger than 0"
+      end
+      unless (bytes = tree.nodes.retrieve_blob(node_address))
+        PEROBS.log.fatal "SpaceTreeNode at address #{node_address} does " +
+          "not exist"
       end
 
-      if node_address
-        # This must be an existing node. Try to read it and fill the instance
-        # variables.
-        if size != 0
-          PEROBS.log.fatal "If node_address is not nil size must be 0"
-        end
-        if blob_address != 0
-          PEROBS.log.fatal "If node_address is not nil blob_address must be 0"
-        end
-        unless read_node
-          PEROBS.log.fatal "SpaceTree node at address #{node_address} " +
-            "does not exist"
-        end
-      else
-        # This is a new node. Make sure the data is written to the file.
-        @node_address = @tree.nodes.free_address
-        self.parent = parent
-      end
+      blob_address, size, parent_node_address,
+        smaller_node_address, equal_node_address,
+        larger_node_address = bytes.unpack(NODE_BYTES_FORMAT)
+
+      parent = parent_node_address != 0 ?
+        SpaceTreeNodeLink.new(tree, parent_node_address) : nil
+      smaller = smaller_node_address != 0 ?
+        SpaceTreeNodeLink.new(tree, smaller_node_address) : nil
+      equal = equal_node_address != 0 ?
+        SpaceTreeNodeLink.new(tree, equal_node_address) : nil
+      larger = larger_node_address != 0 ?
+        SpaceTreeNodeLink.new(tree, larger_node_address) : nil
+
+      node = SpaceTreeNode.new(tree, node_address, blob_address, size,
+                               parent, smaller, equal, larger)
+
+      node
+    end
+
+    def save
+      bytes = [ @blob_address, @size,
+                @parent ? @parent.node_address : 0,
+                @smaller ? @smaller.node_address : 0,
+                @equal ? @equal.node_address : 0,
+                @larger ? @larger.node_address : 0].pack(NODE_BYTES_FORMAT)
+      @tree.nodes.store_blob(@node_address, bytes)
     end
 
     # Add a new node for the given address and size to the tree.
@@ -110,7 +164,7 @@ module PEROBS
             # There is no smaller node yet, so we create a new one as a
             # smaller child of the current node.
             node.set_link('@smaller',
-                          @tree.new_node(node, address, size))
+                          SpaceTreeNode::create(@tree, address, size, node))
             break
           end
         elsif size > node.size
@@ -122,13 +176,13 @@ module PEROBS
             # There is no larger node yet, so we create a new one as a larger
             # child of the current node.
             node.set_link('@larger',
-                          @tree.new_node(node, address, size))
+                          SpaceTreeNode::create(@tree, address, size, node))
             break
           end
         else
           # Same size as current node. Insert new node as equal child at top of
           # equal list.
-          new_node = @tree.new_node(node, address, size)
+          new_node = SpaceTreeNode::create(@tree, address, size, node)
           new_node.set_link('@equal', node.equal)
 
           node.set_link('@equal', new_node)
@@ -147,7 +201,7 @@ module PEROBS
       node = self
       loop do
         if node.blob_address == address
-          return true
+          return size == node.size
         elsif size < node.size && node.smaller
           node = node.smaller
         elsif size > node.size && node.larger
@@ -242,7 +296,7 @@ module PEROBS
         PEROBS.log.fatal "Cannot unlink unknown child node with address " +
           "#{child_node.node_address} from #{to_s}"
       end
-      write_node
+      @tree.cache.insert_modified(self)
     end
 
     # Depth-first iterator for all nodes. The iterator yields the given block
@@ -339,7 +393,7 @@ module PEROBS
           @parent.set_link('@larger', node)
         else
           PEROBS.log.fatal "Cannot relink unknown child node with address " +
-            "#{node.node_address} from #{to_s}"
+            "#{node.node_address} from #{parent.to_s}"
         end
       else
         if node
@@ -382,7 +436,7 @@ module PEROBS
     def set_size_and_address(size, address)
       @size = size
       @blob_address = address
-      write_node
+      @tree.cache.insert_modified(self)
     end
 
     def set_link(name, node_or_address)
@@ -398,12 +452,12 @@ module PEROBS
         # Clear the node link.
         instance_variable_set(name, nil)
       end
-      write_node
+      @tree.cache.insert_modified(self)
     end
 
     def parent=(p)
       @parent = p ? SpaceTreeNodeLink.new(@tree, p) : nil
-      write_node
+      @tree.cache.insert_modified(self)
     end
     # Compare this node to another node.
     # @return [Boolean] true if node address is identical, false otherwise
@@ -631,40 +685,6 @@ module PEROBS
       end
 
       str
-    end
-
-    private
-
-    def write_node
-      bytes = [ @blob_address, @size,
-                @parent ? @parent.node_address : 0,
-                @smaller ? @smaller.node_address : 0,
-                @equal ? @equal.node_address : 0,
-                @larger ? @larger.node_address : 0].pack(NODE_BYTES_FORMAT)
-      @tree.nodes.store_blob(@node_address, bytes)
-    end
-
-    def read_node
-      unless @node_address > 0
-        PEROBS.log.fatal "@node_address must be larger than 0"
-      end
-      return false unless (bytes = @tree.nodes.retrieve_blob(@node_address))
-
-      @blob_address, @size, parent_node_address,
-        smaller_node_address, equal_node_address,
-        larger_node_address = bytes.unpack(NODE_BYTES_FORMAT)
-      # The parent address can also be 0 as the parent can rightly point back
-      # to the root node which always has the address 0.
-      @parent = parent_node_address != 0 ?
-        SpaceTreeNodeLink.new(@tree, parent_node_address) : nil
-      @smaller = smaller_node_address != 0 ?
-        SpaceTreeNodeLink.new(@tree, smaller_node_address) : nil
-      @equal = equal_node_address != 0 ?
-        SpaceTreeNodeLink.new(@tree, equal_node_address) : nil
-      @larger = larger_node_address != 0 ?
-        SpaceTreeNodeLink.new(@tree, larger_node_address) : nil
-
-      true
     end
 
   end

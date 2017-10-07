@@ -40,7 +40,7 @@ module PEROBS
   # size which drastically simplifies the backing store operation.
   class SpaceTree
 
-    attr_reader :nodes
+    attr_reader :nodes, :cache
 
     # Manage the free spaces tree in the specified directory
     # @param dir [String] directory path of an existing directory
@@ -51,34 +51,44 @@ module PEROBS
       @nodes = EquiBlobsFile.new(@dir, 'database_spaces',
                                  SpaceTreeNode::NODE_BYTES, 1)
 
-      @node_cache = SpaceTreeNodeCache.new(128)
+      @cache = SpaceTreeNodeCache.new(self, 128)
     end
 
     # Open the SpaceTree file.
     def open
       @nodes.open
-      @node_cache.clear
-      @root = SpaceTreeNode.new(self, nil, @nodes.total_entries == 0 ?
-                                           nil : @nodes.first_entry)
-      @node_cache.insert(@root)
+      @cache.clear
+      node = @nodes.total_entries == 0 ?
+        SpaceTreeNode::create(self) :
+        SpaceTreeNode::load(self, @nodes.first_entry)
+      @root_address = node.node_address
     end
 
     # Close the SpaceTree file.
     def close
+      @cache.flush
       @nodes.close
-      @root = nil
-      @node_cache.clear
+      @root_address = nil
+      @cache.clear
     end
 
     # Flush all pending writes to the file system.
     def sync
+      @cache.flush
       @nodes.sync
     end
 
+    # Set a new root node for the SpaceTree
+    # @param node [SpaceTreeNode]
     def set_root(node)
-      @root = node
+      @root_address = node.node_address
+      @nodes.first_entry = node.node_address
     end
 
+    # Return the SpaceTreeNode that is the root of the SpaceTree.
+    def root
+      @root_address ? @cache.get(@root_address) : nil
+    end
 
     # Erase the SpaceTree file. This method cannot be called while the file is
     # open.
@@ -93,7 +103,11 @@ module PEROBS
       if size <= 0
         PEROBS.log.fatal "Size (#{size}) must be larger than 0."
       end
-      @root.add_space(address, size)
+      if has_space?(address, size)
+        PEROBS.log.fatal "The space with address #{address} and size #{size} " +
+          "can't be added twice."
+      end
+      root.add_space(address, size)
     end
 
     # Get a space that has at least the requested size.
@@ -104,10 +118,10 @@ module PEROBS
         PEROBS.log.fatal "Size (#{size}) must be larger than 0."
       end
 
-      if (address_size = @root.find_matching_space(size))
+      if (address_size = root.find_matching_space(size))
         # First we try to find an exact match.
         return address_size
-      elsif (address_size = @root.find_equal_or_larger_space(size))
+      elsif (address_size = root.find_equal_or_larger_space(size))
         return address_size
       else
         return nil
@@ -117,38 +131,15 @@ module PEROBS
     # Delete the node at the given address in the SpaceTree file.
     # @param address [Integer] address in file
     def delete_node(address)
-      @node_cache.delete(address)
+      @cache.delete(address)
       @nodes.delete_blob(address)
     end
 
     # Clear all pools and forget any registered spaces.
     def clear
       @nodes.clear
-      @node_cache.clear
-      @root = SpaceTreeNode.new(self)
-      @node_cache.insert(@root)
-    end
-
-    # Create a new SpaceTreeNode.
-    # @param parent [SpaceTreeNode] parent node
-    # @param blob_address [Integer] address of the free space
-    # @param size [Integer] size of the free space
-    def new_node(parent, blob_address, size)
-      node = SpaceTreeNode.new(self, parent, nil, blob_address, size)
-      @node_cache.insert(node)
-    end
-
-    # Return the SpaceTreeNode that matches the given node address. If a blob
-    # address and size are given, a new node is created instead of being read
-    # from the file.
-    # @param node_address [Integer] Address of the node in the SpaceTree file
-    # @return [SpaceTreeNode]
-    def get_node(node_address)
-      if (node = @node_cache.get(node_address))
-        return node
-      end
-
-      @node_cache.insert(SpaceTreeNode.new(self, nil, node_address))
+      @cache.clear
+      @root_address = SpaceTreeNode::create(self).node_address
     end
 
     # Check if there is a space in the free space lists that matches the
@@ -157,7 +148,7 @@ module PEROBS
     # @param [Integer] size Length of the space in bytes
     # @return [Boolean] True if space is found, false otherwise
     def has_space?(address, size)
-      @root.has_space?(address, size)
+      root.has_space?(address, size)
     end
 
     # Check if the index is OK and matches the flat_file data (if given).
@@ -165,19 +156,28 @@ module PEROBS
     # @return True if space list matches, flase otherwise
     def check(flat_file = nil)
       @nodes.check
-      @root.check(flat_file)
+      root.check(flat_file)
+    end
+
+    # Iterate over all entries and yield address and size.
+    def each
+      root.each do |node, mode, stack|
+        if mode == :on_enter
+          yield(node.blob_address, node.size)
+        end
+      end
     end
 
     # Complete internal tree data structure as textual tree.
     # @return [String]
     def to_s
-      @root.to_tree_s
+      root.to_tree_s
     end
 
     # Convert the tree into an Array of [address, size] touples.
     # @return [Array]
     def to_a
-      @root.to_a
+      root.to_a
     end
 
   end

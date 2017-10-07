@@ -94,7 +94,7 @@ module PEROBS
     private
 
     def get_node
-      @tree.get_node(@node_address)
+      @tree.cache.get(@node_address)
     end
 
   end

@@ -139,14 +139,8 @@ module PEROBS
     # @param file [File] The file handle of the blob file.
     # @param addr [Integer] The address of the header
     def clear_flags
-      begin
-        @file.seek(@addr)
-        @file.write([ 0 ].pack('C'))
-        @file.flush
-      rescue IOError => e
-        PEROBS.log.fatal "Clearing flags of FlatFileBlobHeader with ID " +
-          "#{@id} failed: #{e.message}"
-      end
+      @flags = 0
+      write_flags
     end
 
     # Return true if the header is for a non-empty blob.

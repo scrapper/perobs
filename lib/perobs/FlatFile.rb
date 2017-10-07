@@ -196,7 +196,7 @@ module PEROBS
           header = FlatFileBlobHeader.read_at(@f, addr)
           if header.length != length
             PEROBS.log.fatal "Length in free list (#{length}) and header " +
-              "(#{header.length}) don't match."
+              "(#{header.length}) for address #{addr} don't match."
           end
           if raw_obj.length > header.length
             PEROBS.log.fatal "Object (#{raw_obj.length}) is longer than " +
@@ -209,6 +209,12 @@ module PEROBS
         end
         flags = 1 << FlatFileBlobHeader::VALID_FLAG_BIT
         flags |= (1 << FlatFileBlobHeader::COMPRESSED_FLAG_BIT) if compressed
+        if old_addr && old_header.is_marked?
+          # This method might be called in the middle of an operation that
+          # uses the mark flag. We must ensure that the flag is carried over
+          # to the new header.
+          flags |= (1 << FlatFileBlobHeader::MARK_FLAG_BIT)
+        end
         FlatFileBlobHeader.new(@f, addr, flags, raw_obj.length, id, crc).write
         @f.write(raw_obj)
         if length != -1 && raw_obj.length < length
@@ -227,15 +233,19 @@ module PEROBS
           # Register the new space with the space list.
           @space_list.add_space(space_address, space_length) if space_length > 0
         end
+
+        # Once the blob has been written we can update the index as well.
+        @index.insert(id, addr)
+
         if old_addr
           # If we had an existing object stored for the ID we have to mark
           # this entry as deleted now.
           old_header.clear_flags
+          # And register the newly freed space with the space list.
+          @space_list.add_space(old_addr, old_header.length)
         else
           @f.flush
         end
-        # Once the blob has been written we can update the index as well.
-        @index.insert(id, addr)
       rescue IOError => e
         PEROBS.log.fatal "Cannot write blob for ID #{id} to FlatFileDB: " +
           e.message
@@ -570,12 +580,12 @@ module PEROBS
 
     def has_space?(address, size)
       header = FlatFileBlobHeader.read_at(@f, address)
-      header.length == size
+      !header.is_valid? && header.length == size
     end
 
     def has_id_at?(id, address)
       header = FlatFileBlobHeader.read_at(@f, address)
-      header.id == id
+      header.is_valid? && header.id == id
     end
 
     def inspect

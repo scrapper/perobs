@@ -26,7 +26,6 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 require 'set'
-require 'weakref'
 
 require 'perobs/Log'
 require 'perobs/Handle'
@@ -314,11 +313,12 @@ module PEROBS
       if (obj = @in_memory_objects[id])
         # We have the object in memory so we can just return it.
         begin
-          return obj.__getobj__
-        rescue WeakRef::RefError
+          return ObjectSpace._id2ref(obj)
+        rescue RangeError
           # Due to a race condition the object can still be in the
           # @in_memory_objects list but has been collected already by the Ruby
           # GC. In that case we need to load it again.
+          @in_memory_objects.delete(id)
         end
       end
 
@@ -456,7 +456,7 @@ module PEROBS
     # @param obj [BasicObject] Object to register
     # @param id [Integer] object ID
     def _register_in_memory(obj, id)
-      @in_memory_objects[id] = WeakRef.new(obj)
+      @in_memory_objects[id] = obj.object_id
     end
 
     # Remove the object from the in-memory list. This is an internal method

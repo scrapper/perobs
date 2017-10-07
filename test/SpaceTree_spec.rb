@@ -94,12 +94,12 @@ EOT
   end
 
   it 'should find the smallest node' do
-    node = @m.instance_variable_get('@root').find_smallest_node
+    node = @m.root.find_smallest_node
     expect(node.size).to eql(2)
   end
 
   it 'should find the largest node' do
-    node = @m.instance_variable_get('@root').find_largest_node
+    node = @m.root.find_largest_node
     expect(node.size).to eql(32)
     expect(node.node_address).to eql(5)
     expect(node.parent.size).to eql(16)
@@ -119,12 +119,14 @@ EOT
     add_sizes([ 10, 5, 15, 10 ])
     expect(@m.to_a).to eql([[0, 10], [1, 5], [3, 10], [2, 15]])
     expect(@m.get_space(10)).to eql([0, 10])
+    expect(@m.to_a).to eql([[3, 10], [1, 5], [2, 15]])
 
     @m.clear
     add_sizes([ 10, 5, 15, 10, 10 ])
     expect(@m.to_a).to eql([[0, 10], [1, 5], [4, 10], [3, 10], [2, 15]])
     expect(@m.get_space(10)).to eql([0, 10])
     expect(@m.get_space(10)).to eql([4, 10])
+    expect(@m.to_a).to eql([[3, 10], [1, 5], [2, 15]])
   end
 
   it 'should delete a smaller node' do
@@ -208,14 +210,15 @@ EOT
   it 'should support a real-world traffic pattern' do
     address = 0
     spaces = []
-    0.upto(500) do
-      case rand(3)
+    @m.clear
+    0.upto(1000) do
+      case rand(4)
       when 0
         # Insert new values
         rand(9).times do
           size = 20 + rand(5000)
           @m.add_space(address, size)
-          spaces << [address, size]
+          spaces << [ address, size ]
           address += size
         end
       when 1
@@ -228,9 +231,21 @@ EOT
           end
         end
       when 2
-        expect(@m.check).to be true
-        spaces.each do |address, size|
-          expect(@m.has_space?(address, size)).to be true
+        if rand(10) == 0
+          expect(@m.check).to be true
+          spaces.each do |address, size|
+            expect(@m.has_space?(address, size)).to be true
+          end
+          @m.each do |address, size|
+            expect(spaces.include?([ address, size ])).to be true
+          end
+        end
+      when 3
+        if rand(100) == 0
+          expect(@m.check).to be true
+          @m.close
+          @m.open
+          expect(@m.check).to be true
         end
       end
     end

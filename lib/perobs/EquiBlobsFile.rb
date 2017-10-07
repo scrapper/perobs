@@ -45,13 +45,13 @@ module PEROBS
     FIRST_SPACE_OFFSET = 3 * 8
     HEADER_SIZE = 4 * 8
 
-    attr_reader :total_entries, :total_spaces, :file_name
-    attr_accessor :first_entry
+    attr_reader :total_entries, :total_spaces, :file_name, :first_entry
 
     # Create a new stack file in the given directory with the given file name.
     # @param dir [String] Directory
     # @param name [String] File name
     # @param entry_bytes [Integer] Number of bytes each entry must have
+    # @param first_entry_default [Integer] Default address of the first blob
     def initialize(dir, name, entry_bytes, first_entry_default = 0)
       @file_name = File.join(dir, name + '.blobs')
       if entry_bytes < 8
@@ -122,6 +122,13 @@ module PEROBS
       @f.truncate(0)
       @f.flush
       reset_counters
+      write_header
+    end
+
+    # Change the address of the first blob.
+    # @param address [Integer] New address
+    def first_entry=(address)
+      @first_entry = address
       write_header
     end
 
