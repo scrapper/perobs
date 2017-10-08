@@ -53,42 +53,93 @@ module PEROBS
     #        backing store
     # @param is_leaf [Boolean] true if the node should be a leaf node, false
     #        if not
-    def initialize(tree, parent = nil, node_address = nil, is_leaf = true)
+    def initialize(tree, node_address = nil, parent = nil, is_leaf = true,
+                   keys = [], values = [], children = [])
       @tree = tree
-      @parent = nil
       if node_address == 0
         PEROBS.log.fatal "Node address may not be 0"
       end
       @node_address = node_address
-      @keys = []
+      @parent = parent ? BTreeNodeLink.new(tree, parent) : nil
+      @keys = keys
       if (@is_leaf = is_leaf)
-        @values = []
+        @values = values
       else
-        @children = []
+        @children = children
+      end
+      @dirty = false
+    end
+
+    def BTreeNode::create(tree, parent = nil, is_leaf = true)
+      unless parent.nil? || parent.is_a?(BTreeNode) ||
+             parent.is_a?(BTreeNodeLink)
+        PEROBS.log.fatal "Parent node must be a BTreeNode but is of class " +
+          "#{parent.class}"
       end
 
-      if node_address
-        unless node_address.is_a?(Integer)
-          PEROBS.log.fatal "node_address is not Integer: #{node_address.class}"
-        end
+      address = tree.nodes.free_address
+      node = BTreeNode.new(tree, address, parent, is_leaf)
+      # This is a new node. Make sure the data is written to the file.
+      tree.node_cache.insert(node)
+      tree.node_cache.mark_as_modified(node)
 
-        # This must be an existing node. Try to read it and fill the instance
-        # variables.
-        unless read_node
-          PEROBS.log.fatal "SpaceTree node at address #{node_address} " +
-            "does not exist"
-        end
-      else
-        unless parent.nil? || parent.is_a?(BTreeNode) ||
-               parent.is_a?(BTreeNodeLink)
-          PEROBS.log.fatal "Parent node must be a BTreeNode but is of class " +
-            "#{parent.class}"
-        end
+      node
+    end
 
-        # This is a new node. Make sure the data is written to the file.
-        @node_address = @tree.nodes.free_address
-        self.parent = parent
+    def BTreeNode::load(tree, address)
+      unless address.is_a?(Integer)
+        PEROBS.log.fatal "address is not Integer: #{address.class}"
       end
+
+      unless (bytes = tree.nodes.retrieve_blob(address))
+        PEROBS.log.fatal "SpaceTree node at address #{address} " +
+          "does not exist"
+      end
+
+      unless Zlib::crc32(bytes) != 0
+        PEROBS.log.fatal "Checksum failure in BTreeNode entry @#{address}"
+      end
+      ary = bytes.unpack(BTreeNode::node_bytes_format(tree))
+      # Read is_leaf
+      if ary[0] != 0 && ary[0] != 1
+        PEROBS.log.fatal "First byte of a BTreeNode entry must be 0 or 1"
+      end
+      is_leaf = ary[0] == 0 ? false : true
+      # This is the number of keys this node has.
+      key_count = ary[1]
+      data_count = ary[2]
+      # Read the parent node address
+      parent = ary[3] == 0 ? nil : BTreeNodeLink.new(tree, ary[3])
+      # Read the keys
+      keys = ary[4, key_count]
+
+      children = nil
+      values = nil
+      if is_leaf
+        # Read the values
+        values = ary[4 + tree.order, data_count]
+      else
+        # Read the child addresses
+        children = []
+        data_count.times do |i|
+          child_address = ary[4 + tree.order + i]
+          unless child_address > 0
+            PEROBS.log.fatal "Child address must be larger than 0"
+          end
+          children << BTreeNodeLink.new(tree, child_address)
+        end
+      end
+
+      node = BTreeNode.new(tree, address, parent, is_leaf, keys, values,
+                           children)
+      tree.node_cache.insert(node)
+
+      node
+    end
+
+    def BTreeNode::node_bytes_format(tree)
+      # This does not include the 4 bytes for the CRC32 checksum
+      "CSSQQ#{tree.order}Q#{tree.order + 1}"
     end
 
     def BTreeNode::node_bytes(order)
@@ -99,6 +150,10 @@ module PEROBS
       8 * order + # keys
       8 * (order + 1) + # values or child addresses
       4 # CRC32 checksum
+    end
+
+    def save
+      write_node
     end
 
     # Insert or replace the given value by using the key as unique address.
@@ -186,14 +241,14 @@ module PEROBS
     def split_node
       unless @parent
         # The node is the root node. We need to create a parent node first.
-        self.parent = @tree.new_node(nil, nil, false)
+        self.parent = BTreeNode::create(@tree, nil, false)
         @parent.set_child(0, self)
         @tree.set_root(@parent)
       end
 
       # Create the new sibling that will take the 2nd half of the
       # node content.
-      sibling = @tree.new_node(@parent, nil, @is_leaf)
+      sibling = BTreeNode::create(@tree, @parent, @is_leaf)
       # Determine the index of the middle element that gets moved to the
       # parent. The order must be an uneven number, so adding 1 will get us
       # the middle element.
@@ -620,7 +675,7 @@ module PEROBS
         ary += @children.map{ |c| c.node_address } +
           ::Array.new(@tree.order + 1 - @children.size, 0)
       end
-      bytes = ary.pack(node_bytes_format)
+      bytes = ary.pack(BTreeNode::node_bytes_format(@tree))
       bytes += [ Zlib::crc32(bytes) ].pack('L')
       @tree.nodes.store_blob(@node_address, bytes)
       @dirty = false
@@ -640,7 +695,7 @@ module PEROBS
         PEROBS.log.error "Checksum failure in BTreeNode entry @#{node_address}"
         return false
       end
-      ary = bytes.unpack(node_bytes_format)
+      ary = bytes.unpack(BTreeNode::node_bytes_format(@tree))
       # Read is_leaf
       if ary[0] != 0 && ary[0] != 1
         PEROBS.log.error "First byte of a BTreeNode entry must be 0 or 1"
@@ -673,11 +728,6 @@ module PEROBS
       @dirty = false
 
       true
-    end
-
-    def node_bytes_format
-      # This does not include the 4 bytes for the CRC32 checksum
-      "CSSQQ#{@tree.order}Q#{@tree.order + 1}"
     end
 
     def find_closest_siblings(key)

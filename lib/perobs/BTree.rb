@@ -40,7 +40,7 @@ module PEROBS
   # have N + 1 references to child nodes instead.
   class BTree
 
-    attr_reader :order, :nodes
+    attr_reader :order, :nodes, :node_cache
 
     # Create a new BTree object.
     # @param dir [String] Directory to store the tree file
@@ -89,8 +89,10 @@ module PEROBS
 
       @node_cache.clear
       @nodes.open
-      set_root(new_node(nil, @nodes.total_entries == 0 ?
-                             nil : @nodes.first_entry))
+      node = @nodes.total_entries == 0 ?
+        BTreeNode::create(self) :
+        BTreeNode::load(self, @nodes.first_entry)
+      set_root(node)
     end
 
     # Close the tree file.
@@ -104,7 +106,7 @@ module PEROBS
     def clear
       @node_cache.clear
       @nodes.clear
-      set_root(new_node(nil))
+      set_root(BTreeNode::create(self))
     end
 
     # Erase the backing store of the BTree. This method should only be called
@@ -201,19 +203,6 @@ module PEROBS
       @root.to_s
     end
 
-    # Create a new BTreeNode. If the node_address is not nil, the node data is
-    # read from the backing store. The parent and is_leaf arguments are
-    # ignored in this case.
-    # @param parent [BTreeNode] parent node
-    # @param node_address [Integer or nil] address of the node to create
-    # @param is_leaf[Boolean] True if node is a leaf node, false otherweise
-    def new_node(parent, node_address = nil, is_leaf = true)
-      node = BTreeNode.new(self, parent, node_address, is_leaf)
-      @node_cache.insert(node)
-
-      node
-    end
-
     # Return the BTreeNode that matches the given node address. If a blob
     # address and size are given, a new node is created instead of being read
     # from the file.
@@ -224,7 +213,7 @@ module PEROBS
         return node
       end
 
-      new_node(nil, node_address)
+      BTreeNode::load(self, node_address)
     end
 
   end

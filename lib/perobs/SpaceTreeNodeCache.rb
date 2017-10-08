@@ -1,6 +1,6 @@
 # encoding: UTF-8
 #
-# = SpaceTree.rb -- Persistent Ruby Object Store
+# = SpaceTreeNodeCache.rb -- Persistent Ruby Object Store
 #
 # Copyright (c) 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
 #
@@ -52,7 +52,8 @@ module PEROBS
     end
 
     # Insert an node into the cache.
-    # @param node [SpaceTreeNode] Unmodified SpaceTreeNode
+    # @param node [SpaceTreeNode] Node to cache
+    # @param modified [Boolean] True if the node was modified, false otherwise
     def insert(node, modified = true)
       # Store the node via its Ruby object ID instead of a direct reference.
       # This allows the node to be collected by the garbage collector.
