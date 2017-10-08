@@ -31,6 +31,11 @@ module PEROBS
 
   class SpaceTreeNodeCache
 
+    # Utility class to store SpaceTreeNode objects and their
+    # modified/not-modified state.
+    class Entry < Struct.new(:node, :modified)
+    end
+
     # Simple cache that can hold up to size SpaceTreeNode entries. Entries are
     # hashed with a simple node_address % size function. This keeps the
     # overhead for managing the cache extremely low yet giving an OK
@@ -38,6 +43,7 @@ module PEROBS
     # still in memory or needs to be reloaded from the file. All node accesses
     # must always go through this cache to avoid having duplicate in-memory
     # nodes for the same on-disk node.
+    # @param tree [SpaceTree] The tree that the cached nodes belong to.
     # @param size [Integer] maximum number of cache entries
     def initialize(tree, size)
       @tree = tree
@@ -45,43 +51,32 @@ module PEROBS
       clear
     end
 
-    # Insert an unmodified node into the cache.
+    # Insert an node into the cache.
     # @param node [SpaceTreeNode] Unmodified SpaceTreeNode
-    def insert_unmodified(node)
+    def insert(node, modified = true)
+      # Store the node via its Ruby object ID instead of a direct reference.
+      # This allows the node to be collected by the garbage collector.
       @in_memory_nodes[node.node_address] = node.object_id
-      @unmodified_nodess[node.node_address % @size] = node
-    end
 
-    # Insert a modified node into the cache.
-    # @param node [SpaceTreeNode] Modified SpaceTreeNode
-    # @param address [Integer] Address of the node in the file
-    def insert_modified(node)
-      @in_memory_nodes[node.node_address] = node.object_id
       index = node.node_address % @size
-      if (old_node = @modified_nodes[index])
-        # If the object is already in the modified object list, we don't have
-        # to do anything.
-        return if old_node.node_address == node.node_address
+      if (entry = @nodes[index]) && entry.modified
+        # If the node entry is already in cache, we don't have to do anything.
+        return if entry.node.node_address == node.node_address
+
         # If the new object will replace an existing entry in the cash we have
         # to save the object first.
-        old_node.save
+        entry.node.save
       end
-
-      @modified_nodes[index] = node
+      @nodes[index] = Entry.new(node, modified)
     end
 
     # Retrieve a node reference from the cache.
     # @param address [Integer] address of the node to retrieve.
     def get(address)
-      node = @unmodified_nodess[address % @size]
-      # We can have collisions. Check if the cached node really matches the
+      entry = @nodes[address % @size]
+      # We may have collisions. Check if the cached node really matches the
       # requested address.
-      return node if node && node.node_address == address
-
-      node = @modified_nodes[address % @size]
-      # We can have collisions. Check if the cached node really matches the
-      # requested address.
-      return node if node && node.node_address == address
+      return entry.node if entry && entry.node.node_address == address
 
       if (obj_id = @in_memory_nodes[address])
         # We have the node in memory so we can just return it.
@@ -90,7 +85,8 @@ module PEROBS
           unless node.node_address == address
             raise RuntimeError, "In memory list is corrupted"
           end
-          insert_unmodified(node)
+          # Let's put the node in the cache. We might need it soon again.
+          insert(node, false)
           return node
         rescue RangeError
           # Due to a race condition the object can still be in the
@@ -111,12 +107,8 @@ module PEROBS
       @in_memory_nodes.delete(address)
 
       index = address % @size
-      if (node = @unmodified_nodess[index]) && node.node_address == address
-        @unmodified_nodess[index] = nil
-      end
-
-      if (node = @modified_nodes[index]) && node.node_address == address
-        @modified_nodes[index] = nil
+      if (entry = @nodes[index]) && entry.node.node_address == address
+        @nodes[index] = nil
       end
     end
 
@@ -131,16 +123,25 @@ module PEROBS
 
     # Write all modified objects into the backing store.
     def flush
-      @modified_nodes.each { |node| node.save if node }
-      @modified_nodes = ::Array.new(@size)
+      @nodes.each do |entry|
+        if entry && entry.modified
+          entry.node.save
+          entry.modified = false
+        end
+      end
     end
 
     # Remove all entries from the cache.
     def clear
-      # A hash that stores all objects by ID that are currently in memory.
+      # A hash that stores all SpaceTreeNode objects by ID that are currently
+      # in memory. Nodes are added via insert() and will be removed via
+      # delete() or _collect() called from a SpaceTreeNode finalizer. It only
+      # stores the node Ruby object ID hashed by their address in the file.
+      # This enables them from being collected by the Ruby garbage collector.
       @in_memory_nodes = {}
-      @unmodified_nodess = ::Array.new(@size)
-      @modified_nodes = ::Array.new(@size)
+      # This is the actual cache. The Array stores nodes as Entry objects to
+      # also store the modified/not-modified state.
+      @nodes = ::Array.new(@size)
     end
 
   end

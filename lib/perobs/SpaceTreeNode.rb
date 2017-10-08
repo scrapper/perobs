@@ -77,7 +77,7 @@ module PEROBS
 
       ObjectSpace.define_finalizer(
         self, SpaceTreeNode._finalize(@tree, @node_address))
-      @tree.cache.insert_unmodified(self)
+      @tree.cache.insert(self, false)
     end
 
     # This method generates the destructor for the objects of this class. It
@@ -296,7 +296,7 @@ module PEROBS
         PEROBS.log.fatal "Cannot unlink unknown child node with address " +
           "#{child_node.node_address} from #{to_s}"
       end
-      @tree.cache.insert_modified(self)
+      @tree.cache.insert(self)
     end
 
     # Depth-first iterator for all nodes. The iterator yields the given block
@@ -436,7 +436,7 @@ module PEROBS
     def set_size_and_address(size, address)
       @size = size
       @blob_address = address
-      @tree.cache.insert_modified(self)
+      @tree.cache.insert(self)
     end
 
     def set_link(name, node_or_address)
@@ -452,12 +452,12 @@ module PEROBS
         # Clear the node link.
         instance_variable_set(name, nil)
       end
-      @tree.cache.insert_modified(self)
+      @tree.cache.insert(self)
     end
 
     def parent=(p)
       @parent = p ? SpaceTreeNodeLink.new(@tree, p) : nil
-      @tree.cache.insert_modified(self)
+      @tree.cache.insert(self)
     end
     # Compare this node to another node.
     # @return [Boolean] true if node address is identical, false otherwise
