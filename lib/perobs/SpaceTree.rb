@@ -51,6 +51,8 @@ module PEROBS
       @nodes = EquiBlobsFile.new(@dir, 'database_spaces',
                                  SpaceTreeNode::NODE_BYTES, 1)
 
+      # Benchmark runs showed a cache size of 128 to be a good compromise
+      # between read and write performance trade-offs and memory consumption.
       @cache = SpaceTreeNodeCache.new(self, 128)
     end
 
