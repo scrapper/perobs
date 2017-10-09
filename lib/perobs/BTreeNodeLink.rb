@@ -132,7 +132,7 @@ module PEROBS
     end
 
     def get_node
-      @tree.get_node(@node_address)
+      @tree.node_cache.get(@node_address)
     end
 
   end

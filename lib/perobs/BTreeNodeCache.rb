@@ -31,11 +31,12 @@ module PEROBS
 
   class BTreeNodeCache
 
-    def initialize
+    def initialize(tree)
+      @tree = tree
       clear
     end
 
-    def [](address)
+    def get(address)
       if (node = @modified_nodes[address])
         return node
       end
@@ -48,7 +49,7 @@ module PEROBS
         return node
       end
 
-      nil
+      BTreeNode::load(@tree, address)
     end
 
     def set_root(node)
@@ -58,12 +59,15 @@ module PEROBS
       @top_nodes[node.node_address] = node
     end
 
-    def insert(node)
+    def insert(node, modified = true)
       unless node
         PEROBS.log.fatal "nil cannot be cached"
       end
       node = node.get_node if node.is_a?(BTreeNodeLink)
 
+      if modified
+        @modified_nodes[node.node_address] = node
+      end
       @ephemeral_nodes[node.node_address] = node
 
       if !@top_nodes.include?(node) && node.is_top?
@@ -71,10 +75,8 @@ module PEROBS
       end
     end
 
-    def mark_as_modified(node)
-      node = node.get_node if node.is_a?(BTreeNodeLink)
-      @modified_nodes[node.node_address] = node
-      insert(node)
+    def _collect(address)
+      # Just a dummy for now
     end
 
     # Remove a node from the cache.

@@ -64,7 +64,7 @@ module PEROBS
       # This EquiBlobsFile contains the nodes of the BTree.
       @nodes = EquiBlobsFile.new(@dir, @name,
                                  BTreeNode::node_bytes(@order))
-      @node_cache = BTreeNodeCache.new
+      @node_cache = BTreeNodeCache.new(self)
 
       # This BTree implementation uses a write cache to improve write
       # performance of multiple successive read/write operations. This also
@@ -180,17 +180,6 @@ module PEROBS
       @root.each(&block)
     end
 
-    # Mark the given node as being modified. This will cause the dirty_flag
-    # lock to be taken and the @is_dirty flag to be set.
-    # @param node [BTreeNode] node to mark
-    def mark_node_as_modified(node)
-      unless @is_dirty
-        @dirty_flag.lock
-        @is_dirty = true
-      end
-      @node_cache.mark_as_modified(node)
-    end
-
     # Delete the node at the given address in the BTree file.
     # @param address [Integer] address in file
     def delete_node(address)
@@ -201,19 +190,6 @@ module PEROBS
     # @return [String] Human reable form of the tree.
     def to_s
       @root.to_s
-    end
-
-    # Return the BTreeNode that matches the given node address. If a blob
-    # address and size are given, a new node is created instead of being read
-    # from the file.
-    # @param node_address [Integer] Address of the node in the BTree file
-    # @return [BTreeNode]
-    def get_node(node_address)
-      if (node = @node_cache[node_address])
-        return node
-      end
-
-      BTreeNode::load(self, node_address)
     end
 
   end

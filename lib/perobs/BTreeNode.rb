@@ -40,7 +40,6 @@ module PEROBS
   class BTreeNode
 
     attr_reader :node_address, :parent, :is_leaf, :keys, :values, :children
-    attr_accessor :dirty
 
     # Create a new BTreeNode object for the given tree with the given parent
     # or recreate the node with the given node_address from the backing store.
@@ -64,12 +63,31 @@ module PEROBS
       @keys = keys
       if (@is_leaf = is_leaf)
         @values = values
+        @children = []
       else
         @children = children
+        @values = []
       end
-      @dirty = false
+
+      ObjectSpace.define_finalizer(
+        self, BTreeNode._finalize(@tree, @node_address))
+      @tree.node_cache.insert(self, false)
     end
 
+    # This method generates the destructor for the objects of this class. It
+    # is done this way to prevent the Proc object hanging on to a reference to
+    # self which would prevent the object from being collected. This internal
+    # method is not intended for users to call.
+    def BTreeNode::_finalize(tree, node_address)
+      proc { tree.cache._collect(node_address) }
+    end
+
+    # Create a new SpaceTreeNode. This method should be used for the creation
+    # of new nodes instead of calling the constructor directly.
+    # @param tree [BTree] The tree the new node should belong to
+    # @param parent [BTreeNode] The parent node
+    # @param is_leaf [Boolean] True if the node has no children, false
+    #        otherwise
     def BTreeNode::create(tree, parent = nil, is_leaf = true)
       unless parent.nil? || parent.is_a?(BTreeNode) ||
              parent.is_a?(BTreeNodeLink)
@@ -81,11 +99,13 @@ module PEROBS
       node = BTreeNode.new(tree, address, parent, is_leaf)
       # This is a new node. Make sure the data is written to the file.
       tree.node_cache.insert(node)
-      tree.node_cache.mark_as_modified(node)
 
       node
     end
 
+    # Restore a node from the backing store at the given address and tree.
+    # @param tree [BTree] The tree the node belongs to
+    # @param node_address [Integer] The address in the blob file.
     def BTreeNode::load(tree, address)
       unless address.is_a?(Integer)
         PEROBS.log.fatal "address is not Integer: #{address.class}"
@@ -132,16 +152,18 @@ module PEROBS
 
       node = BTreeNode.new(tree, address, parent, is_leaf, keys, values,
                            children)
-      tree.node_cache.insert(node)
+      tree.node_cache.insert(node, false)
 
       node
     end
 
+    # @return [String] The format used for String.pack.
     def BTreeNode::node_bytes_format(tree)
       # This does not include the 4 bytes for the CRC32 checksum
       "CSSQQ#{tree.order}Q#{tree.order + 1}"
     end
 
+    # @return [Integer] The number of bytes needed to store a node.
     def BTreeNode::node_bytes(order)
       1 + # is_leaf
       2 + # actual key count
@@ -152,6 +174,7 @@ module PEROBS
       4 # CRC32 checksum
     end
 
+    # Save the node into the blob file.
     def save
       write_node
     end
@@ -284,7 +307,7 @@ module PEROBS
         PEROBS.log.fatal "Cannot insert into a full BTreeNode"
       end
 
-      mark_as_modified
+      @tree.node_cache.insert(self)
       i = search_key_index(key)
       if @keys[i] == key
         # Overwrite existing entries
@@ -311,7 +334,7 @@ module PEROBS
       first_key = @keys[0]
       removed_value = nil
 
-      mark_as_modified
+      @tree.node_cache.insert(self)
       # Delete the key at the specified index.
       unless @keys.delete_at(index)
         PEROBS.log.fatal "Could not remove element #{index} from BTreeNode " +
@@ -356,7 +379,7 @@ module PEROBS
       end
 
       dest_node.keys[dst_idx, count] = @keys[src_idx, count]
-      dest_node.dirty = true
+      @tree.node_cache.insert(dest_node)
       if @is_leaf
         # For leaves we copy the keys and corresponding values.
         dest_node.values[dst_idx, count] = @values[src_idx, count]
@@ -372,7 +395,7 @@ module PEROBS
 
     def parent=(p)
       @parent = p ? BTreeNodeLink.new(@tree, p) : nil
-      mark_as_modified
+      @tree.node_cache.insert(self)
     end
 
     def set_child(index, child)
@@ -382,11 +405,11 @@ module PEROBS
       else
         @children[index] = nil
       end
-      mark_as_modified
+      @tree.node_cache.insert(self)
     end
 
     def trim(idx)
-      mark_as_modified
+      @tree.node_cache.insert(self)
       @keys = @keys[0..idx - 1]
       if @is_leaf
         @values = @values[0..idx - 1]
@@ -653,8 +676,6 @@ module PEROBS
     end
 
     def write_node
-      return unless @dirty
-
       ary = [
         @is_leaf ? 1 : 0,
         @keys.size,
@@ -678,57 +699,9 @@ module PEROBS
       bytes = ary.pack(BTreeNode::node_bytes_format(@tree))
       bytes += [ Zlib::crc32(bytes) ].pack('L')
       @tree.nodes.store_blob(@node_address, bytes)
-      @dirty = false
-    end
-
-    def mark_as_modified
-      @tree.mark_node_as_modified(self)
-      @dirty = true
     end
 
     private
-
-    def read_node
-      return false unless (bytes = @tree.nodes.retrieve_blob(@node_address))
-
-      unless Zlib::crc32(bytes) != 0
-        PEROBS.log.error "Checksum failure in BTreeNode entry @#{node_address}"
-        return false
-      end
-      ary = bytes.unpack(BTreeNode::node_bytes_format(@tree))
-      # Read is_leaf
-      if ary[0] != 0 && ary[0] != 1
-        PEROBS.log.error "First byte of a BTreeNode entry must be 0 or 1"
-        return false
-      end
-      @is_leaf = ary[0] == 0 ? false : true
-      # This is the number of keys this node has.
-      key_count = ary[1]
-      data_count = ary[2]
-      # Read the parent node address
-      @parent = ary[3] == 0 ? nil : BTreeNodeLink.new(@tree, ary[3])
-      # Read the keys
-      @keys = ary[4, key_count]
-
-      if @is_leaf
-        # Read the values
-        @values = ary[4 + @tree.order, data_count]
-      else
-        # Read the child addresses
-        @children = []
-        data_count.times do |i|
-          address = ary[4 + @tree.order + i]
-          unless address > 0
-            PEROBS.log.fatal "Child address must not be 0"
-          end
-          @children << BTreeNodeLink.new(@tree, address)
-        end
-      end
-
-      @dirty = false
-
-      true
-    end
 
     def find_closest_siblings(key)
       # The root node has no siblings.

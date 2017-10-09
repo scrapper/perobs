@@ -135,6 +135,7 @@ module PEROBS
       node
     end
 
+    # Save the node into the blob file.
     def save
       bytes = [ @blob_address, @size,
                 @parent ? @parent.node_address : 0,
