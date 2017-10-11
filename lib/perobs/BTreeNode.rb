@@ -79,7 +79,7 @@ module PEROBS
     # self which would prevent the object from being collected. This internal
     # method is not intended for users to call.
     def BTreeNode::_finalize(tree, node_address)
-      proc { tree.cache._collect(node_address) }
+      proc { tree.node_cache._collect(node_address) }
     end
 
     # Create a new SpaceTreeNode. This method should be used for the creation
@@ -177,6 +177,11 @@ module PEROBS
     # Save the node into the blob file.
     def save
       write_node
+    end
+
+    # The node address uniquely identifies a BTreeNode.
+    def uid
+      @node_address
     end
 
     # Insert or replace the given value by using the key as unique address.
@@ -307,7 +312,6 @@ module PEROBS
         PEROBS.log.fatal "Cannot insert into a full BTreeNode"
       end
 
-      @tree.node_cache.insert(self)
       i = search_key_index(key)
       if @keys[i] == key
         # Overwrite existing entries
@@ -326,6 +330,7 @@ module PEROBS
           @children.insert(i + 1, BTreeNodeLink.new(@tree, value_or_child))
         end
       end
+      @tree.node_cache.insert(self)
     end
 
     # Remove the element at the given index.
@@ -334,7 +339,6 @@ module PEROBS
       first_key = @keys[0]
       removed_value = nil
 
-      @tree.node_cache.insert(self)
       # Delete the key at the specified index.
       unless @keys.delete_at(index)
         PEROBS.log.fatal "Could not remove element #{index} from BTreeNode " +
@@ -347,6 +351,7 @@ module PEROBS
         # The corresponding child has can be found at 1 index higher.
         @children.delete_at(index + 1)
       end
+      @tree.node_cache.insert(self)
 
       # Find the lower and upper siblings and the index of the key for this
       # node in the parent node.
@@ -379,7 +384,6 @@ module PEROBS
       end
 
       dest_node.keys[dst_idx, count] = @keys[src_idx, count]
-      @tree.node_cache.insert(dest_node)
       if @is_leaf
         # For leaves we copy the keys and corresponding values.
         dest_node.values[dst_idx, count] = @values[src_idx, count]
@@ -391,6 +395,7 @@ module PEROBS
           dest_node.set_child(dst_idx + i, @children[src_idx + i])
         end
       end
+      @tree.node_cache.insert(dest_node)
     end
 
     def parent=(p)
@@ -409,13 +414,13 @@ module PEROBS
     end
 
     def trim(idx)
-      @tree.node_cache.insert(self)
       @keys = @keys[0..idx - 1]
       if @is_leaf
         @values = @values[0..idx - 1]
       else
         @children = @children[0..idx]
       end
+      @tree.node_cache.insert(self)
     end
 
     # Search the keys of the node that fits the given key. The result is

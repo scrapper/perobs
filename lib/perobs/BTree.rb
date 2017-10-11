@@ -27,7 +27,7 @@
 
 require 'perobs/LockFile'
 require 'perobs/EquiBlobsFile'
-require 'perobs/BTreeNodeCache'
+require 'perobs/PersistentObjectCache'
 require 'perobs/BTreeNode'
 
 module PEROBS
@@ -64,7 +64,9 @@ module PEROBS
       # This EquiBlobsFile contains the nodes of the BTree.
       @nodes = EquiBlobsFile.new(@dir, @name,
                                  BTreeNode::node_bytes(@order))
-      @node_cache = BTreeNodeCache.new(self)
+      @node_cache = PersistentObjectCache.new(512) do |address|
+        BTreeNode::load(self, address)
+      end
 
       # This BTree implementation uses a write cache to improve write
       # performance of multiple successive read/write operations. This also
@@ -134,7 +136,7 @@ module PEROBS
     def set_root(node)
       @root = node
       @nodes.first_entry = node.node_address
-      @node_cache.set_root(node)
+      #@node_cache.set_root(node)
     end
 
     # Insert a new value into the tree using the key as a unique index. If the
