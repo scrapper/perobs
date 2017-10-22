@@ -83,12 +83,14 @@ module PEROBS
         # We have the node in memory so we can just return it.
         begin
           node = ObjectSpace._id2ref(ruby_object_id)
-          unless node.node_address == address
-            raise RuntimeError, "In memory list is corrupted"
+          # Let's make sure the object is really the object we are looking
+          # for. The GC might have recycled it already and the Ruby object ID
+          # could now be used for another object.
+          if node.is_a?(ObjectBase) && node.node_address == address
+            # Let's put the node in the cache. We might need it soon again.
+            insert(node, false)
+            return node
           end
-          # Let's put the node in the cache. We might need it soon again.
-          insert(node, false)
-          return node
         rescue RangeError
           # Due to a race condition the object can still be in the
           # @in_memory_nodes list but has been collected already by the Ruby

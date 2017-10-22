@@ -313,7 +313,13 @@ module PEROBS
       if (ruby_object_id = @in_memory_objects[id])
         # We have the object in memory so we can just return it.
         begin
-          return ObjectSpace._id2ref(ruby_object_id)
+          object = ObjectSpace._id2ref(ruby_object_id)
+          # Let's make sure the object is really the object we are looking
+          # for. The GC might have recycled it already and the Ruby object ID
+          # could now be used for another object.
+          if object.is_a?(ObjectBase) && object._id == id
+            return object
+          end
         rescue RangeError => e
           # Due to a race condition the object can still be in the
           # @in_memory_objects list but has been collected already by the Ruby

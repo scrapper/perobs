@@ -491,7 +491,7 @@ describe PEROBS::Store do
       when 2
         # Delete a root entry
         if ref.keys.length > 11
-          key = ref.keys[(ref.keys.length / 11).to_i]
+          key = ref.keys[rand(ref.keys.length)]
           expect(@store[key]).not_to be_nil
           @store[key] = nil
           ref.delete(key)
