@@ -310,16 +310,22 @@ module PEROBS
     # public API and should never be called by outside users. It's purely
     # intended for internal use.
     def object_by_id(id)
-      if (obj = @in_memory_objects[id])
+      if (ruby_object_id = @in_memory_objects[id])
         # We have the object in memory so we can just return it.
         begin
-          return ObjectSpace._id2ref(obj)
-        rescue RangeError
+          return ObjectSpace._id2ref(ruby_object_id)
+        rescue RangeError => e
           # Due to a race condition the object can still be in the
           # @in_memory_objects list but has been collected already by the Ruby
-          # GC. In that case we need to load it again.
+          # GC. In that case we need to load it again. In this case the
+          # _collect() call will happen much later, potentially after we have
+          # registered a new object with the same ID.
           @in_memory_objects.delete(id)
         end
+      end
+
+      if (obj = @cache.object_by_id(id))
+        PEROBS.log.fatal "Object #{id} with Ruby #{obj.object_id} is in cache but not in_memory"
       end
 
       # We don't have the object in memory. Let's find it in the storage.
@@ -463,8 +469,10 @@ module PEROBS
     # and should never be called from user code. It will be called from a
     # finalizer, so many restrictions apply!
     # @param id [Integer] Object ID of object to remove from the list
-    def _collect(id, ignore_errors = false)
-      @in_memory_objects.delete(id)
+    def _collect(id, ruby_object_id)
+      if @in_memory_objects[id] == ruby_object_id
+        @in_memory_objects.delete(id)
+      end
     end
 
     # This method returns a Hash with some statistics about this store.

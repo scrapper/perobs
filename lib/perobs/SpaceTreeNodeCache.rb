@@ -79,10 +79,10 @@ module PEROBS
       # requested address.
       return entry.node if entry && entry.node.node_address == address
 
-      if (obj_id = @in_memory_nodes[address])
+      if (ruby_object_id = @in_memory_nodes[address])
         # We have the node in memory so we can just return it.
         begin
-          node = ObjectSpace._id2ref(obj_id)
+          node = ObjectSpace._id2ref(ruby_object_id)
           unless node.node_address == address
             raise RuntimeError, "In memory list is corrupted"
           end
@@ -92,7 +92,9 @@ module PEROBS
         rescue RangeError
           # Due to a race condition the object can still be in the
           # @in_memory_nodes list but has been collected already by the Ruby
-          # GC. In that case we need to load it again.
+          # GC. In that case we need to load it again. In this case the
+          # _collect() call will happen much later, potentially after we have
+          # registered a new object with the same ID.
           @in_memory_nodes.delete(address)
         end
       end
@@ -118,8 +120,10 @@ module PEROBS
     # finalizer, so many restrictions apply!
     # @param node_address [Integer] Node address of the node to remove from
     #        the list
-    def _collect(address)
-      @in_memory_nodes.delete(address)
+    def _collect(address, ruby_object_id)
+      if @in_memory_nodes[address] == ruby_object_id
+        @in_memory_nodes.delete(address)
+      end
     end
 
     # Write all modified objects into the backing store.

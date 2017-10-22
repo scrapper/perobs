@@ -75,7 +75,7 @@ module PEROBS
       end
     end
 
-    def _collect(address)
+    def _collect(address, ruby_object_id)
       # Just a dummy for now
     end
 

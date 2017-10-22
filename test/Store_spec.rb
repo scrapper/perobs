@@ -438,24 +438,53 @@ describe PEROBS::Store do
     expect(@store['root'].child.parent).to eq(@store['root'])
   end
 
+  it 'should handle frequent updates of objects' do
+    @store = PEROBS::Store.new(@db_file)
+    count = 10000
+    0.upto(count) do |i|
+      key = "Obj#{i}"
+      @store[key] = p = @store.new(Person)
+      p.name = "0:#{i}:" + 'X' * rand(64)
+    end
+
+    0.upto(10) do |iteration|
+      0.upto(count) do |i|
+        key = "Obj#{i}"
+        p = @store[key]
+        p.name = "#{iteration}:#{i}:" + 'X' * rand(64)
+      end
+      0.upto(count) do |i|
+        key = "Obj#{i}"
+        p = @store[key]
+        o_it, o_i, o_x = p.name.split(':')
+        if o_it.to_i != iteration
+          $stderr.puts "Mismatch of #{p._id} with value #{o_it}:#{i}"
+        end
+        expect(o_it.to_i).to eql(iteration)
+        expect(o_i.to_i).to eql(i)
+      end
+      @store.check
+    end
+  end
+
   it 'should survive a real world usage test' do
     options = { :engine => PEROBS::FlatFileDB }
     @store = PEROBS::Store.new(@db_file, options)
     ref = {}
 
     deletions_since_last_gc = 0
-    0.upto(15000) do |i|
+    0.upto(10000) do |i|
       key = "o#{i}"
-      case rand(8)
+      case rand(9)
       when 0
         # Add 'A' person
-        value = 'A' * rand(512)
+        value = key + 'A' * rand(512)
         @store[key] = p = @store.new(Person)
         p.name = value
         ref[key] = value
       when 1
         # Add 'B' person
-        value = 'B' * rand(128)
+        value = key + 'B' * rand(32)
         @store[key] = p = @store.new(Person)
         p.name = value
         ref[key] = value
@@ -469,6 +498,16 @@ describe PEROBS::Store do
           deletions_since_last_gc += 1
         end
       when 3
+        # Update a person entry
+        if ref.keys.length > 0
+          key = ref.keys[rand(ref.keys.length)]
+          expect(@store[key]).not_to be_nil
+          value = key + 'C' * rand(996)
+          p = @store[key]
+          p.name = value
+          ref[key] = value
+        end
+      when 4
         # Call garbage collector
         if rand(60) == 0
           @store.gc
@@ -478,32 +517,32 @@ describe PEROBS::Store do
           deletions_since_last_gc = 0
           expect(@store.gc).to eq(deletions_since_last_gc)
         end
-      when 4
+      when 5
         # Sync store and reload
         if rand(15) == 0
           @store.exit
           @store = PEROBS::Store.new(@db_file, options)
         end
-      when 5
+      when 6
         # Replace an entry with 'C' person
         if ref.keys.length > 13
           key = ref.keys[(ref.keys.length / 13).to_i]
-          value = 'C' * rand(1024)
+          value = key + 'D' * rand(1024)
           @store[key] = p = @store.new(Person)
           p.name = value
           ref[key] = value
           deletions_since_last_gc += 1
         end
-      when 6
+      when 7
         # Sync and check store
         if rand(50) == 0
-          @store.sync
+          #@store.sync
           expect(@store.check(false)).to eq(0)
         end
-      when 7
+      when 8
         # Compare a random entry with reference entry
         if ref.keys.length > 0
-          key = ref.keys[rand(ref.keys.length - 1)]
+          key = ref.keys[rand(ref.keys.length)]
           expect(@store[key].name).to eq(ref[key])
         end
       end

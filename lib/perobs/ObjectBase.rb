@@ -133,7 +133,8 @@ module PEROBS
       @store = p.store
       @_id = p.id
       @store._register_in_memory(self, @_id)
-      ObjectSpace.define_finalizer(self, ObjectBase._finalize(@store, @_id))
+      ObjectSpace.define_finalizer(
+        self, ObjectBase._finalize(@store, @_id, object_id))
       @_stash_map = nil
       # Allocate a proxy object for this object. User code should only operate
       # on this proxy, never on self.
@@ -144,8 +145,8 @@ module PEROBS
     # is done this way to prevent the Proc object hanging on to a reference to
     # self which would prevent the object from being collected. This internal
     # method is not intended for users to call.
-    def ObjectBase._finalize(store, id)
-      proc { store._collect(id) }
+    def ObjectBase._finalize(store, id, ruby_object_id)
+      proc { store._collect(id, ruby_object_id) }
     end
 
     # Library internal method to transfer the Object to a new store.
@@ -158,7 +159,8 @@ module PEROBS
       # Register the object as in-memory object with the new store.
       @store._register_in_memory(self, @_id)
       # Register the finalizer for the new store.
-      ObjectSpace.define_finalizer(self, ObjectBase._finalize(@store, @_id))
+      ObjectSpace.define_finalizer(
+        self, ObjectBase._finalize(@store, @_id, object_id))
       @myself = POXReference.new(@store, @_id)
     end
 
