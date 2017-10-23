@@ -76,7 +76,7 @@ module PEROBS
           # Let's make sure the object is really the object we are looking
           # for. The GC might have recycled it already and the Ruby object ID
           # could now be used for another object.
-          if object.is_a?(ObjectBase) && object.uid == uid
+          if object.respond_to?(:uid) && object.uid == uid
             # Let's put the object in the cache. We might need it soon again.
             insert(object, false)
             return object

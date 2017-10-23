@@ -317,7 +317,7 @@ module PEROBS
           # Let's make sure the object is really the object we are looking
           # for. The GC might have recycled it already and the Ruby object ID
           # could now be used for another object.
-          if object.is_a?(ObjectBase) && object._id == id
+          if object.respond_to?(:_id) && object._id == id
             return object
           end
         rescue RangeError => e
