@@ -184,12 +184,12 @@ module PEROBS
       # performance impact of compression is not compensated by writing
       # less data to the storage.
       compressed = false
-      if raw_obj.length > 256
+      if raw_obj.bytesize > 256
         raw_obj = Zlib.deflate(raw_obj)
         compressed = true
       end
 
-      addr, length = find_free_blob(raw_obj.length)
+      addr, length = find_free_blob(raw_obj.bytesize)
       begin
         if length != -1
           # Just a safeguard so we don't overwrite current data.
@@ -198,8 +198,8 @@ module PEROBS
             PEROBS.log.fatal "Length in free list (#{length}) and header " +
               "(#{header.length}) for address #{addr} don't match."
           end
-          if raw_obj.length > header.length
-            PEROBS.log.fatal "Object (#{raw_obj.length}) is longer than " +
+          if raw_obj.bytesize > header.length
+            PEROBS.log.fatal "Object (#{raw_obj.bytesize}) is longer than " +
               "blob space (#{header.length})."
           end
           if header.is_valid?
@@ -215,19 +215,19 @@ module PEROBS
           # to the new header.
           flags |= (1 << FlatFileBlobHeader::MARK_FLAG_BIT)
         end
-        FlatFileBlobHeader.new(@f, addr, flags, raw_obj.length, id, crc).write
+        FlatFileBlobHeader.new(@f, addr, flags, raw_obj.bytesize, id, crc).write
         @f.write(raw_obj)
-        if length != -1 && raw_obj.length < length
+        if length != -1 && raw_obj.bytesize < length
           # The new object was not appended and it did not completely fill the
           # free space. So we have to write a new header to mark the remaining
           # empty space.
-          unless length - raw_obj.length >= FlatFileBlobHeader::LENGTH
+          unless length - raw_obj.bytesize >= FlatFileBlobHeader::LENGTH
             PEROBS.log.fatal "Not enough space to append the empty space " +
-              "header (space: #{length} bytes, object: #{raw_obj.length} " +
+              "header (space: #{length} bytes, object: #{raw_obj.bytesize} " +
               "bytes)."
           end
           space_address = @f.pos
-          space_length = length - FlatFileBlobHeader::LENGTH - raw_obj.length
+          space_length = length - FlatFileBlobHeader::LENGTH - raw_obj.bytesize
           FlatFileBlobHeader.new(@f, space_address, 0, space_length,
                                  0, 0).write
           # Register the new space with the space list.
@@ -464,7 +464,7 @@ module PEROBS
           begin
             @f.seek(pos + FlatFileBlobHeader::LENGTH)
             buf = @f.read(header.length)
-            if buf.length != header.length
+            if buf.bytesize != header.length
               PEROBS.log.error "Premature end of file in blob with ID " +
                 "#{header.id}."
               discard_damaged_blob(header) if repair
