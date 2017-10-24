@@ -70,12 +70,14 @@ module PEROBS
       while retries > 0
         begin
           @file = File.open(@file_name, File::RDWR | File::CREAT, 0644)
+          @file.sync = true
 
           if @file.flock(File::LOCK_EX | File::LOCK_NB)
             # We have taken the lock. Write the PID into the file and leave it
             # open.
             @file.write($$)
             @file.flush
+            @file.fsync
             @file.truncate(@file.pos)
             PEROBS.log.debug "Lock file #{@file_name} has been taken for " +
               "process #{$$}"
@@ -129,6 +131,7 @@ module PEROBS
 
       begin
         @file.flock(File::LOCK_UN)
+        @file.fsync
         @file.close
         forced_unlock
         PEROBS.log.debug "Lock file #{@file_name} for PID #{$$} has been " +

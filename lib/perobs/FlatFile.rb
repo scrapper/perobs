@@ -71,6 +71,7 @@ module PEROBS
         PEROBS.log.fatal "FlatFile database '#{file_name}' is locked by " +
           "another process"
       end
+      @f.sync = true
 
       begin
         @index.open(!new_db_created)
@@ -103,6 +104,7 @@ module PEROBS
       if @f
         @f.flush
         @f.flock(File::LOCK_UN)
+        @f.fsync
         @f.close
         @f = nil
       end
@@ -112,6 +114,7 @@ module PEROBS
     def sync
       begin
         @f.flush
+        @f.fsync
       rescue IOError => e
         PEROBS.log.fatal "Cannot sync flat file database: #{e.message}"
       end

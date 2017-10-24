@@ -83,6 +83,7 @@ module PEROBS
       unless @f.flock(File::LOCK_NB | File::LOCK_EX)
         PEROBS.log.fatal 'Database blob file is locked by another process'
       end
+      @f.sync = true
     end
 
     # Close the blob file. This method must be called before the program is
@@ -92,6 +93,7 @@ module PEROBS
         if @f
           @f.flush
           @f.flock(File::LOCK_UN)
+          @f.fsync
           @f.close
           @f = nil
         end
@@ -111,7 +113,10 @@ module PEROBS
     # Flush out all unwritten data.
     def sync
       begin
-        @f.flush if @f
+        if @f
+          @f.flush
+          @f.fsync
+        end
       rescue IOError => e
         PEROBS.log.fatal "Cannot sync blob file #{@file_name}: #{e.message}"
       end
