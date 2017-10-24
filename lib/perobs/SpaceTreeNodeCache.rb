@@ -86,7 +86,7 @@ module PEROBS
           # Let's make sure the object is really the object we are looking
           # for. The GC might have recycled it already and the Ruby object ID
           # could now be used for another object.
-          if node.respond_to?(:node_address) && node.node_address == address
+          if node.is_a?(SpaceTreeNode) && node.node_address == address
             # Let's put the node in the cache. We might need it soon again.
             insert(node, false)
             return node

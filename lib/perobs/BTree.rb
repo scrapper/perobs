@@ -64,9 +64,7 @@ module PEROBS
       # This EquiBlobsFile contains the nodes of the BTree.
       @nodes = EquiBlobsFile.new(@dir, @name,
                                  BTreeNode::node_bytes(@order))
-      @node_cache = PersistentObjectCache.new(512) do |address|
-        BTreeNode::load(self, address)
-      end
+      @node_cache = PersistentObjectCache.new(512, BTreeNode, self)
 
       # This BTree implementation uses a write cache to improve write
       # performance of multiple successive read/write operations. This also

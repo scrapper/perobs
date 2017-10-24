@@ -44,9 +44,15 @@ module PEROBS
     # of the object in memory which prevents them from being collected. All
     # references to the objects must be resolved via the get() method to
     # prevent duplicate instances in memory of the same object.
-    def initialize(size, &loader)
+    # @param size [Integer] Maximum number of objects to be cached at a time
+    # @param klass [Class] The class of the objects to be cached. Objects must
+    #        provide a uid() method that returns a unique ID for every object.
+    # @param collection [] The object collection the objects belong to. It
+    #        must provide a ::load method.
+    def initialize(size, klass, collection)
       @size = size
-      @loader = loader
+      @klass = klass
+      @collection = collection
       @flush_counter = FLUSH_WATERMARK
       clear
     end
@@ -76,7 +82,7 @@ module PEROBS
           # Let's make sure the object is really the object we are looking
           # for. The GC might have recycled it already and the Ruby object ID
           # could now be used for another object.
-          if object.respond_to?(:uid) && object.uid == uid
+          if object.is_a?(@klass) && object.uid == uid
             # Let's put the object in the cache. We might need it soon again.
             insert(object, false)
             return object
@@ -91,7 +97,7 @@ module PEROBS
         end
       end
 
-      @loader.call(uid)
+      @klass::load(@collection, uid)
     end
 
     # Remove a object from the cache.
