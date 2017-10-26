@@ -125,4 +125,49 @@ describe PEROBS::BTree do
     end
   end
 
+  it 'should survive a real-world usage test' do
+    @m.clear
+    ref = {}
+    0.upto(50000) do
+      case rand(5)
+      when 0
+        0.upto(2) do
+          key = rand(100000)
+          value = rand(10000000)
+          @m.insert(key, value)
+          ref[key] = value
+        end
+      when 1
+        if ref.length > 0
+          key = ref.keys[rand(ref.keys.length)]
+          expect(@m.remove(key)).to eql(ref[key])
+          ref.delete(key)
+        end
+      when 2
+        if ref.length > 0
+          0.upto(3) do
+            key = ref.keys[rand(ref.keys.length)]
+            expect(@m.get(key)).to eql(ref[key])
+          end
+        end
+      when 3
+        if ref.length > 0
+          key = ref.keys[rand(ref.keys.length)]
+          value = rand(10000000)
+          @m.insert(key, value)
+          ref[key] = value
+        end
+      when 4
+        if rand(50) == 0
+          expect(@m.check).to be true
+        end
+      when 5
+        if rand(50) == 0
+          @m.close
+          @m.open
+        end
+      end
+    end
+  end
+
 end
