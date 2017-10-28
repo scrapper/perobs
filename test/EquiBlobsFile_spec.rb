@@ -179,10 +179,6 @@ describe PEROBS::EquiBlobsFile do
     expect(@bf.check).to be true
   end
 
-  it 'should not allow erase when open' do
-    expect{ capture_io{ @bf.erase } }.to raise_error(PEROBS::FatalError)
-  end
-
   it 'should support erasing the file' do
     @bf.close
     @bf.erase

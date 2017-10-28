@@ -114,6 +114,7 @@ module PEROBS
     # all stored data from the BTree.
     def erase
       @nodes.erase
+      @root = nil
       @dirty_flag.forced_unlock
     end
 

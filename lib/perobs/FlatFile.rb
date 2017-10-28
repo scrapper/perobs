@@ -48,6 +48,7 @@ module PEROBS
       @db_dir = dir
       @f = nil
       @index = BTree.new(@db_dir, 'index', INDEX_BTREE_ORDER)
+      @marks = BTree.new(@db_dir, 'marks', INDEX_BTREE_ORDER)
       @space_list = SpaceTree.new(@db_dir)
     end
 
@@ -151,7 +152,7 @@ module PEROBS
 
       deleted_ids = []
       each_blob_header do |pos, header|
-        if header.is_valid? && !header.is_marked?
+        if header.is_valid? && @marks.get(header.id).nil?
           delete_obj_by_address(pos, header.id)
           deleted_ids << header.id
         end
@@ -315,47 +316,19 @@ module PEROBS
     # Mark the object with the given ID.
     # @param id [Integer] ID of the object
     def mark_obj_by_id(id)
-      if (addr = find_obj_addr_by_id(id))
-        mark_obj_by_address(addr, id)
-      end
-    end
-
-    # Mark the object at the specified address.
-    # @param addr [Integer] Offset in the file
-    # @param id [Integer] ID of the object
-    def mark_obj_by_address(addr, id)
-      FlatFileBlobHeader.read_at(@f, addr, id).set_mark_flag
+      @marks.insert(id, 0)
     end
 
     # Return true if the object with the given ID is marked, false otherwise.
     # @param id [Integer] ID of the object
     def is_marked_by_id?(id)
-      if (addr = find_obj_addr_by_id(id))
-        header = FlatFileBlobHeader.read_at(@f, addr, id)
-        return header.is_marked?
-      end
-
-      false
+      !@marks.get(id).nil?
     end
 
     # Clear alls marks.
     def clear_all_marks
-      t = Time.now
-      PEROBS.log.info "Clearing all marks..."
-
-      total_blob_count = 0
-      marked_blob_count = 0
-
-      each_blob_header do |pos, header|
-        total_blob_count += 1
-        if header.is_valid? && header.is_marked?
-          # Clear all valid and marked blocks.
-          marked_blob_count += 1
-          header.clear_mark_flag
-        end
-      end
-      PEROBS.log.info "#{marked_blob_count} marks in #{total_blob_count} " +
-        "objects cleared in #{Time.now - t} seconds"
+      @marks.erase
+      @marks.open
     end
 
     # Eliminate all the holes in the file. This is an in-place
