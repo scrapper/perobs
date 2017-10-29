@@ -33,7 +33,7 @@ module PEROBS
   #
   # 1 Byte:  Flags byte.
   #          Bit 0: 0 deleted entry, 1 valid entry
-  #          Bit 1: 0 unmarked, 1 marked
+  #          Bit 1: 0 reserved, must be 0
   #          Bit 2: 0 uncompressed data, 1 compressed data
   #          Bit 3: 0 current entry, 1 outdated entry
   #          Bit 4 - 7: reserved, must be 0
@@ -50,7 +50,6 @@ module PEROBS
     # The length of the header in bytes.
     LENGTH = 21
     VALID_FLAG_BIT = 0
-    MARK_FLAG_BIT = 1
     COMPRESSED_FLAG_BIT = 2
     OUTDATED_FLAG_BIT = 3
 
@@ -146,23 +145,6 @@ module PEROBS
     # Return true if the header is for a non-empty blob.
     def is_valid?
       bit_set?(VALID_FLAG_BIT)
-    end
-
-    # Return true if the blob has been marked.
-    def is_marked?
-      bit_set?(MARK_FLAG_BIT)
-    end
-
-    # Set the mark bit.
-    def set_mark_flag
-      set_flag(MARK_FLAG_BIT)
-      write_flags
-    end
-
-    # Clear the mark bit.
-    def clear_mark_flag
-      clear_flag(MARK_FLAG_BIT)
-      write_flags
     end
 
     # Return true if the blob contains compressed data.

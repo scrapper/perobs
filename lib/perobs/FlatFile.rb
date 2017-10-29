@@ -213,12 +213,6 @@ module PEROBS
         end
         flags = 1 << FlatFileBlobHeader::VALID_FLAG_BIT
         flags |= (1 << FlatFileBlobHeader::COMPRESSED_FLAG_BIT) if compressed
-        if old_addr && old_header.is_marked?
-          # This method might be called in the middle of an operation that
-          # uses the mark flag. We must ensure that the flag is carried over
-          # to the new header.
-          flags |= (1 << FlatFileBlobHeader::MARK_FLAG_BIT)
-        end
         FlatFileBlobHeader.new(@f, addr, flags, raw_obj.bytesize, id, crc).write
         @f.write(raw_obj)
         if length != -1 && raw_obj.bytesize < length
