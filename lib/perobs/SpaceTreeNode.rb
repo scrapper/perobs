@@ -300,6 +300,12 @@ module PEROBS
       @tree.cache.insert(self)
     end
 
+    # @return [Integer] The node address since it uniquely identifies the
+    #         Node.
+    def uid
+      @node_address
+    end
+
     # Depth-first iterator for all nodes. The iterator yields the given block
     # at 5 points for any found node. The mode variable indicates the point.
     # :on_enter Coming from the parent we've entered the node for the first

@@ -27,7 +27,7 @@
 
 require 'perobs/Log'
 require 'perobs/EquiBlobsFile'
-require 'perobs/SpaceTreeNodeCache'
+require 'perobs/PersistentObjectCache'
 require 'perobs/SpaceTreeNode'
 require 'perobs/FlatFile'
 
@@ -53,7 +53,7 @@ module PEROBS
 
       # Benchmark runs showed a cache size of 128 to be a good compromise
       # between read and write performance trade-offs and memory consumption.
-      @cache = SpaceTreeNodeCache.new(self, 128)
+      @cache = PersistentObjectCache.new(128, SpaceTreeNode, self)
     end
 
     # Open the SpaceTree file.
@@ -68,7 +68,7 @@ module PEROBS
 
     # Close the SpaceTree file.
     def close
-      @cache.flush
+      @cache.flush(true)
       @nodes.close
       @root_address = nil
       @cache.clear

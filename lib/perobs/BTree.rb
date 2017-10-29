@@ -135,7 +135,6 @@ module PEROBS
     def set_root(node)
       @root = node
       @nodes.first_entry = node.node_address
-      #@node_cache.set_root(node)
     end
 
     # Insert a new value into the tree using the key as a unique index. If the
