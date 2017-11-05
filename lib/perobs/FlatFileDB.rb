@@ -87,6 +87,7 @@ module PEROBS
     end
 
     def FlatFileDB::delete_db(db_name)
+      close
       FileUtils.rm_rf(db_name)
     end
 

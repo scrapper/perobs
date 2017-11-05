@@ -236,10 +236,12 @@ module PEROBS
     end
 
     # Delete the entire store. The store is no longer usable after this
-    # method was called.
+    # method was called. This is an alternative to exit() that additionaly
+    # deletes the entire database.
     def delete_store
       @db.delete_database
-      @db = @class_map = @cache = @root_objects = nil
+      @db = @class_map = @in_memory_objects = @stats = @cache = @root_objects =
+        nil
     end
 
     # Store the provided object under the given name. Use this to make the

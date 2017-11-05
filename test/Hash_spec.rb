@@ -71,7 +71,7 @@ describe PEROBS::Hash do
 
     expect(h['a']).to eq('A')
     expect(h['b']).to eq('B')
-    @store.sync
+    @store.exit
 
     @store = PEROBS::Store.new(@db_name)
     h = @store['h']
@@ -88,6 +88,7 @@ describe PEROBS::Hash do
     vs = []
     h.each { |k, v| vs << k + v }
     expect(vs.sort.join).to eq('aAbBcC')
+    @store.exit
 
     @store = PEROBS::Store.new(@db_name)
     @store['h'] = h = @store.new(PEROBS::Hash)
@@ -100,15 +101,15 @@ describe PEROBS::Hash do
   end
 
   # Utility method to create a PEROBS::Hash from a normal Hash.
-  def cph(hash = nil)
+  def cph(hash = nil, id = 'a')
     a = @store.new(PEROBS::Hash)
     a.replace(hash) unless hash.nil?
-    @store['a'] = a
+    @store[id] = a
   end
 
   def pcheck
     yield
-    @store.sync
+    @store.exit
     @store = PEROBS::Store.new(@db_name)
     yield
   end
@@ -142,20 +143,20 @@ describe PEROBS::Hash do
   end
 
   it 'should support merge!' do
-    h1 = cph({ 1 => 2, 2 => 3, 3 => 4 })
-    h2 = cph({ 2 => 'two', 4 => 'four' })
+    h1 = cph({ '1' => 2, '2' => 3, '3' => 4 }, 'h1')
+    h2 = cph({ '2' => 'two', '4' => 'four' }, 'h2')
 
-    ha = { 1 => 2, 2 => 'two', 3 => 4, 4 => 'four' }
-    hb = { 1 => 2, 2 => 3, 3 => 4, 4 => 'four' }
+    ha = { '1' => 2, '2' => 'two', '3' => 4, '4' => 'four' }
+    hb = { '1' => 2, '2' => 3, '3' => 4, '4' => 'four' }
 
     expect(h1.update(h2)).to eq(ha)
-    pcheck { expect(h1).to eq(ha) }
+    pcheck { expect(@store['h1'].to_hash).to eq(ha) }
 
-    h1 = cph({ 1 => 2, 2 => 3, 3 => 4 })
-    h2 = cph({ 2 => 'two', 4 => 'four' })
+    h1 = cph({ '1' => 2, '2' => 3, '3' => 4 }, 'h1')
+    h2 = cph({ '2' => 'two', '4' => 'four' }, 'h2')
 
     expect(h2.update(h1)).to eq(hb)
-    pcheck { expect(h2).to eq(hb) }
+    pcheck { expect(@store['h2'].to_hash).to eq(hb) }
   end
 
   it 'should support inspect' do

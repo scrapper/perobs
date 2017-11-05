@@ -84,7 +84,7 @@ describe PEROBS::Store do
     jane.married = true
     jane.relatives = 'test'
 
-    store.sync
+    store.exit
 
     store = PEROBS::Store.new(@db_name)
     john = store['john']
@@ -114,6 +114,7 @@ describe PEROBS::Store do
     0.upto(20) do |i|
       expect(store["person#{i}"].name).to eq("Person #{i}")
     end
+    store.exit
   end
 
   it 'should detect modification to non-working objects' do
@@ -125,11 +126,12 @@ describe PEROBS::Store do
     0.upto(20) do |i|
       store["person#{i}"].name = "New Person #{i}"
     end
-    store.sync
+    store.exit
     store = PEROBS::Store.new(@db_name)
     0.upto(20) do |i|
       expect(store["person#{i}"].name).to eq("New Person #{i}")
     end
+    store.exit
   end
 
   it 'should garbage collect unlinked objects' do
@@ -143,10 +145,12 @@ describe PEROBS::Store do
     store.sync
     store['person1'] = nil
     store.gc
+    store.exit
     store = PEROBS::Store.new(@db_name)
     expect(store.object_by_id(id1)).to be_nil
     expect(store['person2']._id).to eq(id2)
     expect(store['person2'].related._id).to eq(id3)
+    store.exit
   end
 
 end

@@ -65,7 +65,7 @@ describe PEROBS::Array do
     @store.transaction do
       @store['b'] = @store.new(PEROBS::Array)
     end
-    @store.sync
+    @store.exit
     @store = nil
     GC.start
 
@@ -85,7 +85,7 @@ describe PEROBS::Array do
     expect(a[0]).to eq('A')
     expect(a[1]).to eq('B')
     expect(a[2].name).to eq('foobar')
-    @store.sync
+    @store.exit
 
     @store = PEROBS::Store.new(@db_name)
     a = @store['a']
@@ -102,7 +102,7 @@ describe PEROBS::Array do
     vs = ''
     a.each { |v| vs << v }
     expect(vs).to eq('ABC')
-    @store.sync
+    @store.exit
 
     @store = PEROBS::Store.new(@db_name)
     a = @store['a']
@@ -113,15 +113,15 @@ describe PEROBS::Array do
   end
 
   # Utility method to create a PEROBS::Array from a normal Array.
-  def cpa(ary = nil)
+  def cpa(ary = nil, id = 'a')
     a = @store.new(PEROBS::Array)
     a.replace(ary) unless ary.nil?
-    @store['a'] = a
+    @store[id] = a
   end
 
   def pcheck
     yield
-    @store.sync
+    @store.exit
     @store = PEROBS::Store.new(@db_name)
     yield
   end
@@ -147,44 +147,44 @@ describe PEROBS::Array do
   it 'should support re-writing methods' do
     x = cpa([2, 5, 3, 1, 7])
     x.sort!{ |a, b| a <=> b }
-    pcheck { expect(x).to eq([ 1, 2, 3, 5, 7 ]) }
-    x.sort!{ |a, b| b - a }
-    pcheck { expect(x).to eq([ 7, 5, 3, 2, 1 ]) }
+    pcheck { expect(@store['a']).to eq([ 1, 2, 3, 5, 7 ]) }
+    @store['a'].sort!{ |a, b| b - a }
+    pcheck { expect(@store['a']).to eq([ 7, 5, 3, 2, 1 ]) }
 
-    x.clear
-    pcheck { expect(x).to eq([]) }
+    @store['a'].clear
+    pcheck { expect(@store['a']).to eq([]) }
   end
 
   it 'should support <<()' do
     a = cpa([ 0, 1, 2 ])
     a << 4
-    pcheck { expect(a).to eq([ 0, 1, 2, 4 ]) }
+    pcheck { expect(@store['a']).to eq([ 0, 1, 2, 4 ]) }
   end
 
   it 'should support []=' do
     a = cpa([ 0, nil, 2 ])
     a[1] = 1
-    pcheck { expect(a).to eq([ 0, 1, 2 ]) }
+    pcheck { expect(@store['a']).to eq([ 0, 1, 2 ]) }
   end
 
   it 'should support collect!()' do
     a = cpa([ 1, 'cat', 1..1 ])
-    expect(a.collect! { |e| e.class }).to eq([ Integer, String, Range ])
-    pcheck { expect(a).to eq([ Integer, String, Range ]) }
+    expect(a.collect! { |e| e.class.to_s }).to eq([ 'Integer', 'String', 'Range' ])
+    pcheck { expect(@store['a'].to_a).to eq([ 'Integer', 'String', 'Range' ]) }
 
     a = cpa([ 1, 'cat', 1..1 ])
     expect(a.collect! { 99 }).to eq([ 99, 99, 99])
-    pcheck { expect(a).to eq([ 99, 99, 99]) }
+    pcheck { expect(@store['a']).to eq([ 99, 99, 99]) }
   end
 
   it 'should support map!()' do
     a = cpa([ 1, 'cat', 1..1 ])
-    expect(a.map! { |e| e.class }).to eq([ Integer, String, Range ])
-    pcheck { expect(a).to eq([ Integer, String, Range ]) }
+    expect(a.map! { |e| e.class.to_s }).to eq([ 'Integer', 'String', 'Range' ])
+    pcheck { expect(@store['a']).to eq([ 'Integer', 'String', 'Range' ]) }
 
     a = cpa([ 1, 'cat', 1..1 ])
     expect(a.map! { 99 }).to eq([ 99, 99, 99])
-    pcheck { expect(a).to eq ([ 99, 99, 99]) }
+    pcheck { expect(@store['a']).to eq ([ 99, 99, 99]) }
   end
 
   it 'should support fill()' do
@@ -194,39 +194,39 @@ describe PEROBS::Array do
   end
 
   it 'should support flatten!()' do
-    a1 = cpa([ 1, 2, 3])
-    a2 = cpa([ 5, 6 ])
-    a3 = cpa([ 4, a2 ])
-    a4 = cpa([ a1, a3 ])
-    pcheck { expect(a4.flatten).to eq([ 1, 2, 3, 4, 5, 6 ]) }
+    a1 = cpa([ 1, 2, 3], 'a1')
+    a2 = cpa([ 5, 6 ], 'a2')
+    a3 = cpa([ 4, a2 ], 'a3')
+    a4 = cpa([ a1, a3 ], 'a4')
+    pcheck { expect(@store['a4'].flatten).to eq([ 1, 2, 3, 4, 5, 6 ]) }
   end
 
   it 'should support replace()' do
-    a = cpa([ 1, 2, 3])
-    a_id = a.__id__
-    expect(a.replace(cpa([4, 5, 6]))).to eq([ 4, 5, 6 ])
-    pcheck { expect(a).to eq ([ 4, 5, 6 ]) }
+    a1 = cpa([ 1, 2, 3], 'a1')
+    a_id = a1.__id__
+    expect(a1.replace(cpa([4, 5, 6], 'a2'))).to eq([ 4, 5, 6 ])
+    pcheck { expect(@store['a1']).to eq ([ 4, 5, 6 ]) }
   end
 
   it 'should support insert()' do
     a = cpa([ 0 ])
     a.insert(1)
-    pcheck { expect(a).to eq([ 0 ]) }
-    a.insert(1, 1)
-    pcheck { expect(a).to eq([ 0, 1]) }
+    pcheck { expect(@store['a']).to eq([ 0 ]) }
+    @store['a'].insert(1, 1)
+    pcheck { expect(@store['a']).to eq([ 0, 1]) }
   end
 
   it 'should support push()' do
     a = cpa([ 1, 2, 3 ])
     a.push(4, 5)
-    pcheck { expect(a).to eq([ 1, 2, 3, 4, 5 ]) }
-    a.push(nil)
-    pcheck { expect(a).to eq([ 1, 2, 3, 4, 5, nil ]) }
+    pcheck { expect(@store['a']).to eq([ 1, 2, 3, 4, 5 ]) }
+    @store['a'].push(nil)
+    pcheck { expect(@store['a']).to eq([ 1, 2, 3, 4, 5, nil ]) }
   end
 
   it 'should support inspect' do
-    a1 = cpa([ 1 ])
-    a2 = cpa([ 1, a1 ])
+    a1 = cpa([ 1 ], 'a1')
+    a2 = cpa([ 1, a1 ], 'a2')
     expect(a1.inspect).to eq("<PEROBS::Array:#{a1._id}>\n[\n  1\n]\n")
     expect(a2.inspect).to eq("<PEROBS::Array:#{a2._id}>\n[\n  1,\n  <PEROBS::ObjectBase:#{a1._id}>\n]\n")
   end
@@ -244,7 +244,7 @@ describe PEROBS::Array do
     o = @store.new(PO)
     a[0] = o.get_self
     PEROBS.log.open(StringIO.new)
-    expect { @store.sync }.to raise_error(PEROBS::FatalError)
+    expect { @store.exit }.to raise_error(PEROBS::FatalError)
     PEROBS.log.open($stderr)
   end
 
