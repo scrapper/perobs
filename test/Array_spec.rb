@@ -33,7 +33,7 @@ require 'perobs'
 
 class PO < PEROBS::Object
 
-  po_attr :name
+  attr_persist :name
 
   def initialize(store, name = nil)
     super(store)

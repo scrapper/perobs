@@ -31,7 +31,7 @@ require 'perobs/Store'
 
 class FlatFileDB_O < PEROBS::Object
 
-  po_attr :a, :b, :c
+  attr_persist :a, :b, :c
 
   def initialize(store)
     super

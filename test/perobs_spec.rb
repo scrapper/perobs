@@ -28,7 +28,7 @@ require 'perobs'
 
 class Person < PEROBS::Object
 
-  po_attr :name, :zip, :bmi, :married, :related, :relatives
+  attr_persist :name, :zip, :bmi, :married, :related, :relatives
 
   def initialize(store)
     super

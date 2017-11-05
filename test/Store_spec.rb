@@ -31,7 +31,7 @@ end
 
 class Person < PEROBS::Object
 
-  po_attr :name, :zip, :bmi, :married, :related, :relatives
+  attr_persist :name, :zip, :bmi, :married, :related, :relatives
 
   def initialize(store)
     super
@@ -44,7 +44,7 @@ end
 
 class PersonN < PEROBS::Object
 
-  po_attr :name, :zip, :bmi, :married, :related, :relatives
+  attr_persist :name, :zip, :bmi, :married, :related, :relatives
 
   def initialize(store)
     super
@@ -57,7 +57,7 @@ end
 
 class O0 < PEROBS::Object
 
-  po_attr :child
+  attr_persist :child
 
   def initialize(store)
     super
@@ -67,7 +67,7 @@ class O0 < PEROBS::Object
 end
 class O1 < PEROBS::Object
 
-  po_attr :parent
+  attr_persist :parent
 
   def initialize(store, p = nil)
     super(store)

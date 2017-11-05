@@ -28,7 +28,7 @@ require 'perobs'
 
 class O1_Object < PEROBS::Object
 
-  po_attr :a1
+  attr_persist :a1
 
   def initialize(store)
     super
@@ -38,7 +38,7 @@ end
 
 class O2_Object < PEROBS::Object
 
-  po_attr :a1, :a2, :a3, :a4
+  attr_persist :a1, :a2, :a3, :a4
 
   def initialize(store)
     super
@@ -99,7 +99,7 @@ describe PEROBS::Store do
     expect(o2.a1).to be_nil
     expect(o2.a3).to eq(o1)
     expect(o2.a4).to eq(42)
-    @store.sync
+    @store.exit
   end
 
   it 'should persist assigned values' do
@@ -114,7 +114,7 @@ describe PEROBS::Store do
       @store['o3'] = o3 = @store.new(O1_Object)
       o3.a1 = @store.new(PEROBS::Array)
     end
-    @store.sync
+    @store.exit
     @store = nil
     GC.start
 
@@ -163,7 +163,7 @@ describe PEROBS::Store do
   it 'should raise an error when no attributes are defined' do
     @store['o3'] = @store.new(O3)
     PEROBS.log.open(StringIO.new)
-    expect { @store.sync }.to raise_error(PEROBS::FatalError)
+    expect { @store.exit }.to raise_error(PEROBS::FatalError)
     PEROBS.log.open($stderr)
   end
 
