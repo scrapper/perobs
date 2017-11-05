@@ -130,7 +130,7 @@ describe PEROBS::Store do
       jane.married = true
       jane.relatives = 'test'
 
-      @store.sync
+      @store.exit
 
       @store = PEROBS::Store.new(@db_file)
       john = @store['john']
@@ -175,7 +175,7 @@ describe PEROBS::Store do
     jane.married = true
     jane.relatives = 'test'
 
-    @store.sync
+    @store.exit
 
     @store = PEROBS::Store.new(@db_file)
     @store.rename_classes({ 'Person' => 'PersonN' })
@@ -200,7 +200,7 @@ describe PEROBS::Store do
     0.upto(20) do |i|
       @store["person#{i}"].name = "New Person #{i}"
     end
-    @store.sync
+    @store.exit
     @store = PEROBS::Store.new(@db_file)
     0.upto(20) do |i|
       expect(@store["person#{i}"].name).to eq("New Person #{i}")
@@ -218,6 +218,7 @@ describe PEROBS::Store do
     @store.sync
     @store['person1'] = nil
     @store.gc
+    @store.exit
     @store = PEROBS::Store.new(@db_file)
     expect(@store.object_by_id(id1)).to be_nil
     expect(@store['person2']._id).to eq(id2)
@@ -238,6 +239,7 @@ describe PEROBS::Store do
     expect(@store.check).to eq(0)
     expect(@store.gc).to eq(0)
     p0 = p1 = p2 = nil
+    @store.exit
     GC.start
     @store = PEROBS::Store.new(@db_file)
     expect(@store['person0']._id).to eq(id0)
@@ -249,6 +251,7 @@ describe PEROBS::Store do
     GC.start
     expect(@store.object_by_id(id1)).to be_nil
     expect(@store.object_by_id(id2)).to be_nil
+    @store.exit
 
     @store = PEROBS::Store.new(@db_file)
     expect(@store.check).to eq(0)
@@ -432,6 +435,7 @@ describe PEROBS::Store do
     @store['root'] = @store.new(O0)
     @store.sync
     expect(@store.check).to eq(0)
+    @store.exit
 
     @store = PEROBS::Store.new(@db_file)
     expect(@store.check).to eq(0)

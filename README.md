@@ -30,7 +30,7 @@ classes:
 
 When you derive your own class from PEROBS::Object you need to
 specify which instance variables should be persistent. By using
-po_attr you can provide a list of symbols that describe the instance
+'attr_persist' you can provide a list of symbols that declare the instance
 variables to persist. This will also create getter and setter methods
 for these instance varables.  You can set default values in the
 constructor . The constructor of PEROBS::ObjectBase derived objects
@@ -61,13 +61,14 @@ almost every Ruby data type. YAML is much slower than JSON and Marshal
 is not guaranteed to be compatible between Ruby versions.
 
 Once you have created a store you can assign objects to it. All
-persistent objects must be created with Store.new(). This is
-necessary as you will only deal with proxy objects in your code.
-Except for the member methods, you will never deal with the objects
-directly. Instead Store.new() returns a POXReference object that acts
-as a transparent proxy. This proxy is needed as your code never knows
-if the actual object is really loaded into the memory or not. PEROBS
-will handle this transparently for you.
+persistent objects must be created with Store.new(). The Store object
+is available via the @store instance variable provided by the parent
+class. This is necessary as you will only deal with proxy objects in
+your code.  Except for the member methods, you will never deal with
+the objects directly. Instead Store.new() returns a POXReference
+object that acts as a transparent proxy. This proxy is needed as your
+code never knows if the actual object is really loaded into the memory
+or not. PEROBS will handle this transparently for you.
 
 A build-in cache keeps access latencies to recently used objects low
 and lazily flushes modified objects into the persistend back-end when
@@ -92,19 +93,19 @@ require 'perobs'
 
 class Person < PEROBS::Object
 
-  po_attr :name, :mother, :father, :kids, :spouse, :status
+  attr_persist :name, :mother, :father, :kids, :spouse, :status
 
   def initialize(p, name)
     super(p)
-    attr_init(:name, name)
-    attr_init(:kids, store.new(PEROBS::Array))
-    attr_init(:status, :single)
+    self.name = name
+    self.kids = @store.new(PEROBS::Array)
+    self.status = :single
   end
 
   def restore
     # Use block version of attr_init() to avoid creating unneded
     # objects. The block is only called when @father doesn't exist yet.
-    attr_init(:father) do { store.new(Person, 'Dad') }
+    attr_init(:father) do { @store.new(Person, 'Dad') }
   end
 
   def merry(spouse)
@@ -136,7 +137,7 @@ contains the 3 Person objects.
 ### Accessing persistent instance variables
 
 All instance variables that should be persisted must be declared with
-'po_attr'. This will create the instance variable, a getter and setter
+'attr_persist'. This will create the instance variable, a getter and setter
 method for it. These getter and setter methods are the recommended way
 to access instance variables both from ouside of the instances as well
 as from within. To access the setter or getter method from within an
@@ -166,8 +167,8 @@ object to another object.
 ### Caveats and known issues
 
 PEROBS is currently not thread-safe. You cannot simultaneously access
-the database from multiple application. You must provide your own
-locking mechanism to prevent this from happening.
+the database from multiple application. The library uses locks to
+ensure that only one Store object is accessing the database at a time.
 
 ## Installation
 
@@ -187,7 +188,7 @@ Or install it yourself as:
 
 ## Copyright and License
 
-Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
+Copyright (c) 2015, 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
 
 PEROBS and all accompanying files are licensed under this MIT License
 

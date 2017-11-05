@@ -67,12 +67,20 @@ module PEROBS
   #
   # class Person < PEROBS::Object
   #
-  #   po_attr :name, :mother, :father, :kids
+  #   attr_persist :name, :mother, :father, :kids
   #
+  #   # The contructor is only called for the creation of a new object. It is
+  #   # not called when the object is restored from the database. In that case
+  #   # only restore() is called.
   #   def initialize(cf, name)
   #     super(cf)
-  #     attr_init(:name, name)
-  #     attr_init(:kids, @store.new(PEROBS::Array))
+  #     self.name = name
+  #     self.kids = @store.new(PEROBS::Array)
+  #   end
+  #
+  #   def restore
+  #     # In case you need to do any checks or massaging (e. g. for additional
+  #     # attributes) you can provide this method.
   #   end
   #
   #   def to_s
@@ -90,7 +98,7 @@ module PEROBS
   # joe.kids << jim
   # jim.mother = jane
   # jane.kids << jim
-  # store.sync
+  # store.exit
   #
   class Store
 
@@ -126,7 +134,7 @@ module PEROBS
     #                      Unfortunately, it is 10x slower than marshal.
     def initialize(data_base, options = {})
       # Create a backing store handler
-      @db = (options[:engine] || BTreeDB).new(data_base, options)
+      @db = (options[:engine] || FlatFileDB).new(data_base, options)
       @db.open
       # Create a map that can translate classes to numerical IDs and vice
       # versa.
@@ -343,6 +351,10 @@ module PEROBS
 
         return obj
       end
+
+      #if (obj = @db.search_object(id))
+      #  PEROBS.log.fatal "Object was not in index but in DB"
+      #end
 
       # The requested object does not exist. Return nil.
       nil

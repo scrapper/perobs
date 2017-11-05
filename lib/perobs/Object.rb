@@ -49,9 +49,11 @@ module PEROBS
       attr_reader :attributes
 
       # This method can be used to define instance variable for
-      # PEROBS::Object derived classes.
+      # PEROBS::Object derived classes. Persistent attributes always have
+      # getter and setter methods defined. So it's essentially equivalent to
+      # attr_accessor but additionally declares an attribute as persistent.
       # @param attributes [Symbol] Name of the instance variable
-      def po_attr(*attributes)
+      def attr_persist(*attributes)
         attributes.each do |attr_name|
           unless attr_name.is_a?(Symbol)
             PEROBS.log.fatal "name must be a symbol but is a " +
@@ -72,6 +74,9 @@ module PEROBS
           @attributes << attr_name unless @attributes.include?(attr_name)
         end
       end
+
+      # This is the deprecated name for the attr_persist method
+      alias po_attr attr_persist
 
     end
 
@@ -108,7 +113,7 @@ module PEROBS
     # object was saved with an earlier version of the program that did not yet
     # have the instance variable. If you want to assign another PEROBS object
     # to the variable you should use the block variant to avoid unnecessary
-    # creation of PEROBS object that later need to be collected again.
+    # creation of PEROBS objects that later need to be collected again.
     def attr_init(attr, val = nil, &block)
       if _all_attributes.include?(attr)
         unless instance_variable_defined?('@' + attr.to_s)

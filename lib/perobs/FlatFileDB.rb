@@ -142,6 +142,10 @@ module PEROBS
       end
     end
 
+    def search_object(id)
+      @flat_file.search_object(id)
+    end
+
     # This method must be called to initiate the marking process.
     def clear_marks
       @flat_file.clear_all_marks

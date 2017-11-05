@@ -270,6 +270,15 @@ module PEROBS
       nil
     end
 
+    def search_object(id)
+      each_blob_header do |pos, header|
+        return read_obj_by_address(pos, id)
+      end
+
+      nil
+    end
+
+
     # Read the object at the specified address.
     # @param addr [Integer] Offset in the flat file
     # @param id [Integer] ID of the data blob
