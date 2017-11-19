@@ -236,13 +236,26 @@ module PEROBS
     end
 
     def _all_attributes
+      # Collect all persistent attributes from this class and all
+      # super classes into a single Array.
+      attributes = []
+      klass = self.class
+      while klass && klass.respond_to?(:attributes)
+        if (attrs = klass.attributes)
+          attributes += attrs
+        end
+        klass = klass.superclass
+      end
+
       # PEROBS objects that don't have persistent attributes declared don't
       # really make sense.
-      unless self.class.attributes
+      if attributes.empty?
         PEROBS.log.fatal "No persistent attributes have been declared for " +
-          "class #{self.class}. Use 'po_attr' to declare them."
+          "class #{self.class} or any parent class. Use 'attr_persist' " +
+          "to declare them."
       end
-      self.class.attributes
+
+      attributes
     end
 
   end
