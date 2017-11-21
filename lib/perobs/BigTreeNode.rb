@@ -330,7 +330,7 @@ module PEROBS
     # Insert the given value or child into the current node using the key as
     # index.
     # @param key [Integer] key to address the value or child
-    # @param value_or_child [Integer or BigTreeNode] value or BigTreeNode
+    # @param child_or_value [Integer or BigTreeNode] value or BigTreeNode
     def insert_element(key, child_or_value)
       if @keys.size >= @tree.node_size
         PEROBS.log.fatal "Cannot insert into a full BigTreeNode"

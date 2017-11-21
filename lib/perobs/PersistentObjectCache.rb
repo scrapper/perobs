@@ -113,7 +113,7 @@ module PEROBS
     # Remove a object from the in-memory list. This is an internal method
     # and should never be called from user code. It will be called from a
     # finalizer, so many restrictions apply!
-    # @param uid [Integer] Object address of the object to remove from
+    # @param address [Integer] Object address of the object to remove from
     #        the list
     # @param ruby_object_id [Integer] The Ruby object ID of the collected
     #        object

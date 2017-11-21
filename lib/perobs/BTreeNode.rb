@@ -105,7 +105,7 @@ module PEROBS
 
     # Restore a node from the backing store at the given address and tree.
     # @param tree [BTree] The tree the node belongs to
-    # @param node_address [Integer] The address in the blob file.
+    # @param address [Integer] The address in the blob file.
     def BTreeNode::load(tree, address)
       unless address.is_a?(Integer)
         PEROBS.log.fatal "address is not Integer: #{address.class}"

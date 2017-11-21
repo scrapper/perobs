@@ -91,7 +91,6 @@ module PEROBS
     # Create a new SpaceTreeNode. This method should be used for the creation
     # of new nodes instead of calling the constructor directly.
     # @param tree [SpaceTree] The tree the node should belong to
-    # @param node_address [Integer] Address of the node in the file
     # @param blob_address [Integer] Address of the free space blob
     # @param size [Integer] Size of the free space blob
     # @param parent [SpaceTreeNode] Parent node in the tree

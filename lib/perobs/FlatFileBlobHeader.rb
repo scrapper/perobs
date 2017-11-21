@@ -123,7 +123,6 @@ module PEROBS
     end
 
     # Write the header to a given File.
-    # @param file [File]
     def write
       begin
         @file.seek(@addr)
@@ -135,8 +134,6 @@ module PEROBS
     end
 
     # Reset all the flags bit to 0. This marks the blob as invalid.
-    # @param file [File] The file handle of the blob file.
-    # @param addr [Integer] The address of the header
     def clear_flags
       @flags = 0
       write_flags
