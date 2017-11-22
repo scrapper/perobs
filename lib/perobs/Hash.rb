@@ -37,7 +37,10 @@ module PEROBS
   # The implementation is largely a proxy around the standard Hash class. But
   # all mutating methods must be re-implemented to convert PEROBS::Objects to
   # POXReference objects and to register the object as modified with the
-  # cache.
+  # cache. However, it is not designed for large data sets as it always reads
+  # and writes the full data set for every access (unless it is cached). For
+  # data sets that could have more than a few hundred entries BigHash is the
+  # recommended alternative.
   #
   # We explicitely don't support Hash::store() as it conflicts with
   # ObjectBase::store() method to access the store.

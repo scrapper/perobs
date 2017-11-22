@@ -2,7 +2,7 @@
 #
 # = Store.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -36,6 +36,8 @@ require 'perobs/FlatFileDB'
 require 'perobs/Object'
 require 'perobs/Hash'
 require 'perobs/Array'
+require 'perobs/BigTree'
+require 'perobs/BigHash'
 
 # PErsistent Ruby OBject Store
 module PEROBS
