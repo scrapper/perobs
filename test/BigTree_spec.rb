@@ -41,10 +41,22 @@ describe PEROBS::BigTree do
     @store.delete_store
   end
 
+  it 'should be empty' do
+    expect(@t.empty?).to be true
+    expect(@t.length).to eql(0)
+  end
+
+  it 'should deal with requests for unknown keys' do
+    expect(@t.has_key?(42)).to be false
+    expect(@t.get(42)).to be_nil
+  end
+
   it 'should support adding sequential key/value pairs' do
     0.upto(100) do |i|
       @t.insert(i, 3 * i)
       expect(@t.check).to be true
+      expect(@t.length).to eql(i + 1)
+      expect(@t.has_key?(i)).to be true
       expect(@t.get(i)).to eql(3 * i)
     end
   end
@@ -72,6 +84,8 @@ describe PEROBS::BigTree do
   it 'should support clearing the tree' do
     @t.clear
     expect(@t.check).to be true
+    expect(@t.empty?).to be true
+    expect(@t.length).to eql(0)
     i = 0
     @t.each { |k, v| i += 1 }
     expect(i).to eql(0)
@@ -97,10 +111,34 @@ describe PEROBS::BigTree do
     (1..100).to_a.shuffle.each do |i|
       @t.insert(i, i * 100)
     end
+    expect(@t.length).to eql(100)
     (1..100).to_a.shuffle.each do |i|
       expect(@t.remove(i)).to eql(i * 100)
       expect(@t.check).to be true
     end
+    expect(@t.length).to eql(0)
+  end
+
+  it 'should delete all entries matching a condition' do
+    @t.clear
+    (1..50).to_a.shuffle.each do |i|
+      @t.insert(i, i)
+    end
+    @t.delete_if { |k, v| v % 7 == 0 }
+    expect(@t.check).to be true
+    @t.each do |k, v|
+      expect(v % 7).to be > 0, "failed for #{v}"
+    end
+    expect(@t.length).to eql(43)
+    @t.delete_if { |k, v| v % 2 == 0 }
+    expect(@t.check).to be true
+    @t.each do |k, v|
+      expect(v % 2).to be > 0
+    end
+    expect(@t.length).to eql(21)
+    @t.delete_if { |k, v| true }
+    expect(@t.check).to be true
+    expect(@t.empty?).to be true
   end
 
   it 'should survive a real-world usage test' do

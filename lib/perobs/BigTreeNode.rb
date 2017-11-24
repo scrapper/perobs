@@ -121,6 +121,29 @@ module PEROBS
         "looking for key #{key}"
     end
 
+    # Return if given key is stored in the node.
+    # @param key [Integer] key to search for
+    # @return [Boolean] True if key was found, false otherwise
+    def has_key?(key)
+      node = self
+
+      while node do
+        # Find index of the entry that best fits the key.
+        i = node.search_key_index(key)
+        if node.is_leaf?
+          # This is a leaf node. Check if there is an exact match for the
+          # given key and return the corresponding value or nil.
+          return node.keys[i] == key
+        end
+
+        # Descend into the right child node to continue the search.
+        node = node.children[i]
+      end
+
+      PEROBS.log.fatal "Could not find proper node to get from while " +
+        "looking for key #{key}"
+    end
+
     # Return the value that matches the given key and remove the value from
     # the tree. Return nil if the key is unknown.
     # @param key [Integer] key to search for
@@ -288,7 +311,7 @@ module PEROBS
     # Split the current node into two nodes. The upper half of the elements
     # will be moved into a newly created node. This node will retain the lower
     # half.
-    # @return [BTreeNodeLink] common parent of the two nodes
+    # @return [BigTreeNode] common parent of the two nodes
     def split_node
       unless @parent
         # The node is the root node. We need to create a parent node first.
@@ -305,7 +328,7 @@ module PEROBS
       mid = @keys.size / 2 + 1
       # Insert the middle element key into the parent node
       @parent.insert_element(@keys[mid], sibling)
-      copy_elements(mid + (is_leaf? ? 0 : 1), sibling)
+      copy_elements(mid + (is_leaf? ? 0 : 1), sibling, 0)
       trim(mid)
 
       @parent
@@ -313,16 +336,16 @@ module PEROBS
 
     # Merge the node with its next sibling node.
     # @param upper_sibling [BigTreeNode] The next sibling node
-    # @param parent_index [Integer] The index in the parent node
+    # @param parent_index [Integer] The index of this node in the parent node
     def merge_node(upper_sibling, parent_index)
       if upper_sibling == self
-        PEROBS.log.fatal "Cannot merge node @#{@node_address} with self"
+        PEROBS.log.fatal "Cannot merge node @#{@_id} with self"
       end
+
       unless upper_sibling.is_leaf?
         insert_element(@parent.keys[parent_index], upper_sibling.children[0])
       end
-      upper_sibling.copy_elements(0, myself, @keys.size,
-                                  upper_sibling.keys.size)
+      upper_sibling.copy_elements(0, myself, @keys.size)
 
       @parent.remove_element(parent_index)
     end
@@ -366,14 +389,14 @@ module PEROBS
 
       # Delete the key at the specified index.
       unless @keys.delete_at(index)
-        PEROBS.log.fatal "Could not remove element #{index} from BTreeNode " +
-          "@#{@node_address}"
+        PEROBS.log.fatal "Could not remove element #{index} from BigTreeNode " +
+          "@#{@_id}"
       end
       if is_leaf?
         # For leaf nodes, also delete the corresponding value.
         removed_value = @values.delete_at(index)
       else
-        # The corresponding child has can be found at 1 index higher.
+        # The corresponding child has be found at index + 1.
         @children.delete_at(index + 1)
       end
 
@@ -402,7 +425,8 @@ module PEROBS
     # @param dst_idx [Integer] index where to store the first node
     # @param count [Integer] number of elements to copy, if nil, all remaining
     #        elements will be copied
-    def copy_elements(src_idx, dest_node, dst_idx = 0, count = nil)
+    def copy_elements(src_idx, dest_node, dst_idx = nil, count = nil)
+      dst_idx ||= @keys.size
       count ||= @keys.size - src_idx
 
       if dst_idx + count > @tree.node_size

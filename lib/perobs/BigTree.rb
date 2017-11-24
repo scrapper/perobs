@@ -36,7 +36,7 @@ module PEROBS
   # memory. Entries are addressed by a Integer key.
   class BigTree < PEROBS::Object
 
-    attr_persist :node_size, :root
+    attr_persist :node_size, :root, :entry_counter
 
     # Internal constructor. Use Store.new() instead.
     # @param p [Handle]
@@ -54,6 +54,7 @@ module PEROBS
     # Remove all entries from the BigTree.
     def clear
       self.root = @store.new(BigTreeNode, myself, true)
+      self.entry_counter = 0
     end
 
     # Insert a new value into the tree using the key as a unique index. If the
@@ -63,6 +64,7 @@ module PEROBS
     def insert(key, value)
       @store.transaction do
         @root.insert(key, value)
+        self.entry_counter += 1
       end
     end
 
@@ -74,6 +76,13 @@ module PEROBS
       @root.get(key)
     end
 
+    # Check if there is an entry for the given key.
+    # @param key [Integer] Unique key
+    # @return [Boolean] True if key is present, false otherwise.
+    def has_key?(key)
+      @root.has_key?(key)
+    end
+
     # Find and remove the value associated with the given key. If no entry was
     # found, return nil, otherwise the found value.
     # @param key [Integer] Unique key
@@ -83,26 +92,37 @@ module PEROBS
 
       @store.transaction do
         removed_value = @root.remove(key)
+        self.entry_counter -= 1
 
-        # Check if the root node only contains one child link after the delete
-        # operation. Then we can delete that node and pull the tree one level
-        # up. This could happen for a sequence of nodes that all got merged to
-        # single child nodes.
-        while !@root.is_leaf? && @root.children.size == 1
-          old_root = @root
-          set_root(@root.children.first)
-          @root.parent = nil
-        end
+        remove_single_entry_nodes
       end
 
       removed_value
     end
 
+    # Delete all entries for which the passed block yields true. The
+    # implementation is optimized for large bulk deletes. It rebuilds a new
+    # BTree for the elements to keep. If only few elements are deleted the
+    # overhead of rebuilding the BTree is rather high.
+    # @yield [key, value]
+    def delete_if
+      old_root = @root
+      clear
+      old_root.each do |k, v|
+        if !yield(k, v)
+          insert(k, v)
+        end
+      end
+    end
+
     # @return [Integer] The number of entries stored in the tree.
     def length
-      i = 0
-      each { |k, v| i += 1 }
-      i
+      @entry_counter
+    end
+
+    # Return true if the BigTree has no stored entries.
+    def empty?
+      @entry_counter == 0
     end
 
     # Iterate over all entries in the tree. Entries are always sorted by the
@@ -126,6 +146,20 @@ module PEROBS
     # Internal method.
     def set_root(root)
       @root = root
+    end
+
+    private
+
+    def remove_single_entry_nodes
+      # Check if the root node only contains one child link after the delete
+      # operation. Then we can delete that node and pull the tree one level
+      # up. This could happen for a sequence of nodes that all got merged to
+      # single child nodes.
+      while !@root.is_leaf? && @root.children.size == 1
+        old_root = @root
+        set_root(@root.children.first)
+        @root.parent = nil
+      end
     end
 
   end
