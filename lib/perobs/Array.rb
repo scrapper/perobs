@@ -2,7 +2,7 @@
 #
 # = Array.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -44,19 +44,26 @@ module PEROBS
 
     attr_reader :data
 
-    # These methods do not mutate the Array. They only perform read
-    # operations.
+    # These methods do not mutate the Array but create a new PEROBS::Array
+    # object. They only perform read operations.
     ([
-      :&, :*, :+, :-, :==, :[], :<=>, :at, :abbrev, :assoc, :bsearch, :collect,
-      :combination, :compact, :count, :cycle, :dclone, :drop, :drop_while,
-      :each, :each_index, :empty?, :eql?, :fetch, :find_index, :first,
-      :flatten, :frozen?, :hash, :include?, :index, :join, :last,
-      :length, :map, :pack, :permutation, :pretty_print, :pretty_print_cycle,
-      :product, :rassoc, :reject, :repeated_combination,
-      :repeated_permutation, :reverse, :reverse_each, :rindex, :rotate,
-      :sample, :select, :shelljoin, :shuffle, :size, :slice, :sort, :take,
-      :take_while, :to_a, :to_ary, :to_s, :transpose, :uniq, :values_at, :zip,
-      :|
+      :|, :&, :+, :-, :collect, :compact, :drop, :drop_while,
+      :flatten, :map, :reject, :reverse, :rotate, :select, :shuffle, :slice,
+      :sort, :take, :take_while, :uniq, :values_at
+    ] + Enumerable.instance_methods).uniq.each do |method_sym|
+      define_method(method_sym) do |*args, &block|
+        @store.cache.cache_read(self)
+        @store.new(PEROBS::Array, @data.send(method_sym, *args, &block))
+      end
+    end
+
+    # These methods do not mutate the Array and only perform read operations.
+    # They do not return basic objects types.
+    ([
+      :==, :[], :<=>, :at, :bsearch, :count, :cycle, :each, :each_index,
+      :empty?, :eql?, :fetch, :find_index, :first, :frozen?, :include?,
+      :index, :join, :last, :length, :pack, :pretty_print, :pretty_print_cycle,
+      :reverse_each, :rindex, :sample, :size, :to_a, :to_ary, :to_s
     ] + Enumerable.instance_methods).uniq.each do |method_sym|
       define_method(method_sym) do |*args, &block|
         @store.cache.cache_read(self)
@@ -64,12 +71,23 @@ module PEROBS
       end
     end
 
+    # These methods mutate the Array and return self.
+    [
+      :<<, :clear, :collect!, :compact!, :concat,
+      :fill, :flatten!, :insert, :keep_if, :map!, :push,
+      :reject!, :replace, :select!, :reverse!, :rotate!, :shuffle!,
+      :slice!, :sort!, :sort_by!, :uniq!
+    ].each do |method_sym|
+      define_method(method_sym) do |*args, &block|
+        @store.cache.cache_write(self)
+        @data.send(method_sym, *args, &block)
+        myself
+      end
+    end
+
     # These methods mutate the Array.
     [
-      :<<, :[]=, :clear, :collect!, :compact!, :concat, :delete, :delete_at,
-      :delete_if, :fill, :flatten!, :insert, :keep_if, :map!, :pop, :push,
-      :reject!, :replace, :select!, :reverse!, :rotate!, :shift, :shuffle!,
-      :slice!, :sort!, :sort_by!, :uniq!, :unshift
+      :[]=, :delete, :delete_at, :delete_if, :shift, :pop, :unshift
     ].each do |method_sym|
       define_method(method_sym) do |*args, &block|
         @store.cache.cache_write(self)
@@ -81,12 +99,19 @@ module PEROBS
     # PEROBS users should never call this method or equivalents of derived
     # methods directly.
     # @param p [PEROBS::Handle] PEROBS handle
-    # @param size [Integer] The requested size of the Array
+    # @param arg [Integer] The requested size of the Array
+    # @param arg [Array] Initialize with the Array object content
     # @param default [Any] The default value that is returned when no value is
     #        stored for a specific key.
-    def initialize(p, size = 0, default = nil)
+    def initialize(p, arg1 = 0, default = nil, &block)
       super(p)
-      @data = ::Array.new(size, default)
+      if arg1.is_a?(::Array)
+        @data = arg1.dup
+      elsif block_given?
+        @data = Array(arg1, &block)
+      else
+        @data = ::Array.new(arg1, default)
+      end
 
       # Ensure that the newly created object will be pushed into the database.
       @store.cache.cache_write(self)

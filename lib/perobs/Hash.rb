@@ -2,7 +2,7 @@
 #
 # = Hash.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -47,13 +47,26 @@ module PEROBS
   class Hash < ObjectBase
 
     # These methods do not mutate the Hash. They only perform read
+    # operations and return a new PEROBS::Hash object.
+    ([
+      :invert, :merge, :reject, :select
+    ] + Enumerable.instance_methods).uniq.each do |method_sym|
+      # Create a wrapper method that passes the call to @data.
+      define_method(method_sym) do |*args, &block|
+        # Register the read operation with the cache.
+        @store.cache.cache_read(self)
+        @store.new(PEROBS::Hash, @data.send(method_sym, *args, &block))
+      end
+    end
+
+    # These methods do not mutate the Hash. They only perform read
     # operations.
     ([
       :==, :[], :assoc, :compare_by_identity, :compare_by_identity?, :default,
       :default_proc, :each, :each_key, :each_pair, :each_value, :empty?,
       :eql?, :fetch, :flatten, :has_key?, :has_value?, :hash, :include?,
-      :invert, :key, :key?, :keys, :length, :member?, :merge,
-      :pretty_print, :pretty_print_cycle, :rassoc, :reject, :select, :size,
+      :key, :key?, :keys, :length, :member?,
+      :pretty_print, :pretty_print_cycle, :rassoc, :size,
       :to_a, :to_h, :to_hash, :to_s, :value?, :values, :values_at
     ] + Enumerable.instance_methods).uniq.each do |method_sym|
       # Create a wrapper method that passes the call to @data.
@@ -64,11 +77,22 @@ module PEROBS
       end
     end
 
-    # These methods mutate the Hash.
+    # These methods mutate the Hash and return self
     [
-      :[]=, :clear, :default=, :default_proc=, :delete, :delete_if,
-      :initialize_copy, :keep_if, :merge!, :rehash, :reject!, :replace,
-      :select!, :shift, :update
+      :clear, :keep_if, :merge!, :rehash, :reject!, :replace, :select!, :update
+    ].each do |method_sym|
+      # Create a wrapper method that passes the call to @data.
+      define_method(method_sym) do |*args, &block|
+        # Register the write operation with the cache.
+        @store.cache.cache_write(self)
+        @data.send(method_sym, *args, &block)
+        myself
+      end
+    end
+
+    # These methods mutate the Hash and return basic Ruby type objects.
+    [
+      :[]=, :default=, :default_proc=, :delete, :delete_if, :shift
     ].each do |method_sym|
       # Create a wrapper method that passes the call to @data.
       define_method(method_sym) do |*args, &block|
