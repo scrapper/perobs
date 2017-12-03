@@ -36,6 +36,10 @@ module PEROBS
   # memory. Entries are addressed by a Integer key.
   class BigTree < PEROBS::Object
 
+    class Stats < Struct.new(:leaf_nodes, :branch_nodes, :min_depth,
+                             :max_depth)
+    end
+
     attr_persist :node_size, :root, :entry_counter
 
     # Internal constructor. Use Store.new() instead.
@@ -44,8 +48,8 @@ module PEROBS
     #        how many entries must be read/written for each operation.
     def initialize(p, node_size = 127)
       super(p)
-      unless node_size % 2 == 1
-        PEROBS.log.fatal "Node size (#{node_size}) must be uneven"
+      unless node_size > 2
+        PEROBS.log.fatal "Node size (#{node_size}) must be larger than 2"
       end
       self.node_size = node_size
       clear
@@ -74,6 +78,14 @@ module PEROBS
     # @return [Integer or nil] found value or nil
     def get(key)
       @root.get(key)
+    end
+
+    # Return the node chain from the root to the leaf node storing the
+    # key/value pair.
+    # @param key [Integer] key to search for
+    # @return [Array of BigTreeNode] node list (may be empty)
+    def node_chain(key)
+      @root.node_chain(key)
     end
 
     # Check if there is an entry for the given key.
@@ -141,6 +153,14 @@ module PEROBS
     # @return [Boolean] true if no erros were found, false otherwise
     def check(&block)
       @root.check(&block)
+    end
+
+    # Gather some statistics regarding the tree structure.
+    # @return [Stats] Structs with gathered data
+    def statistics
+      stats = Stats.new(0, 0, nil, nil)
+      @root.statistics(stats)
+      stats
     end
 
     # Internal method.

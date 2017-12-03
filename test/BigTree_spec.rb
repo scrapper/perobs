@@ -34,7 +34,7 @@ describe PEROBS::BigTree do
   before(:all) do
     @db_name = generate_db_name(__FILE__)
     @store = PEROBS::Store.new(@db_name)
-    @t = @store.new(PEROBS::BigTree, 15)
+    @t = @store.new(PEROBS::BigTree, 7)
   end
 
   after(:all) do
@@ -44,6 +44,11 @@ describe PEROBS::BigTree do
   it 'should be empty' do
     expect(@t.empty?).to be true
     expect(@t.length).to eql(0)
+    s = @t.statistics
+    expect(s.leaf_nodes).to eql(1)
+    expect(s.branch_nodes).to eql(0)
+    expect(s.min_depth).to eql(1)
+    expect(s.max_depth).to eql(1)
   end
 
   it 'should deal with requests for unknown keys' do
@@ -94,8 +99,8 @@ describe PEROBS::BigTree do
   it 'should support adding random key/value pairs' do
     (1..1000).to_a.shuffle.each do |i|
       @t.insert(i, i * 100)
-      expect(@t.check).to be true
     end
+    expect(@t.check).to be true
     (1..1000).to_a.shuffle.each do |i|
       expect(@t.get(i)).to eql(i * 100)
     end
@@ -144,12 +149,12 @@ describe PEROBS::BigTree do
   it 'should survive a real-world usage test' do
     @t.clear
     ref = {}
-    0.upto(5000) do
+    0.upto(2000) do
       case rand(4)
       when 0
         0.upto(2) do
           key = rand(100000)
-          value = rand(10000000)
+          value = key * 10
           @t.insert(key, value)
           ref[key] = value
         end
@@ -169,7 +174,7 @@ describe PEROBS::BigTree do
       when 3
         if ref.length > 0
           key = ref.keys[rand(ref.keys.length)]
-          value = rand(10000000)
+          value = ref[key] + 1
           @t.insert(key, value)
           ref[key] = value
         end

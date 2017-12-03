@@ -242,9 +242,8 @@ describe PEROBS::Array do
   it 'should catch a leaked PEROBS::ObjectBase object' do
     @store['a'] = a = @store.new(PEROBS::Array)
     o = @store.new(PO)
-    a[0] = o.get_self
     PEROBS.log.open(StringIO.new)
-    expect { @store.exit }.to raise_error(PEROBS::FatalError)
+    expect { a[0] = o.get_self }.to raise_error(PEROBS::FatalError)
     PEROBS.log.open($stderr)
   end
 
