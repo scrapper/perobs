@@ -87,7 +87,7 @@ module PEROBS
 
     # These methods mutate the Array.
     [
-      :[]=, :delete, :delete_at, :delete_if, :shift, :pop, :unshift
+      :delete, :delete_at, :delete_if, :shift, :pop
     ].each do |method_sym|
       define_method(method_sym) do |*args, &block|
         @store.cache.cache_write(self)
@@ -106,15 +106,36 @@ module PEROBS
     def initialize(p, arg1 = 0, default = nil, &block)
       super(p)
       if arg1.is_a?(::Array)
+        arg1.each { |v| _check_assignment_value(v) }
         @data = arg1.dup
       elsif block_given?
-        @data = Array(arg1, &block)
+        @data = ::Array.new(arg1) do
+          _check_assignment_value(yield)
+        end
       else
-        @data = ::Array.new(arg1, default)
+        @data = ::Array.new(arg1, _check_assignment_value(default))
       end
 
       # Ensure that the newly created object will be pushed into the database.
       @store.cache.cache_write(self)
+    end
+
+    # Proxy for the assignment method.
+    def []=(*args)
+      if (args.length == 2)
+        _check_assignment_value(args[1])
+      else
+        _check_assignment_value(args[2])
+      end
+      @store.cache.cache_write(self)
+      @data.[]=(*args)
+    end
+
+    # Proxy for the unshift method.
+    def unshift(val)
+      _check_assignment_value(val)
+      @store.cache.cache_write(self)
+      @data.unshift(val)
     end
 
     # Return a list of all object IDs of all persistend objects that this Array

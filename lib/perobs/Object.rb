@@ -2,7 +2,7 @@
 #
 # = Object.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -212,17 +212,7 @@ module PEROBS
     end
 
     def _set(attr, val)
-      if val.respond_to?(:is_poxreference?)
-        # References to other PEROBS::Objects must be handled somewhat
-        # special.
-        if @store != val.store
-          PEROBS.log.fatal 'The referenced object is not part of this store'
-        end
-      elsif val.is_a?(ObjectBase)
-        PEROBS.log.fatal 'A PEROBS::ObjectBase object escaped! ' +
-          'Have you used self() instead of myself() to get the reference ' +
-          'of the PEROBS object that you are trying to assign here?'
-      end
+      _check_assignment_value(val)
       instance_variable_set(('@' + attr.to_s).to_sym, val)
       # Let the store know that we have a modified object. If we restored the
       # object from the DB, we don't mark it as modified.

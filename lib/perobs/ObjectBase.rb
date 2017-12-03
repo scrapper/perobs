@@ -86,6 +86,10 @@ module PEROBS
       _referenced_object == obj
     end
 
+    def eql?(obj)
+      _referenced_object._id == obj._id
+    end
+
     # BasicObject provides a equal?() method that prevents method_missing from
     # being called. So we have to pass the call manually to the referenced
     # object.
@@ -113,6 +117,12 @@ module PEROBS
   # Base class for all persistent objects. It provides the functionality
   # common to all classes of persistent objects.
   class ObjectBase
+
+    # This is a list of the native Ruby classes that are supported for
+    # instance variable assignements in addition to other PEROBS objects.
+    NATIVE_CLASSES = [
+      NilClass, Integer, Float, String, TrueClass, FalseClass
+    ]
 
     attr_reader :_id, :store, :myself
 
@@ -192,6 +202,25 @@ module PEROBS
       @store.db.put_object(db_obj, @_id)
     end
 
+    #
+    def _check_assignment_value(val)
+      if val.respond_to?(:is_poxreference?)
+        # References to other PEROBS::Objects must be handled somewhat
+        # special.
+        if @store != val.store
+          PEROBS.log.fatal 'The referenced object is not part of this store'
+        end
+      elsif val.is_a?(ObjectBase)
+        PEROBS.log.fatal 'A PEROBS::ObjectBase object escaped! ' +
+          'Have you used self() instead of myself() to get the reference ' +
+          'of the PEROBS object that you are trying to assign here?'
+      elsif !NATIVE_CLASSES.include?(val.class)
+        PEROBS.log.fatal "Assigning objects of class #{val.class} is not " +
+          "supported. Only PEROBS objects or one of the following classes " +
+          "are supported: #{NATIVE_CLASSES.join(', ')}"
+      end
+    end
+
     # Read an raw object with the specified ID from the backing store and
     # instantiate a new object of the specific type.
     def ObjectBase.read(store, id)
@@ -218,10 +247,7 @@ module PEROBS
       data = nil
       if @_stash_map
         (level - 1).downto(0) do |lvl|
-          if @_stash_map[lvl]
-            data = @_stash_map[lvl]
-            break
-          end
+          break if (data = @_stash_map[lvl])
         end
       end
       if data

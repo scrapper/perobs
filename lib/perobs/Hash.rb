@@ -92,7 +92,7 @@ module PEROBS
 
     # These methods mutate the Hash and return basic Ruby type objects.
     [
-      :[]=, :default=, :default_proc=, :delete, :delete_if, :shift
+      :delete, :delete_if, :shift
     ].each do |method_sym|
       # Create a wrapper method that passes the call to @data.
       define_method(method_sym) do |*args, &block|
@@ -106,15 +106,33 @@ module PEROBS
     # PEROBS users should never call this method or equivalents of derived
     # methods directly.
     # @param p [PEROBS::Handle] PEROBS handle
-    # @param default [Any] The default value that is returned when no value is
-    #        stored for a specific key.
-    def initialize(p, default = nil)
+    # @param default [Object] The default value that is returned when no value
+    #        is stored for a specific key. The default must be of the
+    #        supported type.
+    def initialize(p, default = nil, &block)
       super(p)
-      @default = nil
-      @data = {}
+      _check_assignment_value(default)
+      if block_given?
+        @data = ::Hash.new(&block)
+      else
+        @data = ::Hash.new(default)
+      end
 
       # Ensure that the newly created object will be pushed into the database.
       @store.cache.cache_write(self)
+    end
+
+    # Proxy for assignment method.
+    def []=(key, value)
+      _check_assignment_value(value)
+      @store.cache.cache_write(self)
+      @data[key] = value
+    end
+
+    # Proxy for default= method.
+    def default=(value)
+      _check_assignment_value(value)
+      @data.default=(value)
     end
 
     # Return a list of all object IDs of all persistend objects that this Hash
