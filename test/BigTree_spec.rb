@@ -31,10 +31,12 @@ require 'perobs/BigTree'
 
 describe PEROBS::BigTree do
 
+  ORDER = 7
+
   before(:all) do
     @db_name = generate_db_name(__FILE__)
     @store = PEROBS::Store.new(@db_name)
-    @t = @store.new(PEROBS::BigTree, 7)
+    @t = @store.new(PEROBS::BigTree, ORDER)
   end
 
   after(:all) do
@@ -57,7 +59,7 @@ describe PEROBS::BigTree do
   end
 
   it 'should support adding sequential key/value pairs' do
-    0.upto(100) do |i|
+    0.upto(ORDER ** 3) do |i|
       @t.insert(i, 3 * i)
       expect(@t.check).to be true
       expect(@t.length).to eql(i + 1)
@@ -73,11 +75,11 @@ describe PEROBS::BigTree do
       expect(v).to eql(3 * i)
       i += 1
     end
-    expect(i).to eql(101)
+    expect(i).to eql(ORDER ** 3 + 1)
   end
 
   it 'should iterate in reverse order over the stored key and value pairs' do
-    i = 100
+    i = ORDER ** 3
     @t.reverse_each do |k, v|
       expect(k).to eql(i)
       expect(v).to eql(3 * i)
@@ -93,7 +95,7 @@ describe PEROBS::BigTree do
       expect(v).to eql(3 * k)
       i += 1
     end
-    expect(i).to eql(101)
+    expect(i).to eql(ORDER ** 3 + 1)
   end
 
   it 'should support clearing the tree' do
@@ -107,27 +109,53 @@ describe PEROBS::BigTree do
   end
 
   it 'should support adding random key/value pairs' do
-    (1..1000).to_a.shuffle.each do |i|
+    (1..ORDER ** 3).to_a.shuffle.each do |i|
       @t.insert(i, i * 100)
     end
     expect(@t.check).to be true
-    (1..1000).to_a.shuffle.each do |i|
+    (1..ORDER ** 3).to_a.shuffle.each do |i|
       expect(@t.get(i)).to eql(i * 100)
     end
   end
 
-  it 'should support removing keys' do
+  it 'should support removing keys in random order' do
     @t.clear
     @t.insert(1, 1)
     expect(@t.remove(1)).to eql(1)
     expect(@t.check).to be true
     expect(@t.length).to eql(0)
 
-    (1..100).to_a.shuffle.each do |i|
+    (1..ORDER ** 3).to_a.shuffle.each do |i|
       @t.insert(i, i * 100)
     end
-    expect(@t.length).to eql(100)
-    (1..100).to_a.shuffle.each do |i|
+    expect(@t.length).to eql(ORDER ** 3)
+    (1..ORDER ** 3).to_a.shuffle.each do |i|
+      expect(@t.remove(i)).to eql(i * 100)
+      expect(@t.check).to be true
+    end
+    expect(@t.length).to eql(0)
+  end
+
+  it 'should support removing keys in increasing order' do
+    @t.clear
+    (1..ORDER ** 3).to_a.shuffle.each do |i|
+      @t.insert(i, i * 100)
+    end
+    expect(@t.length).to eql(ORDER ** 3)
+    (1..ORDER ** 3).to_a.each do |i|
+      expect(@t.remove(i)).to eql(i * 100)
+      expect(@t.check).to be true
+    end
+    expect(@t.length).to eql(0)
+  end
+
+  it 'should support removing keys in reverse order' do
+    @t.clear
+    (1..ORDER ** 3).to_a.shuffle.each do |i|
+      @t.insert(i, i * 100)
+    end
+    expect(@t.length).to eql(ORDER ** 3)
+    (1..ORDER ** 3).to_a.reverse_each do |i|
       expect(@t.remove(i)).to eql(i * 100)
       expect(@t.check).to be true
     end
@@ -159,8 +187,8 @@ describe PEROBS::BigTree do
   it 'should survive a real-world usage test' do
     @t.clear
     ref = {}
-    0.upto(2000) do
-      case rand(4)
+    0.upto(1000) do
+      case rand(5)
       when 0
         0.upto(2) do
           key = rand(100000)
