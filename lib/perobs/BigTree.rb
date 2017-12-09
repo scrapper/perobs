@@ -40,7 +40,7 @@ module PEROBS
                              :max_depth)
     end
 
-    attr_persist :node_size, :root, :entry_counter
+    attr_persist :node_size, :root, :first_leaf, :last_leaf, :entry_counter
 
     # Internal constructor. Use Store.new() instead.
     # @param p [Handle]
@@ -57,7 +57,8 @@ module PEROBS
 
     # Remove all entries from the BigTree.
     def clear
-      self.root = @store.new(BigTreeNode, myself, true)
+      self.root = self.first_leaf = self.last_leaf =
+        @store.new(BigTreeNode, myself, true)
       self.entry_counter = 0
     end
 
@@ -105,8 +106,6 @@ module PEROBS
       @store.transaction do
         removed_value = @root.remove(key)
         self.entry_counter -= 1
-
-        remove_single_entry_nodes
       end
 
       removed_value
@@ -141,8 +140,24 @@ module PEROBS
     # key.
     # @yield [key, value]
     def each(&block)
-      @root.each(&block)
+      node = @first_leaf
+      while node
+        node.each_element(&block)
+        node = node.next_sibling
+      end
     end
+
+    # Iterate over all entries in the tree in reverse order. Entries are
+    # always sorted by the key.
+    # @yield [key, value]
+    def reverse_each(&block)
+      node = @last_leaf
+      while node
+        node.reverse_each_element(&block)
+        node = node.prev_sibling
+      end
+    end
+
 
     # @return [String] Human reable form of the tree.
     def to_s
@@ -163,24 +178,7 @@ module PEROBS
       stats
     end
 
-    # Internal method.
-    def set_root(root)
-      @root = root
-    end
-
     private
-
-    def remove_single_entry_nodes
-      # Check if the root node only contains one child link after the delete
-      # operation. Then we can delete that node and pull the tree one level
-      # up. This could happen for a sequence of nodes that all got merged to
-      # single child nodes.
-      while !@root.is_leaf? && @root.children.size == 1
-        old_root = @root
-        set_root(@root.children.first)
-        @root.parent = nil
-      end
-    end
 
   end
 

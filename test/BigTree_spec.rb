@@ -76,6 +76,16 @@ describe PEROBS::BigTree do
     expect(i).to eql(101)
   end
 
+  it 'should iterate in reverse order over the stored key and value pairs' do
+    i = 100
+    @t.reverse_each do |k, v|
+      expect(k).to eql(i)
+      expect(v).to eql(3 * i)
+      i -= 1
+    end
+    expect(i).to eql(-1)
+  end
+
   it 'should yield the key/value pairs on check' do
     i = 0
     @t.check do |k, v|
