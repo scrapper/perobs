@@ -537,7 +537,7 @@ module PEROBS
     # Remove the specified node from this branch node.
     # @param node [BigTreeNode] The child to remove
     def remove_child(node)
-      unless (index = @children.index(node))
+      unless (index = search_node_index(node))
         PEROBS.log.fatal "Cannot remove child #{node._id} from node #{@_id}"
       end
 
@@ -598,7 +598,7 @@ module PEROBS
         PEROBS.log.fatal "Branch nodes are too big to merge"
       end
 
-      index = @parent.children.index(node) - 1
+      index = @parent.search_node_index(node) - 1
       self.keys << @parent.keys[index]
       self.keys += node.keys
       node.children.each { |c| c.parent = myself }
@@ -643,6 +643,15 @@ module PEROBS
       # No exact match was found. For the insert operaton we need to return
       # the index of the first key that is larger than the given key.
       @keys[pi] < key ? pi + 1 : pi
+    end
+
+    def search_node_index(node)
+      index = search_key_index(node.keys.first)
+      unless @children[index] == node
+        raise RuntimeError, "Child at index #{index} is not the requested node"
+      end
+
+      index
     end
 
     # This is a generic tree iterator. It yields before it descends into the
@@ -779,7 +788,7 @@ module PEROBS
     #         otherwise.
     def borrow_from_previous_sibling(prev_node)
       if prev_node.keys.length - 1 > min_keys
-        index = @parent.children.index(self) - 1
+        index = @parent.search_node_index(self) - 1
 
         if is_leaf?
           # Move the last key of the previous node to the front of this node
@@ -812,7 +821,7 @@ module PEROBS
       if next_node.keys.length - 1 > min_keys
         # The next sibling now has a new lead key that requires the branch key
         # to be updated in the parent node.
-        index = next_node.parent.children.index(next_node) - 1
+        index = next_node.parent.search_node_index(next_node) - 1
 
         if is_leaf?
           # Move the first key of the next node to the end of the this node
