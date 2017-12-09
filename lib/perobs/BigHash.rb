@@ -1,6 +1,6 @@
 # encoding: UTF-8
 #
-# = BigTree.rb -- Persistent Ruby Object Store
+# = BigHash.rb -- Persistent Ruby Object Store
 #
 # Copyright (c) 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
 #
@@ -64,11 +64,18 @@ module PEROBS
 
     attr_persist :btree
 
+    # Create a new BigHash object.
+    # @param p [Handle] Store handle
     def initialize(p)
       super(p)
       self.btree = @store.new(PEROBS::BigTree)
     end
 
+    # Insert a value that is associated with the given key. If a value for
+    # this key already exists, the value will be overwritten with the newly
+    # provided value.
+    # @param key [Integer or String]
+    # @param value [Any PEROBS storable object]
     def []=(key, value)
       hashed_key = hash_key(key)
       @store.transaction do
@@ -104,6 +111,10 @@ module PEROBS
       end
     end
 
+    # Retrieve the value for the given key. If no value for the key is found
+    # nil is returned.
+    # @param key [Integer or String]
+    # @return [Any PEROBS storable object]
     def [](key)
       hashed_key = hash_key(key)
       unless (entry = @btree.get(hashed_key))
@@ -119,6 +130,40 @@ module PEROBS
       end
 
       nil
+    end
+
+    # Check if the is a value stored for the given key.
+    # @param key [Integer or String]
+    # @return [TrueClass or FalseClass]
+    def has_key?(key)
+      hashed_key = hash_key(key)
+      unless (entry = @btree.get(hashed_key))
+        return false
+      end
+
+      if entry.is_a?(PEROBS::Array)
+        entry.each do |ae|
+          return true if ae.key == key
+        end
+      else
+        return true if entry.key == key
+      end
+
+      false
+    end
+
+    # Return the number of entries stored in the hash.
+    # @return [Integer]
+    def length
+      @btree.length
+    end
+
+    alias size length
+
+    # Calls the given block for each key/value pair.
+    # @yield(key, value)
+    def each(&block)
+      @btree.each(&block)
     end
 
     private
