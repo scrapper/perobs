@@ -191,5 +191,35 @@ describe PEROBS::EquiBlobsFile do
     expect(@bf.check).to be true
   end
 
+  it 'should support custom offsets' do
+    @bf.close
+    @bf.erase
+    @bf.clear_custom_offsets
+    @bf.register_custom_offset('foo', 42)
+    @bf.register_custom_offset('bar', 43)
+    @bf.open
+    expect(@bf.total_entries).to eql(0)
+    expect(@bf.total_spaces).to eql(0)
+    expect(@bf.check).to be true
+    expect(@bf.free_address).to eql(1)
+    @bf.store_blob(1,'11111111')
+    expect(@bf.free_address).to eql(2)
+    @bf.store_blob(2,'22222222')
+    expect(@bf.free_address).to eql(3)
+    @bf.store_blob(3,'33333333')
+    expect(@bf.check).to be true
+    expect(@bf.total_entries).to eql(3)
+    expect(@bf.total_spaces).to eql(0)
+    @bf.delete_blob(2)
+    expect(@bf.check).to be true
+    expect(@bf.total_entries).to eql(2)
+    expect(@bf.total_spaces).to eql(1)
+    expect(@bf.free_address).to eql(2)
+    @bf.store_blob(2,'44444444')
+    expect(@bf.total_entries).to eql(3)
+    expect(@bf.total_spaces).to eql(0)
+    expect(@bf.check).to be true
+  end
+
 end
 

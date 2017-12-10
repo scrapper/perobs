@@ -59,6 +59,7 @@ module PEROBS
       end
       @entry_bytes = entry_bytes
       @first_entry_default = first_entry_default
+      clear_custom_offsets
       reset_counters
 
       # The File handle.
@@ -100,6 +101,57 @@ module PEROBS
       rescue IOError => e
         PEROBS.log.fatal "Cannot close blob file #{@file_name}: #{e.message}"
       end
+    end
+
+    # In addition to the standard offsets for the first entry and the first
+    # space any number of additional offsets can be registered. This must be
+    # done right after the object is instanciated and before the open() method
+    # is called.
+    # @param name [String] The label for this offset
+    # @param default_value [Integer] The default value for the offset
+    def register_custom_offset(name, default_value = 0)
+      if @custom_offsets_labels.include?(name)
+        PEROBS.log.fatal "Custom offset #{name} has already been registered"
+      end
+
+      @custom_offsets_labels << name
+      @custom_offsets_values << default_value
+      @custom_offsets_defaults << default_value
+    end
+
+    # Reset (delete) all custom offset labels that have been registered.
+    def clear_custom_offsets
+      unless @f.nil?
+        PEROBS.log.fatal "clear_custom_offsets should only be called when " +
+          "the file is not opened"
+      end
+
+      @custom_offsets_labels = []
+      @custom_offsets_values = []
+      @custom_offsets_defaults = []
+    end
+
+    # Set the registered custom offset to the given value.
+    # @param name [String] Label of the offset
+    # @param value [Integer] Value
+    def set_custom_offset(name, value)
+      unless @custom_offsets_labels.include?(name)
+        PEROBS.log.fatal "Unknown custom offset #{name}"
+      end
+
+      @custom_offsets_values[@custom_offsets_labels.index(name)] = value
+      write_header
+    end
+
+    # Get the registered custom offset value.
+    # @param name [String] Label of the offset
+    # @return [Integer] Value of the custom offset
+    def get_custom_offset(name)
+      unless @custom_offsets_labels.include?(name)
+        PEROBS.log.fatal "Unknown custom offset #{name}"
+      end
+
+      @custom_offsets_values[@custom_offsets_labels.index(name)]
     end
 
     # Erase the backing store. This method should only be called when the file
@@ -301,9 +353,11 @@ module PEROBS
       return false unless check_spaces
       return false unless check_entries
 
-      if @f.size != HEADER_SIZE + (@total_entries + @total_spaces) *
-                                  (1 + @entry_bytes)
-        PEROBS.log.error "Size mismatch in EquiBlobsFile #{@file_name}"
+      expected_size = address_to_offset(@total_entries + @total_spaces + 1)
+      actual_size = @f.size
+      if actual_size != expected_size
+        PEROBS.log.error "Size mismatch in EquiBlobsFile #{@file_name}. " +
+          "Expected #{expected_size} bytes but found #{actual_size} bytes."
         return false
       end
 
@@ -326,6 +380,9 @@ module PEROBS
       @first_entry = @first_entry_default
       # The file offset of the first empty entry.
       @first_space = 0
+
+      # Copy default custom values
+      @custom_offsets_values = @custom_offsets_defaults.dup
     end
 
     def read_header
@@ -333,6 +390,12 @@ module PEROBS
         @f.seek(0)
         @total_entries, @total_spaces, @first_entry, @first_space =
           @f.read(HEADER_SIZE).unpack('QQQQ')
+        custom_labels_count = @custom_offsets_labels.length
+        if custom_labels_count > 0
+          @custom_offsets_values =
+            @f.read(custom_labels_count * 8).unpack("Q#{custom_labels_count}")
+        end
+
       rescue IOError => e
         PEROBS.log.fatal "Cannot read EquiBlobsFile header: #{e.message}"
       end
@@ -343,6 +406,10 @@ module PEROBS
       begin
         @f.seek(0)
         @f.write(header_ary.pack('QQQQ'))
+        unless @custom_offsets_values.empty?
+          @f.write(@custom_offsets_values.
+                   pack("Q#{@custom_offsets_values.length}"))
+        end
         @f.flush
       end
     end
@@ -414,7 +481,7 @@ module PEROBS
         return false
       end
 
-      next_offset = HEADER_SIZE
+      next_offset = address_to_offset(1)
       total_entries = 0
       total_spaces = 0
       begin
@@ -464,7 +531,7 @@ module PEROBS
 
     def trim_file
       offset = @f.size - 1 - @entry_bytes
-      while offset >= HEADER_SIZE
+      while offset >= address_to_offset(1)
         @f.seek(offset)
         begin
           if (marker = read_char) == 0
@@ -548,12 +615,15 @@ module PEROBS
 
     # Translate a blob address to the actual offset in the file.
     def address_to_offset(address)
-      HEADER_SIZE + (address - 1) * (1 + @entry_bytes)
+      # Since address 0 is illegal, we can use address - 1 as index here.
+      HEADER_SIZE + @custom_offsets_labels.length * 8 +
+        (address - 1) * (1 + @entry_bytes)
     end
 
     # Translate the file offset to the address of a blob.
     def offset_to_address(offset)
-      (offset - HEADER_SIZE) / (1 + @entry_bytes) + 1
+      (offset - HEADER_SIZE - @custom_offsets_labels.length * 8) /
+        (1 + @entry_bytes) + 1
     end
 
     def write_char(c)
