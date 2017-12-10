@@ -48,11 +48,14 @@ module PEROBS
     # restore the node.
     # @param tree [BTree] The tree this node is part of
     # @param parent [BTreeNode] reference to parent node
+    # @param prev_sibling [BTreeNode] reference to previous sibling node
+    # @param next_sibling [BTreeNode] reference to next sibling node
     # @param node_address [Integer] the address of the node to read from the
     #        backing store
     # @param is_leaf [Boolean] true if the node should be a leaf node, false
     #        if not
     def initialize(tree, node_address = nil, parent = nil, is_leaf = true,
+                   prev_sibling = nil, next_sibling = nil,
                    keys = [], values = [], children = [])
       @tree = tree
       if node_address == 0
@@ -60,6 +63,8 @@ module PEROBS
       end
       @node_address = node_address
       @parent = parent ? BTreeNodeLink.new(tree, parent) : nil
+      @prev_sibling = prev_sibling ? BTreeNodeLink.new(tree, prev_sibling) : nil
+      @next_sibling = next_sibling ? BTreeNodeLink.new(tree, next_sibling) : nil
       @keys = keys
       if (@is_leaf = is_leaf)
         @values = values
@@ -67,6 +72,17 @@ module PEROBS
       else
         @children = children
         @values = []
+      end
+
+      if (@prev_sibling = prev_sibling)
+        @prev_sibling.next_sibling = BTreeNodeLink.new(tree, self)
+      elsif @is_leaf
+        @tree.set_first_leaf(BTreeNodeLink.new(tree, self))
+      end
+      if (@next_sibling = next_sibling)
+        @next_sibling.prev_sibling = BTreeNodeLink.new(tree, self)
+      elsif @is_leaf
+        @tree.set_last_leaf(BTreeNodeLink.new(tree, self))
       end
 
       ObjectSpace.define_finalizer(
@@ -130,19 +146,21 @@ module PEROBS
       data_count = ary[2]
       # Read the parent node address
       parent = ary[3] == 0 ? nil : BTreeNodeLink.new(tree, ary[3])
+      prev_sibling = ary[4] == 0 ? nil : BTreeNodeLink.new(tree, ary[4])
+      next_sibling = ary[5] == 0 ? nil : BTreeNodeLink.new(tree, ary[5])
       # Read the keys
-      keys = ary[4, key_count]
+      keys = ary[6, key_count]
 
       children = nil
       values = nil
       if is_leaf
         # Read the values
-        values = ary[4 + tree.order, data_count]
+        values = ary[6 + tree.order, data_count]
       else
         # Read the child addresses
         children = []
         data_count.times do |i|
-          child_address = ary[4 + tree.order + i]
+          child_address = ary[6 + tree.order + i]
           unless child_address > 0
             PEROBS.log.fatal "Child address must be larger than 0"
           end
@@ -150,7 +168,8 @@ module PEROBS
         end
       end
 
-      node = BTreeNode.new(tree, address, parent, is_leaf, keys, values,
+      node = BTreeNode.new(tree, address, parent, is_leaf,
+                           prev_sibling, next_sibling, keys, values,
                            children)
       tree.node_cache.insert(node, false)
 
@@ -160,7 +179,7 @@ module PEROBS
     # @return [String] The format used for String.pack.
     def BTreeNode::node_bytes_format(tree)
       # This does not include the 4 bytes for the CRC32 checksum
-      "CSSQQ#{tree.order}Q#{tree.order + 1}"
+      "CSSQQQQ#{tree.order}Q#{tree.order + 1}"
     end
 
     # @return [Integer] The number of bytes needed to store a node.
@@ -169,6 +188,8 @@ module PEROBS
       2 + # actual key count
       2 + # actual value or children count (aka data count)
       8 + # parent address
+      8 + # previous sibling address
+      8 + # next sibling address
       8 * order + # keys
       8 * (order + 1) + # values or child addresses
       4 # CRC32 checksum
@@ -685,7 +706,9 @@ module PEROBS
         @is_leaf ? 1 : 0,
         @keys.size,
         @is_leaf ? @values.size : @children.size,
-        @parent ? @parent.node_address : 0
+        @parent ? @parent.node_address : 0,
+        @prev_sibling ? @prev_sibling.node_address : 0,
+        @next_sibling ? @next_sibling.node_address : 0
       ] + @keys + ::Array.new(@tree.order - @keys.size, 0)
 
       if @is_leaf
