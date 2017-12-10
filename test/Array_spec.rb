@@ -169,8 +169,13 @@ describe PEROBS::Array do
 
   it 'should support collect!()' do
     a = cpa([ 1, 'cat', 1..1 ])
-    expect(a.collect! { |e| e.class.to_s }).to eq([ 'Integer', 'String', 'Range' ])
-    pcheck { expect(@store['a'].to_a).to eq([ 'Integer', 'String', 'Range' ]) }
+    if RUBY_VERSION < '2.2'
+      expect(a.collect! { |e| e.class.to_s }.to_a).to eq([ 'Fixnum', 'String', 'Range' ])
+      pcheck { expect(@store['a'].to_a).to eq([ 'Fixnum', 'String', 'Range' ]) }
+    else
+      expect(a.collect! { |e| e.class.to_s }.to_a).to eq([ 'Integer', 'String', 'Range' ])
+      pcheck { expect(@store['a'].to_a).to eq([ 'Integer', 'String', 'Range' ]) }
+    end
 
     a = cpa([ 1, 'cat', 1..1 ])
     expect(a.collect! { 99 }).to eq([ 99, 99, 99])
@@ -179,8 +184,13 @@ describe PEROBS::Array do
 
   it 'should support map!()' do
     a = cpa([ 1, 'cat', 1..1 ])
-    expect(a.map! { |e| e.class.to_s }).to eq([ 'Integer', 'String', 'Range' ])
-    pcheck { expect(@store['a']).to eq([ 'Integer', 'String', 'Range' ]) }
+    if RUBY_VERSION < '2.2'
+      expect(a.map! { |e| e.class.to_s }.to_a).to eq([ 'Fixnum', 'String', 'Range' ])
+      pcheck { expect(@store['a'].to_a).to eq([ 'Fixnum', 'String', 'Range' ]) }
+    else
+      expect(a.map! { |e| e.class.to_s }.to_a).to eq([ 'Integer', 'String', 'Range' ])
+      pcheck { expect(@store['a'].to_a).to eq([ 'Integer', 'String', 'Range' ]) }
+    end
 
     a = cpa([ 1, 'cat', 1..1 ])
     expect(a.map! { 99 }).to eq([ 99, 99, 99])

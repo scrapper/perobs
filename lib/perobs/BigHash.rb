@@ -35,7 +35,7 @@ module PEROBS
   # hash functionality. The difference is that this class scales to much
   # larger data sets essentially limited to the amount of space available on
   # your backing store. The data is persisted immediately and uses
-  # transactions to ensure the data consistency. It only provides a small
+  # transactions to ensure the data consistent. It only provides a small
   # subset of the methods provided by the native Hash class that make sense
   # for giant data sets.
   class BigHash < PEROBS::Object

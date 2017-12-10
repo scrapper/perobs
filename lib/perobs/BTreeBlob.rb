@@ -33,7 +33,7 @@ require 'perobs/RobustFile'
 module PEROBS
 
   # This class manages the usage of the data blobs in the corresponding
-  # HashedBlobsDB object.
+  # BTreeDB object.
   class BTreeBlob
 
     # Magic number used for index files.
