@@ -41,7 +41,7 @@ module PEROBS
 
     # This version number increases whenever the on-disk format changes in a
     # way that requires conversion actions after an update.
-    VERSION = 2
+    VERSION = 3
 
     attr_reader :max_blob_size
 
@@ -240,6 +240,12 @@ module PEROBS
         # are compressed to save space.
         open
         @flat_file.refresh
+        close
+      elsif version == 2
+        # Version 3 brings a new BTree file format. We have to regenerate the
+        # index file.
+        open
+        @flat_file.regenerate_index_and_spaces
         close
       end
 
