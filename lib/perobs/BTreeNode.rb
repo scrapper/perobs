@@ -79,16 +79,6 @@ module PEROBS
         self, BTreeNode._finalize(@tree, @node_address, object_id))
       @tree.node_cache.insert(self, false)
 
-      if (@prev_sibling = prev_sibling)
-        @prev_sibling.next_sibling = link(self)
-      elsif @is_leaf
-        @tree.set_first_leaf(link(self))
-      end
-      if (@next_sibling = next_sibling)
-        @next_sibling.prev_sibling = link(self)
-      elsif @is_leaf
-        @tree.set_last_leaf(link(self))
-      end
     end
 
     # This method generates the destructor for the objects of this class. It
@@ -120,6 +110,20 @@ module PEROBS
                            next_sibling)
       # This is a new node. Make sure the data is written to the file.
       tree.node_cache.insert(node)
+
+      node = BTreeNodeLink.new(tree, node)
+
+      # Insert the newly created node into the existing node chain.
+      if (node.prev_sibling = prev_sibling)
+        node.prev_sibling.next_sibling = BTreeNodeLink.new(tree, node)
+      elsif is_leaf
+        tree.set_first_leaf(BTreeNodeLink.new(tree, node))
+      end
+      if (node.next_sibling = next_sibling)
+        node.next_sibling.prev_sibling = BTreeNodeLink.new(tree, node)
+      elsif is_leaf
+        tree.set_last_leaf(BTreeNodeLink.new(tree, node))
+      end
 
       node
     end
@@ -506,17 +510,23 @@ module PEROBS
     def parent=(p)
       @parent = p
       @tree.node_cache.insert(self)
+
+      p
     end
 
     def prev_sibling=(node)
       raise "Foo #{node.class}" if node.is_a?(BTreeNode)
       @prev_sibling = node
       @tree.node_cache.insert(self)
+
+      node
     end
 
     def next_sibling=(node)
       @next_sibling = node
       @tree.node_cache.insert(self)
+
+      node
     end
 
     def set_child(index, child)
@@ -527,6 +537,8 @@ module PEROBS
         @children[index] = nil
       end
       @tree.node_cache.insert(self)
+
+      child
     end
 
     def trim(idx)
