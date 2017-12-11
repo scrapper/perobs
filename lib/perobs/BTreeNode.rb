@@ -39,7 +39,8 @@ module PEROBS
   # mark a node as leaf or branch node.
   class BTreeNode
 
-    attr_reader :node_address, :parent, :is_leaf, :keys, :values, :children
+    attr_reader :node_address, :parent, :is_leaf, :next_sibling, :prev_sibling,
+      :keys, :values, :children
 
     # Create a new BTreeNode object for the given tree with the given parent
     # or recreate the node with the given node_address from the backing store.
@@ -62,9 +63,9 @@ module PEROBS
         PEROBS.log.fatal "Node address may not be 0"
       end
       @node_address = node_address
-      @parent = parent ? BTreeNodeLink.new(tree, parent) : nil
-      @prev_sibling = prev_sibling ? BTreeNodeLink.new(tree, prev_sibling) : nil
-      @next_sibling = next_sibling ? BTreeNodeLink.new(tree, next_sibling) : nil
+      @parent = link(parent)
+      @prev_sibling = link(prev_sibling)
+      @next_sibling = link(next_sibling)
       @keys = keys
       if (@is_leaf = is_leaf)
         @values = values
@@ -74,20 +75,20 @@ module PEROBS
         @values = []
       end
 
-      if (@prev_sibling = prev_sibling)
-        @prev_sibling.next_sibling = BTreeNodeLink.new(tree, self)
-      elsif @is_leaf
-        @tree.set_first_leaf(BTreeNodeLink.new(tree, self))
-      end
-      if (@next_sibling = next_sibling)
-        @next_sibling.prev_sibling = BTreeNodeLink.new(tree, self)
-      elsif @is_leaf
-        @tree.set_last_leaf(BTreeNodeLink.new(tree, self))
-      end
-
       ObjectSpace.define_finalizer(
         self, BTreeNode._finalize(@tree, @node_address, object_id))
       @tree.node_cache.insert(self, false)
+
+      if (@prev_sibling = prev_sibling)
+        @prev_sibling.next_sibling = link(self)
+      elsif @is_leaf
+        @tree.set_first_leaf(link(self))
+      end
+      if (@next_sibling = next_sibling)
+        @next_sibling.prev_sibling = link(self)
+      elsif @is_leaf
+        @tree.set_last_leaf(link(self))
+      end
     end
 
     # This method generates the destructor for the objects of this class. It
@@ -104,7 +105,10 @@ module PEROBS
     # @param parent [BTreeNode] The parent node
     # @param is_leaf [Boolean] True if the node has no children, false
     #        otherwise
-    def BTreeNode::create(tree, parent = nil, is_leaf = true)
+    # @param prev_sibling [BTreeNode] reference to previous sibling node
+    # @param next_sibling [BTreeNode] reference to next sibling node
+    def BTreeNode::create(tree, parent = nil, is_leaf = true,
+                          prev_sibling = nil, next_sibling = nil)
       unless parent.nil? || parent.is_a?(BTreeNode) ||
              parent.is_a?(BTreeNodeLink)
         PEROBS.log.fatal "Parent node must be a BTreeNode but is of class " +
@@ -112,7 +116,8 @@ module PEROBS
       end
 
       address = tree.nodes.free_address
-      node = BTreeNode.new(tree, address, parent, is_leaf)
+      node = BTreeNode.new(tree, address, parent, is_leaf, prev_sibling,
+                           next_sibling)
       # This is a new node. Make sure the data is written to the file.
       tree.node_cache.insert(node)
 
@@ -290,18 +295,19 @@ module PEROBS
     def split_node
       unless @parent
         # The node is the root node. We need to create a parent node first.
-        self.parent = BTreeNode::create(@tree, nil, false)
+        self.parent = link(BTreeNode::create(@tree, nil, false))
         @parent.set_child(0, self)
         @tree.set_root(@parent)
       end
 
       # Create the new sibling that will take the 2nd half of the
       # node content.
-      sibling = BTreeNode::create(@tree, @parent, @is_leaf)
+      sibling = BTreeNode::create(@tree, @parent, @is_leaf, link(self),
+                                  @next_sibling)
       # Determine the index of the middle element that gets moved to the
       # parent. The order must be an uneven number, so adding 1 will get us
       # the middle element.
-      mid = @tree.order / 2 + 1
+      mid = @tree.order / 2
       # Insert the middle element key into the parent node
       @parent.insert_element(@keys[mid], sibling)
       copy_elements(mid + (@is_leaf ? 0 : 1), sibling)
@@ -318,6 +324,11 @@ module PEROBS
         insert_element(@parent.keys[parent_index], upper_sibling.children[0])
       end
       upper_sibling.copy_elements(0, self, @keys.size, upper_sibling.keys.size)
+      if (@next_sibling = link(upper_sibling.next_sibling))
+        @next_sibling.prev_sibling = link(self)
+      elsif @is_leaf
+        @tree.set_last_leaf(link(self))
+      end
       @tree.delete_node(upper_sibling.node_address)
 
       @parent.remove_element(parent_index)
@@ -340,7 +351,7 @@ module PEROBS
         if is_leaf
           @values[i] = value_or_child
         else
-          @children[i + 1] = BTreeNodeLink.new(@tree, value_or_child)
+          @children[i + 1] = link(value_or_child)
         end
       else
         # Create a new entry
@@ -348,7 +359,7 @@ module PEROBS
         if is_leaf
           @values.insert(i, value_or_child)
         else
-          @children.insert(i + 1, BTreeNodeLink.new(@tree, value_or_child))
+          @children.insert(i + 1, link(value_or_child))
         end
       end
       @tree.node_cache.insert(self)
@@ -356,40 +367,113 @@ module PEROBS
 
     # Remove the element at the given index.
     def remove_element(index)
-      # We need this key to find the link in the parent node.
-      first_key = @keys[0]
-      removed_value = nil
-
       # Delete the key at the specified index.
-      unless @keys.delete_at(index)
-        PEROBS.log.fatal "Could not remove element #{index} from BTreeNode " +
+      unless (key = @keys.delete_at(index))
+        PEROBS.log.fatal "Could not remove element #{index} from BigTreeNode " +
           "@#{@node_address}"
       end
-      if @is_leaf
-        # For leaf nodes, also delete the corresponding value.
-        removed_value = @values.delete_at(index)
-      else
-        # The corresponding child has can be found at 1 index higher.
-        @children.delete_at(index + 1)
-      end
-      @tree.node_cache.insert(self)
+      update_branch_key(key) if index == 0
 
-      # Find the lower and upper siblings and the index of the key for this
-      # node in the parent node.
-      lower_sibling, upper_sibling, parent_index =
-        find_closest_siblings(first_key)
-
-      if lower_sibling &&
-         lower_sibling.keys.size + @keys.size < @tree.order
-        lower_sibling.merge_node(self, parent_index - 1)
-      elsif upper_sibling &&
-            @keys.size + upper_sibling.keys.size < @tree.order
-        merge_node(upper_sibling, parent_index)
+      # Delete the corresponding value.
+      removed_value = @values.delete_at(index)
+      if @keys.length < min_keys
+        if @prev_sibling && @prev_sibling.parent == @parent
+          borrow_from_previous_sibling(@prev_sibling) ||
+            @prev_sibling.merge_with_leaf_node(self)
+        elsif @next_sibling && @next_sibling.parent == @parent
+          borrow_from_next_sibling(@next_sibling) ||
+            merge_with_leaf_node(@next_sibling)
+        elsif @parent
+          PEROBS.log.fatal "Cannot not find adjecent leaf siblings"
+        end
       end
 
       # The merge has potentially invalidated this node. After this method has
       # been called this copy of the node should no longer be used.
       removed_value
+    end
+
+    def remove_child(node)
+      unless (index = search_node_index(node))
+        PEROBS.log.fatal "Cannot remove child #{node._id} from node #{@_id}"
+      end
+
+      if index == 0
+        # Removing the first child is a bit more complicated as the
+        # corresponding branch key is in a parent node.
+        key = @keys.shift
+        update_branch_key(key)
+      else
+        # For all other children we can just remove the corresponding key.
+        @keys.delete_at(index - 1)
+      end
+
+      # Remove the child node link.
+      child = @children.delete_at(index)
+      # If we remove the first or last leaf node we must update the reference
+      # in the BigTree object.
+      @tree.set_first_leaf(child.next_sibling) if @tree.first_leaf == child
+      @tree.set_last_leaf(child.prev_sibling) if @tree.last_leaf == child
+      # Unlink the neighbouring siblings from the child
+      child.prev_sibling.next_sibling = child.next_sibling if child.prev_sibling
+      child.next_sibling.prev_sibling = child.prev_sibling if child.next_sibling
+
+      if @keys.length < min_keys
+        # The node has become too small. Try borrowing a node from an adjecent
+        # sibling or merge with an adjecent node.
+        if @prev_sibling && @prev_sibling.parent == @parent
+          borrow_from_previous_sibling(@prev_sibling) ||
+            @prev_sibling.merge_with_branch_node(self)
+        elsif @next_sibling && @next_sibling.parent == @parent
+          borrow_from_next_sibling(@next_sibling) ||
+            merge_with_branch_node(@next_sibling)
+        end
+      end
+
+      if @parent.nil? && @children.length == 1
+        # If the node just below the root only has one child it will become
+        # the new root node.
+        new_root = @children.first
+        new_root.parent = nil
+        @tree.set_root(new_root)
+      end
+      @tree.node_cache.insert(self)
+    end
+
+    def merge_with_leaf_node(node)
+      if @keys.length + node.keys.length > @tree.order
+        PEROBS.log.fatal "Leaf nodes are too big to merge"
+      end
+
+      @keys += node.keys
+      @values += node.values
+      @tree.node_cache.insert(self)
+
+      node.parent.remove_child(node)
+    end
+
+    def merge_with_branch_node(node)
+      if @keys.length + 1 + node.keys.length > @tree.order
+        PEROBS.log.fatal "Branch nodes are too big to merge"
+      end
+
+      index = @parent.search_node_index(node) - 1
+      @keys << @parent.keys[index]
+      @keys += node.keys
+      node.children.each { |c| c.parent = link(self) }
+      @children += node.children
+      @tree.node_cache.insert(self)
+
+      node.parent.remove_child(node)
+    end
+
+    def search_node_index(node)
+      index = search_key_index(node.keys.first)
+      unless @children[index] == node
+        raise RuntimeError, "Child at index #{index} is not the requested node"
+      end
+
+      index
     end
 
     def copy_elements(src_idx, dest_node, dst_idx = 0, count = nil)
@@ -420,14 +504,25 @@ module PEROBS
     end
 
     def parent=(p)
-      @parent = p ? BTreeNodeLink.new(@tree, p) : nil
+      @parent = p
+      @tree.node_cache.insert(self)
+    end
+
+    def prev_sibling=(node)
+      raise "Foo #{node.class}" if node.is_a?(BTreeNode)
+      @prev_sibling = node
+      @tree.node_cache.insert(self)
+    end
+
+    def next_sibling=(node)
+      @next_sibling = node
       @tree.node_cache.insert(self)
     end
 
     def set_child(index, child)
       if child
-        @children[index] = BTreeNodeLink.new(@tree, child)
-        @children[index].parent = self
+        @children[index] = link(child)
+        @children[index].parent = link(self)
       else
         @children[index] = nil
       end
@@ -532,12 +627,20 @@ module PEROBS
     # @yield [key, value]
     # @return [Boolean] true if tree has no errors
     def check
+      branch_depth = nil
+
       traverse do |node, position, stack|
         if position == 0
-          if node.parent && node.keys.size < 1
-            node.error "BTreeNode must have at least one entry"
-            return false
+          if node.parent
+            # After a split the nodes will only have half the maximum keys.
+            # For branch nodes one of the split nodes will have even 1 key
+            # less as this will become the branch key in a parent node.
+            if node.keys.size < min_keys - (node.is_leaf ? 0 : 1)
+              node.error "BTreeNode #{node.node_address} has too few keys"
+              return false
+            end
           end
+
           if node.keys.size > @tree.order
             node.error "BTreeNode must not have more then #{@tree.order} " +
               "keys, but has #{node.keys.size} keys"
@@ -550,16 +653,42 @@ module PEROBS
                 "#{node.keys.inspect}"
               return false
             end
+            last_key = key
           end
 
           if node.is_leaf
+            if branch_depth
+              unless branch_depth == stack.size
+                node.error "All leaf nodes must have same distance from root "
+                return false
+              end
+            else
+              branch_depth = stack.size
+            end
+            if node.prev_sibling.nil? && @tree.first_leaf != node
+              node.error "Leaf node #{node.node_address} has no previous " +
+                "sibling but is not the first leaf of the tree"
+              return false
+            end
+            if node.next_sibling.nil? && @tree.last_leaf != node
+              node.error "Leaf node #{node.node_address} has no next sibling " +
+                "but is not the last leaf of the tree"
+            end
             unless node.keys.size == node.values.size
               node.error "Key count (#{node.keys.size}) and value " +
                 "count (#{node.values.size}) don't match"
                 return false
             end
+            unless node.children.empty?
+              node.error "@children must be nil for a leaf node"
+              return false
+            end
           else
-            unless node.keys.size == node.children.size - 1
+            unless node.values.empty?
+              node.error "@values must be nil for a branch node"
+              return false
+            end
+            unless node.children.size == node.keys.size + 1
               node.error "Key count (#{node.keys.size}) must be one " +
                 "less than children count (#{node.children.size})"
                 return false
@@ -572,10 +701,10 @@ module PEROBS
               end
               unless child.parent.is_a?(BTreeNodeLink)
                 node.error "Parent reference of child #{i} is of class " +
-                  "#{child.class} instead of BTreeNodeLink"
+                  "#{child.parent.class} instead of BTreeNodeLink"
                 return false
               end
-              if child.node_address == node.node_address
+              if child == node
                 node.error "Child #{i} points to self"
                 return false
               end
@@ -587,6 +716,22 @@ module PEROBS
                 node.error "Child #{i} does not have parent pointing " +
                   "to this node"
                 return false
+              end
+              if i > 0
+                unless node.children[i - 1].next_sibling == child
+                  node.error "next_sibling of node " +
+                    "#{node.children[i - 1]._id} " +
+                    "must point to node #{child.node_address}"
+                  return false
+                end
+              end
+              if i < node.children.length - 1
+                unless child == node.children[i + 1].prev_sibling
+                  node.error "prev_sibling of node " +
+                    "#{node.children[i + 1]._id} " +
+                    "must point to node #{child.node_address}"
+                  return false
+                end
               end
             end
           end
@@ -601,8 +746,7 @@ module PEROBS
                 "Must be smaller than #{node.keys[index]}."
               return false
             end
-            unless node.children[position].keys.first >=
-                   node.keys[index]
+            unless node.children[position].keys.first >= node.keys[index]
               node.error "Child #{node.children[position].node_address} " +
                 "has too small key #{node.children[position].keys.first}. " +
                 "Must be larger than or equal to #{node.keys[index]}."
@@ -692,6 +836,20 @@ module PEROBS
           s += ' ^@'
         end
       end
+      if @prev_sibling
+        begin
+          s += " <#{@prev_sibling.node_address}"
+        rescue
+          s += ' <@'
+        end
+      end
+      if @next_sibling
+        begin
+          s += " >#{@next_sibling.node_address}"
+        rescue
+          s += ' >@'
+        end
+      end
 
       s
     end
@@ -731,24 +889,107 @@ module PEROBS
 
     private
 
-    def find_closest_siblings(key)
-      # The root node has no siblings.
-      return [ nil, nil, nil ] unless @parent
+    def min_keys
+      @tree.order / 2
+    end
 
-      parent_index = @parent.search_key_index(key)
-      unless @parent.children[parent_index] == self
-        PEROBS.log.fatal "Failed to find self in parent"
+    def link(node)
+      return nil if node.nil?
+
+      if node.is_a?(BTreeNodeLink)
+        return node
+      elsif node.is_a?(BTreeNode) || node.is_a?(Integer)
+        return BTreeNodeLink.new(@tree, node)
+      else
+        PEROBS.log.fatal "Node link must be a BTreeNode, not a #{node.class}"
       end
-      # The child that corresponds to the key at parent_index has an index of
-      # parent_index + 1! The lower_sibling has an child index of
-      # parent_index and the upper sibling has a child index of parent_index +
-      # 2.
-      lower_sibling = parent_index < 1 ?
-        nil : @parent.children[parent_index - 1]
-      upper_sibling = parent_index >= (@parent.children.size - 1) ?
-        nil : @parent.children[parent_index + 1]
+    end
 
-      [ lower_sibling, upper_sibling, parent_index ]
+    # Try to borrow an element from the preceding sibling.
+    # @return [True or False] True if an element was borrowed, false
+    #         otherwise.
+    def borrow_from_previous_sibling(prev_node)
+      if prev_node.keys.length - 1 > min_keys
+        index = @parent.search_node_index(self) - 1
+
+        if @is_leaf
+          # Move the last key of the previous node to the front of this node
+          @keys.unshift(prev_node.keys.pop)
+          # Register the new lead key of this node with its parent
+          @parent.keys[index] = @keys.first
+          # Move the last value of the previous node to the front of this node
+          @values.unshift(prev_node.values.pop)
+        else
+          # For branch nodes the branch key will be the borrowed key.
+          @keys.unshift(@parent.keys[index])
+          # And the last key of the previous key will become the new branch
+          # key for this node.
+          @parent.keys[index] = prev_node.keys.pop
+          # Move the last child of the previous node to the front of this node
+          @children.unshift(node = prev_node.children.pop)
+          node.parent = link(self)
+        end
+        @tree.node_cache.insert(self)
+        @tree.node_cache.insert(prev_node)
+        @tree.node_cache.insert(@parent)
+
+        return true
+      end
+
+      false
+    end
+
+    # Try to borrow an element from the next sibling.
+    # @return [True or False] True if an element was borrowed, false
+    #         otherwise.
+    def borrow_from_next_sibling(next_node)
+      if next_node.keys.length - 1 > min_keys
+        # The next sibling now has a new lead key that requires the branch key
+        # to be updated in the parent node.
+        index = next_node.parent.search_node_index(next_node) - 1
+
+        if @is_leaf
+          # Move the first key of the next node to the end of the this node
+          @keys << next_node.keys.shift
+          # Register the new lead key of next_node with its parent
+          next_node.parent.keys[index] = next_node.keys.first
+          # Move the first value of the next node to the end of this node
+          @values << next_node.values.shift
+        else
+          # For branch nodes we need to get the lead key from the parent of
+          # next_node.
+          @keys << next_node.parent.keys[index]
+          # The old lead key of next_node becomes the branch key in the parent
+          # of next_node. And the keys of next_node are shifted.
+          next_node.parent.keys[index] = next_node.keys.shift
+          # Move the first child of the next node to the end of this node
+          @children << (node = next_node.children.shift)
+          node.parent = link(self)
+        end
+        @tree.node_cache.insert(self)
+        @tree.node_cache.insert(next_node)
+        @tree.node_cache.insert(next_node.parent)
+
+        return true
+      end
+
+      false
+    end
+
+    def update_branch_key(old_key)
+      new_key = @keys.first
+      return unless (node = @parent)
+
+      while node
+        if (index = node.keys.index(old_key))
+          node.keys[index] = new_key
+          @tree.node_cache.insert(node)
+          return
+        end
+        node = node.parent
+      end
+
+      # The smallest element has no branch key.
     end
 
   end

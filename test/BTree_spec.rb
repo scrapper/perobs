@@ -128,7 +128,7 @@ describe PEROBS::BTree do
   it 'should survive a real-world usage test' do
     @m.clear
     ref = {}
-    0.upto(50000) do
+    0.upto(20000) do
       case rand(5)
       when 0
         0.upto(2) do

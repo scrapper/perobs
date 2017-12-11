@@ -43,7 +43,9 @@ module PEROBS
     def insert(object, modified)
       @entries.each do |e|
         if e.obj.uid == object.uid
-          e.modified = true if modified
+          if modified && !e.modified
+            e.modified = true
+          end
           return
         end
       end

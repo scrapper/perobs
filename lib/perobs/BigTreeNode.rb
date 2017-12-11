@@ -244,7 +244,6 @@ module PEROBS
       end
     end
 
-
     # Check consistency of the node and all subsequent nodes. In case an error
     # is found, a message is logged and false is returned.
     # @yield [key, value]
@@ -326,6 +325,10 @@ module PEROBS
               unless child.parent.is_a?(BigTreeNode)
                 node.error "Parent reference of child #{i} is of class " +
                   "#{child.class} instead of BigTreeNode"
+                return false
+              end
+              if child == node
+                node.error "Child #{i} point to self"
                 return false
               end
               if stack.include?(child)
@@ -431,7 +434,6 @@ module PEROBS
         @tree.root = @parent
       end
 
-      old_size = @keys.size
       # Create the new sibling that will take the 2nd half of the
       # node content.
       sibling = @store.new(BigTreeNode, @tree, is_leaf?, @parent, myself,
@@ -439,7 +441,6 @@ module PEROBS
       # Determine the index of the middle element that gets moved to the
       # parent. The node size must be an uneven number.
       mid = @keys.size / 2
-      pivot = @keys[mid]
       # Insert the middle element key into the parent node
       @parent.insert_element(@keys[mid], sibling)
       if is_leaf?
@@ -462,15 +463,6 @@ module PEROBS
       end
       # Delete the copied keys from this node.
       @keys.slice!(mid..-1)
-
-      # Branch nodes only have sibling links of they have the same parent. If
-      # we have split a branch node and the children are branch nodes as well,
-      # we have to cut the link between the new last node of this node and the
-      # first node of the new sibling.
-      #unless is_leaf? || @children.last.is_leaf?
-      #  @children.last.next_sibling = nil
-      #  sibling.children.first.prev_sibling = nil
-      #end
 
       @parent
     end
@@ -774,10 +766,6 @@ module PEROBS
     end
 
     private
-
-    def max_keys
-      is_leaf? ? @tree.node_size : @tree.node_size - 1
-    end
 
     def min_keys
       @tree.node_size / 2

@@ -32,7 +32,7 @@ require 'perobs/BTreeNode'
 
 module PEROBS
 
-  # This BTree class is very similar to a classic BTree implementation. It
+  # This BTree class is very similar to a classic B+Tree implementation. It
   # manages a tree that is always balanced. The BTree is stored in the
   # specified directory and partially kept in memory to speed up operations.
   # The order of the tree specifies how many keys each node will be able to
@@ -40,7 +40,7 @@ module PEROBS
   # have N + 1 references to child nodes instead.
   class BTree
 
-    attr_reader :order, :nodes, :node_cache
+    attr_reader :order, :nodes, :node_cache, :first_leaf, :last_leaf
 
     # Create a new BTree object.
     # @param dir [String] Directory to store the tree file
@@ -67,6 +67,7 @@ module PEROBS
       @nodes.register_custom_offset('first_leaf')
       @nodes.register_custom_offset('last_leaf')
       @node_cache = PersistentObjectCache.new(512, BTreeNode, self)
+      @root = @first_leaf = @last_leaf = nil
 
       # This BTree implementation uses a write cache to improve write
       # performance of multiple successive read/write operations. This also
@@ -143,12 +144,14 @@ module PEROBS
     # Set the address of the first leaf node.
     # @param node [BTreeNode]
     def set_first_leaf(node)
+      @first_leaf = node
       @nodes.set_custom_offset('first_leaf', node.node_address)
     end
 
     # Set the address of the last leaf node.
     # @param node [BTreeNode]
     def set_last_leaf(node)
+      @last_leaf = node
       @nodes.set_custom_offset('last_leaf', node.node_address)
     end
 

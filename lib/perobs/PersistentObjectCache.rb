@@ -41,9 +41,9 @@ module PEROBS
     # objects and the cache is notified via a finalizer that the objects must
     # provide. The finalize must call the _collect() method. To reduce the
     # read and write latencies of the backing store this class keeps a subset
-    # of the object in memory which prevents them from being collected. All
+    # of the objects in memory which prevents them from being collected. All
     # references to the objects must be resolved via the get() method to
-    # prevent duplicate instances in memory of the same object.
+    # prevent duplicate instances in memory of the same in-store object.
     # @param size [Integer] Maximum number of objects to be cached at a time
     # @param klass [Class] The class of the objects to be cached. Objects must
     #        provide a uid() method that returns a unique ID for every object.
