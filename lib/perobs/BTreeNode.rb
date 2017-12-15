@@ -867,8 +867,7 @@ module PEROBS
     end
 
     def error(msg)
-      PEROBS.log.error "Error in BTreeNode @#{@node_address}: #{msg}\n" +
-        @tree.to_s
+      PEROBS.log.error "Error in BTreeNode @#{@node_address}: #{msg}"
     end
 
     def write_node
