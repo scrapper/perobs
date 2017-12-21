@@ -62,13 +62,14 @@ module PEROBS
 
     end
 
-    attr_persist :btree
+    attr_persist :btree, :entry_counter
 
     # Create a new BigHash object.
     # @param p [Handle] Store handle
     def initialize(p)
       super(p)
       self.btree = @store.new(PEROBS::BigTree)
+      self.entry_counter = 0
     end
 
     # Insert a value that is associated with the given key. If a value for
@@ -87,10 +88,15 @@ module PEROBS
             # Find the right index to insert the new entry. If there is
             # already an entry with the same key overwrite that entry.
             index_to_insert = 0
+            overwrite = false
             existing_entry.each do |ae|
-              break if ae.key == key
+              if ae.key == key
+                overwrite = true
+                break
+              end
               index_to_insert += 1
             end
+            @entry_counter += 1 unless overwrite
             existing_entry[index_to_insert] = entry
           elsif existing_entry.key == key
             # The existing value is for the identical key. We can safely
@@ -103,10 +109,12 @@ module PEROBS
             array_entry << existing_entry
             array_entry << entry
             @btree.insert(hashed_key, array_entry)
+            @entry_counter += 1
           end
         else
           # No existing entry. Insert the new entry.
           @btree.insert(hashed_key, entry)
+          @entry_counter += 1
         end
       end
     end
@@ -152,10 +160,34 @@ module PEROBS
       false
     end
 
+    # Delete and return the entry for the given key. Return nil if no matching
+    # entry exists.
+    # @param key [Integer or String]
+    # @return [Object] Deleted entry
+    def delete(key)
+      hashed_key = hash_key(key)
+      unless (entry = @btree.get(hashed_key))
+        return nil
+      end
+
+      if entry.is_a?(PEROBS::Array)
+        entry.each_with_index do |ae, i|
+          if ae.key == key
+            @entry_counter -= 1
+            return entry.delete_at(i).value
+          end
+        end
+      else
+        return entry.value if entry.key == key
+      end
+
+      nil
+    end
+
     # Return the number of entries stored in the hash.
     # @return [Integer]
     def length
-      @btree.length
+      @entry_counter
     end
 
     alias size length
@@ -163,7 +195,7 @@ module PEROBS
     # Return true if hash is empty. False otherweise.
     # @return [TrueClass, FalseClass]
     def empty?
-      @btree.empty?
+      @entry_counter == 0
     end
 
     # Calls the given block for each key/value pair.

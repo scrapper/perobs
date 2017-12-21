@@ -42,6 +42,8 @@ class PEROBS::BigHash
 
 end
 
+ENTRIES = 200
+
 describe PEROBS::Hash do
 
   before(:all) do
@@ -71,24 +73,39 @@ describe PEROBS::Hash do
   end
 
   it 'should be able to store values with hash collisions' do
-    20.times do |i|
+    ENTRIES.times do |i|
       @h["key#{i}"] = i
     end
-    expect(@h.length).to eql(20)
+    expect(@h.length).to eql(ENTRIES)
 
-    20.times do |i|
+    ENTRIES.times do |i|
       expect(@h["key#{i}"]).to eql(i)
     end
   end
 
   it 'should replace existing entries' do
-    20.times do |i|
+    ENTRIES.times do |i|
       @h["key#{i}"] = 2 * i
     end
-    expect(@h.length).to eql(20)
+    expect(@h.length).to eql(ENTRIES)
 
-    20.times do |i|
+    ENTRIES.times do |i|
       expect(@h["key#{i}"]).to eql(2 * i)
+    end
+    expect(@h.length).to eql(ENTRIES)
+  end
+
+  it 'should fail to delete a non-existing entry' do
+    expect(@h.delete('foo')).to be_nil
+  end
+
+  it 'should delete existing entries' do
+    (1..ENTRIES).to_a.shuffle.each do |i|
+      @h["key#{i}"] = 2 * i
+    end
+    expect(@h.length).to eql(ENTRIES)
+    (1..ENTRIES).to_a.shuffle.each do |i|
+      expect(@h.delete("key#{i}")).to eql(2 * i)
     end
   end
 
