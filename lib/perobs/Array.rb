@@ -99,8 +99,8 @@ module PEROBS
     # PEROBS users should never call this method or equivalents of derived
     # methods directly.
     # @param p [PEROBS::Handle] PEROBS handle
-    # @param arg [Integer] The requested size of the Array
-    # @param arg [Array] Initialize with the Array object content
+    # @param arg1 [Integer or Array] The requested size of the Array or an
+    #        Array to initialize
     # @param default [Any] The default value that is returned when no value is
     #        stored for a specific key.
     def initialize(p, arg1 = 0, default = nil, &block)

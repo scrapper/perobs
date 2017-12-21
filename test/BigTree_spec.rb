@@ -98,6 +98,16 @@ describe PEROBS::BigTree do
     expect(i).to eql(ORDER ** 3 + 1)
   end
 
+  it 'should support overwriting existing entries' do
+    0.upto(ORDER ** 3) do |i|
+      @t.insert(i, 7 * i)
+      expect(@t.check).to be true
+      expect(@t.length).to eql(ORDER ** 3 + 1)
+      expect(@t.has_key?(i)).to be true
+      expect(@t.get(i)).to eql(7 * i)
+    end
+  end
+
   it 'should support clearing the tree' do
     @t.clear
     expect(@t.check).to be true
@@ -120,11 +130,6 @@ describe PEROBS::BigTree do
 
   it 'should support removing keys in random order' do
     @t.clear
-    @t.insert(1, 1)
-    expect(@t.remove(1)).to eql(1)
-    expect(@t.check).to be true
-    expect(@t.length).to eql(0)
-
     (1..ORDER ** 3).to_a.shuffle.each do |i|
       @t.insert(i, i * 100)
     end

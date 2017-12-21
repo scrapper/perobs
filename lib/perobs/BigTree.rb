@@ -69,7 +69,6 @@ module PEROBS
     def insert(key, value)
       @store.transaction do
         @root.insert(key, value)
-        self.entry_counter += 1
       end
     end
 
@@ -105,7 +104,6 @@ module PEROBS
 
       @store.transaction do
         removed_value = @root.remove(key)
-        self.entry_counter -= 1
       end
 
       removed_value

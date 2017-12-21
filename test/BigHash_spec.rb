@@ -59,8 +59,11 @@ describe PEROBS::Hash do
   end
 
   it 'should support storing and retriebing an object' do
+    expect(@h.length).to eql(0)
+    expect(@h.empty?).to be true
     @h['foo'] = 'bar'
     expect(@h['foo']).to eql('bar')
+    expect(@h.length).to eql(1)
   end
 
   it 'should return nil for unknown objects' do
@@ -71,6 +74,7 @@ describe PEROBS::Hash do
     20.times do |i|
       @h["key#{i}"] = i
     end
+    expect(@h.length).to eql(20)
 
     20.times do |i|
       expect(@h["key#{i}"]).to eql(i)
@@ -81,6 +85,7 @@ describe PEROBS::Hash do
     20.times do |i|
       @h["key#{i}"] = 2 * i
     end
+    expect(@h.length).to eql(20)
 
     20.times do |i|
       expect(@h["key#{i}"]).to eql(2 * i)

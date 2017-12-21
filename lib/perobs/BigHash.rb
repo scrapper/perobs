@@ -160,6 +160,12 @@ module PEROBS
 
     alias size length
 
+    # Return true if hash is empty. False otherweise.
+    # @return [TrueClass, FalseClass]
+    def empty?
+      @btree.empty?
+    end
+
     # Calls the given block for each key/value pair.
     # @yield(key, value)
     def each(&block)

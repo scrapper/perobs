@@ -103,8 +103,7 @@ module PEROBS
 
         # Once we have reached a leaf node we can insert or replace the value.
         if node.is_leaf?
-          node.insert_element(key, value)
-          return
+          return node.insert_element(key, value)
         else
           # Descend into the right child node to add the value to.
           node = node.children[node.search_key_index(key)]
@@ -201,6 +200,7 @@ module PEROBS
           # This is a leaf node. Check if there is an exact match for the
           # given key and return the corresponding value or nil.
           if node.keys[i] == key
+            @tree.entry_counter -= 1
             return node.remove_element(i)
           else
             return nil
@@ -471,6 +471,8 @@ module PEROBS
     # index.
     # @param key [Integer] key to address the value or child
     # @param child_or_value [Integer or BigTreeNode] value or BigTreeNode
+    # @return [Boolean] true if new element, false if override existing
+    #         element
     def insert_element(key, child_or_value)
       if @keys.size >= @tree.node_size
         PEROBS.log.fatal "Cannot insert into a full BigTreeNode: #{@keys.size}"
@@ -490,6 +492,7 @@ module PEROBS
         @keys.insert(i, key)
         if is_leaf?
           @values.insert(i, child_or_value)
+          @tree.entry_counter += 1
         else
           @children.insert(i + 1, child_or_value)
         end

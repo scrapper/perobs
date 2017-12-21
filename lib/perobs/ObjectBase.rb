@@ -120,10 +120,17 @@ module PEROBS
 
     # This is a list of the native Ruby classes that are supported for
     # instance variable assignements in addition to other PEROBS objects.
-    NATIVE_CLASSES = [
-      NilClass, Integer, Bignum, Fixnum, Float, String, Time,
-      TrueClass, FalseClass
-    ]
+    if RUBY_VERSION < '2.2'
+      NATIVE_CLASSES = [
+        NilClass, Integer, Bignum, Fixnum, Float, String, Time,
+        TrueClass, FalseClass
+      ]
+    else
+      NATIVE_CLASSES = [
+        NilClass, Integer, Float, String, Time,
+        TrueClass, FalseClass
+      ]
+    end
 
     attr_reader :_id, :store, :myself
 
