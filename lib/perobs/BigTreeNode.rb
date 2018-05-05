@@ -288,14 +288,27 @@ module PEROBS
             else
               branch_depth = stack.size
             end
-            if node.prev_sibling.nil? && @tree.first_leaf != node
-              node.error "Leaf node #{node._id} has no previous sibling " +
-                "but is not the first leaf of the tree"
+            if node.prev_sibling.nil?
+              if @tree.first_leaf != node
+                node.error "Leaf node #{node._id} has no previous sibling " +
+                  "but is not the first leaf of the tree"
+                return false
+              end
+            elsif node.prev_sibling.next_sibling != node
+              node.error "next_sibling of previous sibling does not point to " +
+                "this node"
               return false
             end
-            if node.next_sibling.nil? && @tree.last_leaf != node
-              node.error "Leaf node #{node._id} has no next sibling " +
-                "but is not the last leaf of the tree"
+            if node.next_sibling.nil?
+              if @tree.last_leaf != node
+                node.error "Leaf node #{node._id} has no next sibling " +
+                  "but is not the last leaf of the tree"
+                return false
+              end
+            elsif node.next_sibling.prev_sibling != node
+              node.error "previous_sibling of next sibling does not point to " +
+                "this node"
+              return false
             end
             unless node.keys.size == node.values.size
               node.error "Key count (#{node.keys.size}) and value " +
