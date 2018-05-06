@@ -593,14 +593,17 @@ module PEROBS
         flags, length, id, crc = *buf.unpack('CQQL')
         blob_data = old_file.read(length)
 
-        # Some basic sanity checking to ensure all reserved bits are 0.
-        unless flags & 0xF2 == 0
+        # Some basic sanity checking to ensure all reserved bits are 0. Older
+        # versions of PEROBS used to set bit 1 despite it being reserved now.
+        unless flags & 0xF0 == 0
           PEROBS.log.fatal "Blob file #{old_file_name} contains illegal " +
             "flag byte #{'%02x' % flags} at #{old_file.pos - 21}"
         end
 
         # Check if the blob is valid and current.
         if flags & 0x1 == 1 && flags & 0x8 == 0
+          # Make sure the bit 1 is not set anymore.
+          flags = flags & 0x05
           header_str = [ flags, length, id, crc ].pack('CQQL')
           header_crc = Zlib.crc32(header_str, 0)
           header_str += [ header_crc ].pack('L')
@@ -609,7 +612,7 @@ module PEROBS
           entries += 1
         end
       end
-      $stderr.puts "Header checksum added to #{entries} entries"
+      PEROBS.log.info "Header checksum added to #{entries} entries"
 
       old_file.close
       new_file.close

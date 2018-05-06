@@ -245,7 +245,6 @@ module PEROBS
       # existing DB is multiple versions older than what the current PEROBS
       # version expects than multiple upgrade runs will be needed.
       while version < VERSION
-        $stderr.puts "Upgrading version #{version}"
         if version == 3
           PEROBS.log.warn "Updating FlatFileDB #{@db_dir} from version 3 to " +
             "version 4 ..."
