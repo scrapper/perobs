@@ -140,7 +140,7 @@ module PEROBS
     # @param id [Integer] ID of the blob to delete
     def delete_obj_by_address(addr, id)
       @index.remove(id)
-      header = FlatFileBlobHeader.read_at(@f, addr, id)
+      header = FlatFileBlobHeader.read(@f, addr, id)
       header.clear_flags
       @space_list.add_space(addr, header.length)
     end
@@ -177,7 +177,7 @@ module PEROBS
       # operation is aborted or interrupted we ensure that we either have the
       # old or the new version available.
       if (old_addr = find_obj_addr_by_id(id))
-        old_header = FlatFileBlobHeader.read_at(@f, old_addr)
+        old_header = FlatFileBlobHeader.read(@f, old_addr)
         old_header.set_outdated_flag
       end
 
@@ -197,7 +197,7 @@ module PEROBS
       begin
         if length != -1
           # Just a safeguard so we don't overwrite current data.
-          header = FlatFileBlobHeader.read_at(@f, addr)
+          header = FlatFileBlobHeader.read(@f, addr)
           if header.length != length
             PEROBS.log.fatal "Length in free list (#{length}) and header " +
               "(#{header.length}) for address #{addr} don't match."
@@ -278,13 +278,12 @@ module PEROBS
       nil
     end
 
-
     # Read the object at the specified address.
     # @param addr [Integer] Offset in the flat file
     # @param id [Integer] ID of the data blob
     # @return [String] Raw object data
     def read_obj_by_address(addr, id)
-      header = FlatFileBlobHeader.read_at(@f, addr, id)
+      header = FlatFileBlobHeader.read(@f, addr, id)
       if header.id != id
         PEROBS.log.fatal "Database index corrupted: Index for object " +
           "#{id} points to object with ID #{header.id}"
@@ -481,8 +480,8 @@ module PEROBS
           if (previous_address = new_index.get(header.id))
             PEROBS.log.error "Multiple blobs for ID #{header.id} found. " +
               "Addresses: #{previous_address}, #{pos}"
-            previous_header = FlatFileBlobHeader.read_at(@f, previous_address,
-                                                         header.id)
+            previous_header = FlatFileBlobHeader.read(@f, previous_address,
+                                                      header.id)
             if repair
               # We have two blobs with the same ID and we must discard one of
               # them.
@@ -558,12 +557,12 @@ module PEROBS
     end
 
     def has_space?(address, size)
-      header = FlatFileBlobHeader.read_at(@f, address)
+      header = FlatFileBlobHeader.read(@f, address)
       !header.is_valid? && header.length == size
     end
 
     def has_id_at?(id, address)
-      header = FlatFileBlobHeader.read_at(@f, address)
+      header = FlatFileBlobHeader.read(@f, address)
       header.is_valid? && header.id == id
     end
 
@@ -579,6 +578,44 @@ module PEROBS
         s << " }\n"
       end
       s + ']'
+    end
+
+    def FlatFile::insert_header_checksums(db_dir)
+      old_file_name = File.join(db_dir, 'database.blobs')
+      new_file_name = File.join(db_dir, 'database_v4.blobs')
+      bak_file_name = File.join(db_dir, 'database_v3.blobs')
+
+      old_file = File.open(old_file_name, 'rb')
+      new_file = File.open(new_file_name, 'wb')
+
+      entries = 0
+      while (buf = old_file.read(21))
+        flags, length, id, crc = *buf.unpack('CQQL')
+        blob_data = old_file.read(length)
+
+        # Some basic sanity checking to ensure all reserved bits are 0.
+        unless flags & 0xF2 == 0
+          PEROBS.log.fatal "Blob file #{old_file_name} contains illegal " +
+            "flag byte #{'%02x' % flags} at #{old_file.pos - 21}"
+        end
+
+        # Check if the blob is valid and current.
+        if flags & 0x1 == 1 && flags & 0x8 == 0
+          header_str = [ flags, length, id, crc ].pack('CQQL')
+          header_crc = Zlib.crc32(header_str, 0)
+          header_str += [ header_crc ].pack('L')
+
+          new_file.write(header_str + blob_data)
+          entries += 1
+        end
+      end
+      $stderr.puts "Header checksum added to #{entries} entries"
+
+      old_file.close
+      new_file.close
+
+      File.rename(old_file_name, bak_file_name)
+      File.rename(new_file_name, old_file_name)
     end
 
     private

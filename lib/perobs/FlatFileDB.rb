@@ -41,7 +41,7 @@ module PEROBS
 
     # This version number increases whenever the on-disk format changes in a
     # way that requires conversion actions after an update.
-    VERSION = 3
+    VERSION = 4
 
     attr_reader :max_blob_size
 
@@ -226,7 +226,8 @@ module PEROBS
                            "'#{version_file}': " + e.message
         end
       else
-        # Early versions of PEROBS did not have a version file.
+        # The DB is brand new.
+        version = VERSION
         write_version_file(version_file)
       end
 
@@ -234,31 +235,41 @@ module PEROBS
         PEROBS.log.fatal "Cannot downgrade the FlatFile database from " +
                          "version #{version} to version #{VERSION}"
       end
-
-      if version == 1
-        # Version 1 had no support for data compression. Make sure all entries
-        # are compressed to save space.
-        open
-        @flat_file.refresh
-        close
-      elsif version == 2
-        # Version 3 brings a new BTree file format. We have to regenerate the
-        # index file.
-        open
-        @flat_file.regenerate_index_and_spaces
-        close
+      if version < 3
+        PEROBS.log.fatal "The upgrade of this version of the PEROBS database " +
+          "is not supported by this version of PEROBS. Please try an earlier " +
+          "version of PEROBS to upgrade the database before using this version."
       end
 
-      # After a successful upgrade change the version number in the DB as
-      # well.
-      if version < VERSION
+      # Version upgrades must be done one version number at a time. If the
+      # existing DB is multiple versions older than what the current PEROBS
+      # version expects than multiple upgrade runs will be needed.
+      while version < VERSION
+        $stderr.puts "Upgrading version #{version}"
+        if version == 3
+          PEROBS.log.warn "Updating FlatFileDB #{@db_dir} from version 3 to " +
+            "version 4 ..."
+          # Version 4 adds checksums for blob file headers. We have to convert
+          # the blob file to include the checksums.
+          FlatFile.insert_header_checksums(@db_dir)
+          open
+          @flat_file.regenerate_index_and_spaces
+          close
+        end
+
+        # After a successful upgrade change the version number in the DB as
+        # well.
         write_version_file(version_file)
         PEROBS.log.warn "Update of FlatFileDB '#{@db_dir}' from version " +
-          "#{version} to version #{VERSION} completed"
+          "#{version} to version #{version + 1} completed"
+
+        # Update version variable to new version.
+        version += 1
       end
     end
 
     def write_version_file(version_file)
+
       begin
         RobustFile.write(version_file, VERSION)
       rescue IOError => e

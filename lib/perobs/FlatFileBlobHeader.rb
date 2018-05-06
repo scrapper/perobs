@@ -48,7 +48,7 @@ module PEROBS
     # The 'pack()' format of the header.
     FORMAT = 'CQQL'
     # The length of the header in bytes.
-    LENGTH = 21
+    LENGTH = 25
     VALID_FLAG_BIT = 0
     COMPRESSED_FLAG_BIT = 2
     OUTDATED_FLAG_BIT = 3
@@ -73,46 +73,75 @@ module PEROBS
 
     # Read the header from the given File.
     # @param file [File]
-    # @return FlatFileBlobHeader
-    def FlatFileBlobHeader::read(file)
+    # @param addr [Integer] address in the file to start reading. If no
+    #        address is specified use the current position in the file.
+    # @param id [Integer] Optional ID that the header should have. If no id is
+    #        specified there is no check against the actual ID done.
+    # @return FlatFileBlobHeader or nil if there are no more blobs to read in
+    #         the file.
+    def FlatFileBlobHeader::read(file, addr = nil, id = nil)
+      # If an address was specified we expect the read to always succeed. If
+      # no address is specified and we can't read the header we generate an
+      # error message but it is not fatal.
+      errors_are_fatal = !addr.nil?
+
+      buf_with_crc = nil
       begin
-        addr = file.pos
-        buf = file.read(LENGTH)
+        if addr
+          file.seek(addr)
+        else
+          addr = file.pos
+        end
+        buf_with_crc = file.read(LENGTH)
       rescue IOError => e
-        PEROBS.log.error "Cannot read blob header in flat file DB: #{e.message}"
-        return nil
+        if errors_are_fatal
+          PEROBS.log.fatal "Cannot read blob header in flat file DB at " +
+            "address #{addr}: #{e.message}"
+        else
+          PEROBS.log.error "Cannot read blob header in flat file DB: " +
+            e.message
+          return nil
+        end
       end
 
-      return nil unless buf
+      # If the read wasn't targeting a specific address and fails, this is the
+      # indication of having reached the end of file. We return nil.
+      return nil if !errors_are_fatal && buf_with_crc.nil?
 
-      if buf.length != LENGTH
-        PEROBS.log.error "Incomplete FlatFileBlobHeader: Only #{buf.length} " +
-          "bytes of #{LENGTH} could be read"
-        return nil
-      end
-
-      FlatFileBlobHeader.new(file, addr, *buf.unpack(FORMAT))
-    end
-
-    # Read the header from the given File.
-    # @param file [File]
-    # @param addr [Integer] address in the file to start reading
-    # @param id [Integer] Optional ID that the header should have
-    # @return FlatFileBlobHeader
-    def FlatFileBlobHeader::read_at(file, addr, id = nil)
-      buf = nil
-      begin
-        file.seek(addr)
-        buf = file.read(LENGTH)
-      rescue IOError => e
-        PEROBS.log.fatal "Cannot read blob in flat file DB: #{e.message}"
-      end
-      if buf.nil? || buf.length != LENGTH
+      # Did we read anything?
+      if buf_with_crc.nil?
         PEROBS.log.fatal "Cannot read blob header " +
-          "#{id ? "for ID #{id} " : ''}at address " +
-          "#{addr}"
+          "#{id ? "for ID #{id} " : ''}at address #{addr}"
       end
+
+      # Did we get the full header?
+      if buf_with_crc.length != LENGTH
+        PEROBS.log.error "Incomplete FlatFileBlobHeader: Only " +
+          "#{buf_with_crc.length} " +
+          "bytes of #{LENGTH} could be read "
+          "#{id ? "for ID #{id} " : ''}at address #{addr}"
+        return nil
+      end
+
+      # Check the CRC of the header
+      buf = buf_with_crc[0..-5]
+      crc = buf_with_crc[-4..-1].unpack('L')[0]
+
+      if (read_crc = Zlib.crc32(buf, 0)) != crc
+        if errors_are_fatal
+          PEROBS.log.fatal "FlatFile Header CRC mismatch at address #{addr}. " +
+            "Header CRC is #{'%08x' % read_crc} but should be " +
+            "#{'%08x' % crc}."
+        else
+          PEROBS.log.error "FlatFile Header CRC mismatch at address #{addr}. " +
+            "Header CRC is #{'%08x' % read_crc} but should be " +
+            "#{'%08x' % crc}."
+          return nil
+        end
+      end
+
       header = FlatFileBlobHeader.new(file, addr, *buf.unpack(FORMAT))
+
       if id && header.id != id
         PEROBS.log.fatal "Mismatch between FlatFile index and blob file " +
           "found. FlatFile has entry with ID #{header.id} at address " +
@@ -125,8 +154,10 @@ module PEROBS
     # Write the header to a given File.
     def write
       begin
+        buf = [ @flags, @length, @id, @crc].pack(FORMAT)
+        crc = Zlib.crc32(buf, 0)
         @file.seek(@addr)
-        @file.write([ @flags, @length, @id, @crc].pack(FORMAT))
+        @file.write(buf + [ crc ].pack('L'))
       rescue IOError => e
         PEROBS.log.fatal "Cannot write blob header into flat file DB: " +
           e.message
@@ -136,7 +167,7 @@ module PEROBS
     # Reset all the flags bit to 0. This marks the blob as invalid.
     def clear_flags
       @flags = 0
-      write_flags
+      write
     end
 
     # Return true if the header is for a non-empty blob.
@@ -153,7 +184,7 @@ module PEROBS
     # transaction has been completed.
     def set_outdated_flag
       set_flag(OUTDATED_FLAG_BIT)
-      write_flags
+      write
     end
 
     # Return true if the blob contains outdated data.
@@ -162,17 +193,6 @@ module PEROBS
     end
 
     private
-
-    def write_flags
-      begin
-        @file.seek(@addr)
-        @file.write([ @flags ].pack('C'))
-        @file.flush
-      rescue IOError => e
-        PEROBS.log.fatal "Writing flags of FlatFileBlobHeader with ID #{@id} " +
-          "failed: #{e.message}"
-      end
-    end
 
     def bit_set?(n)
       mask = 1 << n

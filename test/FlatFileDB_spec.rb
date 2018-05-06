@@ -28,6 +28,7 @@ require 'fileutils'
 require 'spec_helper'
 require 'perobs/FlatFileDB'
 require 'perobs/Store'
+require 'LegacyDBs/LegacyDB'
 
 class FlatFileDB_O < PEROBS::Object
 
@@ -67,17 +68,13 @@ describe PEROBS::FlatFileDB do
 
   it 'should do a version upgrade' do
     # Close the store
-    @store['o'] = @store.new(FlatFileDB_O)
     @store.exit
+    src_dir = File.join(File.dirname(__FILE__), 'LegacyDBs', 'version_3')
+    FileUtils.cp_r(Dir.glob(src_dir + '/*'), @db_dir)
 
-    # Manually downgrade the version file to version 1
-    version_file = File.join(@db_dir, 'version')
-    File.write(version_file, '1')
-
-    # Open the store again
-    store = PEROBS::Store.new(@db_dir, :engine => PEROBS::FlatFileDB)
-    expect(File.read(version_file).to_i).to eql(PEROBS::FlatFileDB::VERSION)
-    expect(store['o'].b).to eql(42)
+    db = LegacyDB.new(@db_dir)
+    db.open
+    expect(db.check).to be true
   end
 
   it 'should refuse a version downgrade' do
