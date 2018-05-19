@@ -199,7 +199,10 @@ module PEROBS
     # method was called.
     def exit
       if @cache && @cache.in_transaction?
-        PEROBS.log.fatal 'You cannot call exit() during a transaction'
+        @cache.abort_transaction
+        @cache.flush
+        @db.close if @db
+        PEROBS.log.fatal "You cannot call exit() during a transaction: #{Kernel.caller}"
       end
       @cache.flush if @cache
       @db.close if @db
@@ -299,7 +302,9 @@ module PEROBS
     # needed.
     def sync
       if @cache.in_transaction?
-        PEROBS.log.fatal 'You cannot call sync() during a transaction'
+        @cache.abort_transaction
+        @cache.flush
+        PEROBS.log.fatal "You cannot call sync() during a transaction: #{Kernel.caller}"
       end
       @cache.flush
     end
@@ -310,9 +315,6 @@ module PEROBS
     # method periodically.
     # @return [Integer] The number of collected objects
     def gc
-      if @cache.in_transaction?
-        PEROBS.log.fatal 'You cannot call gc() during a transaction'
-      end
       sync
       mark
       sweep
