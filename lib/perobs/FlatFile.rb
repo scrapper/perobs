@@ -2,7 +2,7 @@
 #
 # = FlatFile.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2016 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2016, 2018 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -436,72 +436,76 @@ module PEROBS
       new_index.erase
       new_index.open
 
-      each_blob_header do |pos, header|
-        if header.is_valid?
-          # We have a non-deleted entry.
-          begin
-            @f.seek(pos + FlatFileBlobHeader::LENGTH)
-            buf = @f.read(header.length)
-            if buf.bytesize != header.length
-              PEROBS.log.error "Premature end of file in blob with ID " +
-                "#{header.id}."
-              discard_damaged_blob(header) if repair
-              errors += 1
-              next
-            end
-
-            # Uncompress the data if the compression bit is set in the mark
-            # byte.
-            if header.is_compressed?
-              begin
-                buf = Zlib.inflate(buf)
-              rescue Zlib::BufError, Zlib::DataError
-                PEROBS.log.error "Corrupted compressed block with ID " +
-                  "#{header.id} found."
+      ProgressMeter.new('Checking FlatFile blobs', @f.size) do |pm|
+        each_blob_header do |pos, header|
+          if header.is_valid?
+            # We have a non-deleted entry.
+            begin
+              @f.seek(pos + FlatFileBlobHeader::LENGTH)
+              buf = @f.read(header.length)
+              if buf.bytesize != header.length
+                PEROBS.log.error "Premature end of file in blob with ID " +
+                  "#{header.id}."
                 discard_damaged_blob(header) if repair
                 errors += 1
                 next
               end
-            end
 
-            if header.crc && checksum(buf) != header.crc
-              PEROBS.log.error "Checksum failure while checking blob " +
-                "with ID #{header.id}"
-              discard_damaged_blob(header) if repair
-              errors += 1
-              next
-            end
-          rescue IOError => e
-            PEROBS.log.fatal "Check of blob with ID #{header.id} failed: " +
-              e.message
-          end
-
-          # Check if the ID has already been found in the file.
-          if (previous_address = new_index.get(header.id))
-            PEROBS.log.error "Multiple blobs for ID #{header.id} found. " +
-              "Addresses: #{previous_address}, #{pos}"
-            previous_header = FlatFileBlobHeader.read(@f, previous_address,
-                                                      header.id)
-            if repair
-              # We have two blobs with the same ID and we must discard one of
-              # them.
-              if header.is_outdated?
-                discard_damaged_blob(header)
-              elsif previous_header.is_outdated?
-                discard_damaged_blob(previous_header)
-              else
-                PEROBS.log.error "None of the blobs with same ID have " +
-                  "the outdated flag set. Deleting the smaller one."
-                discard_damaged_blob(header.length < previous_header.length ?
-                                     header : previous_header)
+              # Uncompress the data if the compression bit is set in the mark
+              # byte.
+              if header.is_compressed?
+                begin
+                  buf = Zlib.inflate(buf)
+                rescue Zlib::BufError, Zlib::DataError
+                  PEROBS.log.error "Corrupted compressed block with ID " +
+                    "#{header.id} found."
+                  discard_damaged_blob(header) if repair
+                  errors += 1
+                  next
+                end
               end
-              next
+
+              if header.crc && checksum(buf) != header.crc
+                PEROBS.log.error "Checksum failure while checking blob " +
+                  "with ID #{header.id}"
+                discard_damaged_blob(header) if repair
+                errors += 1
+                next
+              end
+            rescue IOError => e
+              PEROBS.log.fatal "Check of blob with ID #{header.id} failed: " +
+                e.message
             end
-          else
-            # ID is unique so far. Add it to the shadow index.
-            new_index.insert(header.id, pos)
+
+            # Check if the ID has already been found in the file.
+            if (previous_address = new_index.get(header.id))
+              PEROBS.log.error "Multiple blobs for ID #{header.id} found. " +
+                "Addresses: #{previous_address}, #{pos}"
+              previous_header = FlatFileBlobHeader.read(@f, previous_address,
+                                                        header.id)
+              if repair
+                # We have two blobs with the same ID and we must discard one of
+                # them.
+                if header.is_outdated?
+                  discard_damaged_blob(header)
+                elsif previous_header.is_outdated?
+                  discard_damaged_blob(previous_header)
+                else
+                  PEROBS.log.error "None of the blobs with same ID have " +
+                    "the outdated flag set. Deleting the smaller one."
+                  discard_damaged_blob(header.length < previous_header.length ?
+                                       header : previous_header)
+                end
+                next
+              end
+            else
+              # ID is unique so far. Add it to the shadow index.
+              new_index.insert(header.id, pos)
+            end
+
           end
 
+          pm.update(pos)
         end
       end
       # We no longer need the new index.
@@ -512,8 +516,13 @@ module PEROBS
       # match the blob file. All entries in the index must be in the blob file
       # and vise versa.
       begin
-        index_ok = @index.check do |id, address|
-          has_id_at?(id, address)
+        nodes = 0
+        index_ok = false
+        ProgressMeter.new('Checking index', @index.nodes_count) do |pm|
+          index_ok = @index.check do |id, address|
+            has_id_at?(id, address)
+            pm.update(nodes += 1)
+          end
         end
         unless index_ok && @space_list.check(self) && cross_check_entries
           regenerate_index_and_spaces if repair
@@ -537,19 +546,23 @@ module PEROBS
       @index.clear
       @space_list.clear
 
-      each_blob_header do |pos, header|
-        if header.is_valid?
-          if (duplicate_pos = @index.get(header.id))
-            PEROBS.log.error "FlatFile contains multiple blobs for ID " +
-              "#{header.id}. First blob is at address #{duplicate_pos}. " +
-              "Other blob found at address #{pos}."
-            @space_list.add_space(pos, header.length) if header.length > 0
-            discard_damaged_blob(header)
+      ProgressMeter.new('Re-generating FlatFileDB index', @f.size) do |pm|
+        each_blob_header do |pos, header|
+          if header.is_valid?
+            if (duplicate_pos = @index.get(header.id))
+              PEROBS.log.error "FlatFile contains multiple blobs for ID " +
+                "#{header.id}. First blob is at address #{duplicate_pos}. " +
+                "Other blob found at address #{pos}."
+              @space_list.add_space(pos, header.length) if header.length > 0
+              discard_damaged_blob(header)
+            else
+              @index.insert(header.id, pos)
+            end
           else
-            @index.insert(header.id, pos)
+            @space_list.add_space(pos, header.length) if header.length > 0
           end
-        else
-          @space_list.add_space(pos, header.length) if header.length > 0
+
+          pm.update(pos)
         end
       end
 
@@ -665,22 +678,26 @@ module PEROBS
     def cross_check_entries
       errors = 0
 
-      each_blob_header do |pos, header|
-        if !header.is_valid?
-          if header.length > 0
-            unless @space_list.has_space?(pos, header.length)
-              PEROBS.log.error "FlatFile has free space " +
-                "(addr: #{pos}, len: #{header.length}) that is not in " +
+      ProgressMeter.new('Cross checking FlatFileDB', @f.size) do |pm|
+        each_blob_header do |pos, header|
+          if !header.is_valid?
+            if header.length > 0
+              unless @space_list.has_space?(pos, header.length)
+                PEROBS.log.error "FlatFile has free space " +
+                  "(addr: #{pos}, len: #{header.length}) that is not in " +
                 "FreeSpaceManager"
+                errors += 1
+              end
+            end
+          else
+            unless @index.get(header.id) == pos
+              PEROBS.log.error "FlatFile blob at address #{pos} is listed " +
+                "in index with address #{@index.get(header.id)}"
               errors += 1
             end
           end
-        else
-          unless @index.get(header.id) == pos
-            PEROBS.log.error "FlatFile blob at address #{pos} is listed " +
-              "in index with address #{@index.get(header.id)}"
-            errors += 1
-          end
+
+          pm.update(pos)
         end
       end
 

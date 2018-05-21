@@ -84,8 +84,8 @@ describe PEROBS::Store do
   end
 
   after(:each) do
-    @store.gc
-    expect { @store.check }.to_not raise_error
+    capture_io { @store.gc }
+    capture_io { expect { @store.check }.to_not raise_error }
     expect { @store.delete_store }.to_not raise_error
   end
 
@@ -130,7 +130,7 @@ describe PEROBS::Store do
       jane.married = true
       jane.relatives = 'test'
 
-      @store.exit
+      capture_io { @store.exit }
 
       @store = PEROBS::Store.new(@db_file)
       john = @store['john']
@@ -175,7 +175,7 @@ describe PEROBS::Store do
     jane.married = true
     jane.relatives = 'test'
 
-    @store.exit
+    capture_io { @store.exit }
 
     @store = PEROBS::Store.new(@db_file)
     @store.rename_classes({ 'Person' => 'PersonN' })
@@ -200,7 +200,7 @@ describe PEROBS::Store do
     0.upto(20) do |i|
       @store["person#{i}"].name = "New Person #{i}"
     end
-    @store.exit
+    capture_io { @store.exit }
     @store = PEROBS::Store.new(@db_file)
     0.upto(20) do |i|
       expect(@store["person#{i}"].name).to eq("New Person #{i}")
@@ -217,8 +217,8 @@ describe PEROBS::Store do
     id3 = obj._id
     @store.sync
     @store['person1'] = nil
-    @store.gc
-    @store.exit
+    capture_io { @store.gc }
+    capture_io { @store.exit }
     @store = PEROBS::Store.new(@db_file)
     expect(@store.object_by_id(id1)).to be_nil
     expect(@store['person2']._id).to eq(id2)
@@ -236,10 +236,10 @@ describe PEROBS::Store do
     p1.related = p2
     p2.related = p1
     p0.related = p1
-    expect(@store.check).to eq(0)
-    expect(@store.gc).to eq(0)
+    capture_io { expect(@store.check).to eq(0) }
+    capture_io { expect(@store.gc).to eq(0) }
     p0 = p1 = p2 = nil
-    @store.exit
+    capture_io { @store.exit }
     GC.start
     @store = PEROBS::Store.new(@db_file)
     expect(@store['person0']._id).to eq(id0)
@@ -247,14 +247,14 @@ describe PEROBS::Store do
     expect(@store['person0'].related.related._id).to eq(id2)
 
     @store['person0'].related = nil
-    expect(@store.gc).to eq(2)
+    capture_io { expect(@store.gc).to eq(2) }
     GC.start
     expect(@store.object_by_id(id1)).to be_nil
     expect(@store.object_by_id(id2)).to be_nil
-    @store.exit
+    capture_io { @store.exit }
 
     @store = PEROBS::Store.new(@db_file)
-    expect(@store.check).to eq(0)
+    capture_io { expect(@store.check).to eq(0) }
     expect(@store.object_by_id(id1)).to be_nil
     expect(@store.object_by_id(id2)).to be_nil
   end
@@ -434,11 +434,11 @@ describe PEROBS::Store do
     @store = PEROBS::Store.new(@db_file)
     @store['root'] = @store.new(O0)
     @store.sync
-    expect(@store.check).to eq(0)
-    @store.exit
+    capture_io { expect(@store.check).to eq(0) }
+    capture_io { @store.exit }
 
     @store = PEROBS::Store.new(@db_file)
-    expect(@store.check).to eq(0)
+    capture_io { expect(@store.check).to eq(0) }
     expect(@store['root'].child.parent).to eq(@store['root'])
   end
 
@@ -467,7 +467,7 @@ describe PEROBS::Store do
         expect(o_it.to_i).to eql(iteration)
         expect(o_i.to_i).to eql(i)
       end
-      @store.check
+      capture_io { expect(@store.check).to eql(0) }
     end
   end
 
@@ -514,17 +514,17 @@ describe PEROBS::Store do
       when 4
         # Call garbage collector
         if rand(60) == 0
-          @store.gc
+          capture_io { @store.gc }
           stats = @store.statistics
           expect(stats.marked_objects).to eq(ref.length)
           expect(stats.swept_objects).to eq(deletions_since_last_gc)
           deletions_since_last_gc = 0
-          expect(@store.gc).to eq(deletions_since_last_gc)
+          capture_io { expect(@store.gc).to eq(deletions_since_last_gc) }
         end
       when 5
         # Sync store and reload
         if rand(15) == 0
-          @store.exit
+          capture_io { @store.exit }
           @store = PEROBS::Store.new(@db_file, options)
         end
       when 6
@@ -541,7 +541,7 @@ describe PEROBS::Store do
         # Sync and check store
         if rand(50) == 0
           #@store.sync
-          expect(@store.check(false)).to eq(0)
+          capture_io { expect(@store.check(false)).to eq(0) }
         end
       when 8
         # Compare a random entry with reference entry

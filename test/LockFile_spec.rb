@@ -59,7 +59,7 @@ describe PEROBS::LockFile do
     expect(lock.is_locked?).to be true
     lock.forced_unlock
     expect(lock.is_locked?).to be false
-    out = capture_io{ expect(lock.unlock).to be false }
+    out = capture_io{ expect(lock.unlock).to be false }.log
     expect(out).to include('There is no current lock to release')
   end
 
@@ -67,7 +67,7 @@ describe PEROBS::LockFile do
     lock1 = PEROBS::LockFile.new(@file)
     expect(lock1.lock).to be true
     lock2 = PEROBS::LockFile.new(@file)
-    out = capture_io { expect(lock2.lock).to be false }
+    out = capture_io { expect(lock2.lock).to be false }.log
     expect(out).to include('due to timeout')
     expect(lock1.unlock).to be true
     expect(lock2.lock).to be true
@@ -105,7 +105,7 @@ describe PEROBS::LockFile do
     end
     lock2 = PEROBS::LockFile.new(@file,
                                  { :max_retries => 2, :pause_secs => 0.5 })
-    out = capture_io { expect(lock2.lock).to be false }
+    out = capture_io { expect(lock2.lock).to be false }.log
     expect(out).to include('due to timeout')
     Process.wait(pid)
   end
@@ -123,7 +123,7 @@ describe PEROBS::LockFile do
     end
 
     lock2 = PEROBS::LockFile.new(@file, { :timeout_secs => 1 })
-    out = capture_io { expect(lock2.lock).to be true }
+    out = capture_io { expect(lock2.lock).to be true }.log
     expect(out).to include('Old lock file found for PID')
     expect(lock2.unlock).to be true
     Process.wait(pid)

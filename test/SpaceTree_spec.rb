@@ -49,7 +49,7 @@ describe PEROBS::SpaceTree do
     @m.add_space(80, 8)
     expect(@m.has_space?(80, 8)).to be true
     expect(@m.to_a).to eql([[80, 8]])
-    expect(@m.check).to be true
+    capture_io { expect(@m.check).to be true }
     @m.add_space(40, 4)
     expect(@m.has_space?(40, 4)).to be true
     expect(@m.to_a).to eql([[80, 8], [40, 4]])
@@ -68,7 +68,7 @@ describe PEROBS::SpaceTree do
     @m.add_space(81, 8)
     expect(@m.has_space?(81, 8)).to be true
     expect(@m.to_a).to eql([[80, 8], [40, 4], [20, 2], [81, 8], [160, 16], [100, 10], [320, 32]])
-    expect(@m.check).to be true
+    capture_io { expect(@m.check).to be true }
   end
 
   it 'should convert the tree into a human readable string' do
@@ -86,10 +86,10 @@ EOT
 
   it 'should keep values over an close/open' do
     @m.add_space(1, 15)
-    expect(@m.check).to be true
+    capture_io { expect(@m.check).to be true }
     @m.close
     @m.open
-    expect(@m.check).to be true
+    capture_io { expect(@m.check).to be true }
     expect(@m.to_a).to eql([[80, 8], [40, 4], [20, 2], [81, 8], [160, 16], [100, 10], [1, 15], [320, 32]])
   end
 
@@ -185,14 +185,14 @@ EOT
     @m.clear
     add_sizes([ 5, 3, 7 ])
     expect(@m.get_space(5)).to eql([0, 5])
-    expect(@m.check).to be true
+    capture_io { expect(@m.check).to be true }
     expect(@m.to_a).to eql([[1, 3], [2, 7]])
 
     @m.clear
     add_sizes([ 10, 5, 3, 7, 15, 7 ])
     expect(@m.to_a).to eql([[0, 10], [1, 5], [2, 3], [3, 7], [5, 7], [4, 15]])
     expect(@m.get_space(10)).to eql([0, 10])
-    expect(@m.check).to be true
+    capture_io { expect(@m.check).to be true }
     expect(@m.to_a).to eql([[3, 7], [1, 5], [2, 3], [5, 7], [4, 15]])
 
     @m.clear
@@ -232,7 +232,7 @@ EOT
         end
       when 2
         if rand(10) == 0
-          expect(@m.check).to be true
+          capture_io { expect(@m.check).to be true }
           spaces.each do |address, size|
             expect(@m.has_space?(address, size)).to be true
           end
@@ -242,10 +242,10 @@ EOT
         end
       when 3
         if rand(100) == 0
-          expect(@m.check).to be true
+          capture_io { expect(@m.check).to be true }
           @m.close
           @m.open
-          expect(@m.check).to be true
+          capture_io { expect(@m.check).to be true }
         end
       end
     end
