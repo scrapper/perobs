@@ -73,8 +73,8 @@ describe PEROBS::FlatFileDB do
     FileUtils.cp_r(Dir.glob(src_dir + '/*'), @db_dir)
 
     db = LegacyDB.new(@db_dir)
-    db.open
-    expect(db.check).to be true
+    capture_io { db.open }
+    capture_io { expect(db.check).to be true }
   end
 
   it 'should refuse a version downgrade' do
@@ -94,7 +94,10 @@ describe PEROBS::FlatFileDB do
     @store.exit
 
     File.delete(File.join(@db_dir, 'index.blobs'))
-    store = PEROBS::Store.new(@db_dir, :engine => PEROBS::FlatFileDB)
+    store = nil
+    capture_io do
+      store = PEROBS::Store.new(@db_dir, :engine => PEROBS::FlatFileDB)
+    end
     expect(store['o'].b).to eql(42)
   end
 
@@ -103,8 +106,11 @@ describe PEROBS::FlatFileDB do
     @store.exit
 
     File.write(File.join(@db_dir, 'index.blobs'), '*' * 500)
-    store = PEROBS::Store.new(@db_dir, :engine => PEROBS::FlatFileDB)
-    store.check(true)
+    store = nil
+    capture_io do
+      store = PEROBS::Store.new(@db_dir, :engine => PEROBS::FlatFileDB)
+    end
+    capture_io { store.check(true) }
     expect(store['o'].b).to eql(42)
   end
 

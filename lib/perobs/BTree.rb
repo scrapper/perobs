@@ -2,7 +2,7 @@
 #
 # = BTreeNode.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2016, 2017, 2018 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -203,6 +203,11 @@ module PEROBS
     def delete_node(address)
       @node_cache.delete(address)
       @nodes.delete_blob(address)
+    end
+
+    # @return [Integer] The number of nodes in the tree.
+    def nodes_count
+      @nodes.total_entries
     end
 
     # @return [String] Human reable form of the tree.

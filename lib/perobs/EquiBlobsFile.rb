@@ -2,7 +2,7 @@
 #
 # = EquiBlobsFile.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2016, 2017, 2018 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -26,6 +26,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 require 'perobs/Log'
+require 'perobs/ProgressMeter'
 
 module PEROBS
 
@@ -434,25 +435,31 @@ module PEROBS
         return false
       end
 
-      total_spaces = 0
-      begin
-        while next_offset != 0
-          # Check that the marker byte is 0
-          @f.seek(next_offset)
-          if (marker = read_char) != 0
-            PEROBS.log.error "Marker byte at address " +
-              "#{offset_to_address(next_offset)} is #{marker} instead of 0."
-            return false
-          end
-          # Read offset of next empty space
-          next_offset = read_unsigned_int
+      return true if next_offset == 0
 
-          total_spaces += 1
+      total_spaces = 0
+      ProgressMeter.new('Checking EquiBlobsFile spaces list',
+                        @total_spaces) do |pm|
+        begin
+          while next_offset != 0
+            # Check that the marker byte is 0
+            @f.seek(next_offset)
+            if (marker = read_char) != 0
+              PEROBS.log.error "Marker byte at address " +
+                "#{offset_to_address(next_offset)} is #{marker} instead of 0."
+              return false
+            end
+            # Read offset of next empty space
+            next_offset = read_unsigned_int
+
+            total_spaces += 1
+            pm.update(total_spaces)
+          end
+        rescue IOError => e
+          PEROBS.log.error "Cannot check space list of EquiBlobsFile " +
+            "#{@file_name}: #{e.message}"
+          return false
         end
-      rescue IOError => e
-        PEROBS.log.error "Cannot check space list of EquiBlobsFile " +
-          "#{@file_name}: #{e.message}"
-        return false
       end
 
       unless total_spaces == @total_spaces
@@ -484,33 +491,38 @@ module PEROBS
       next_offset = address_to_offset(1)
       total_entries = 0
       total_spaces = 0
-      begin
-        @f.seek(next_offset)
-        while !@f.eof
-          marker, bytes = @f.read(1 + @entry_bytes).
-            unpack("C#{1 + @entry_bytes}")
-          case marker
-          when 0
-            total_spaces += 1
-          when 1
-            PEROBS.log.error "Entry at address " +
-              "#{offset_to_address(next_offset)} in EquiBlobsFile " +
-              "#{@file_name} has reserved marker"
-            return false
-          when 2
-            total_entries += 1
-          else
-            PEROBS.log.error "Entry at address " +
-              "#{offset_to_address(next_offset)} in EquiBlobsFile " +
-              "#{@file_name} has illegal marker #{marker}"
-            return false
+      ProgressMeter.new('Checking EquiBlobsFile entries',
+                        @total_spaces + @total_entries) do |pm|
+        begin
+          @f.seek(next_offset)
+          while !@f.eof
+            marker, bytes = @f.read(1 + @entry_bytes).
+              unpack("C#{1 + @entry_bytes}")
+            case marker
+            when 0
+              total_spaces += 1
+            when 1
+              PEROBS.log.error "Entry at address " +
+                "#{offset_to_address(next_offset)} in EquiBlobsFile " +
+                "#{@file_name} has reserved marker"
+              return false
+            when 2
+              total_entries += 1
+            else
+              PEROBS.log.error "Entry at address " +
+                "#{offset_to_address(next_offset)} in EquiBlobsFile " +
+                "#{@file_name} has illegal marker #{marker}"
+              return false
+            end
+            next_offset += 1 + @entry_bytes
           end
-          next_offset += 1 + @entry_bytes
+
+          pm.update(total_spaces + total_entries)
+        rescue
+          PEROBS.log.error "Cannot check entries of EquiBlobsFile " +
+            "#{@file_name}: #{e.message}"
+          return false
         end
-      rescue
-        PEROBS.log.error "Cannot check entries of EquiBlobsFile " +
-          "#{@file_name}: #{e.message}"
-        return false
       end
 
       unless total_spaces == @total_spaces

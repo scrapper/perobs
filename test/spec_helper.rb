@@ -41,15 +41,20 @@ def generate_db_name(caller_file)
 end
 
 def capture_io
-  PEROBS.log.open(io = StringIO.new)
+  old_stdout = $stdout
+  $stdout = out = StringIO.new
+  PEROBS.log.open(log = StringIO.new)
+
   begin
     yield
   ensure
+    $stdout = old_stdout
     PEROBS.log.open($stderr)
   end
 
-  io.rewind
-  io.read
-end
+  out.rewind
+  log.rewind
 
+  Struct.new(:out, :log).new(out.read, log.read)
+end
 
