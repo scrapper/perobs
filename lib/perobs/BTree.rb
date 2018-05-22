@@ -64,8 +64,8 @@ module PEROBS
       # This EquiBlobsFile contains the nodes of the BTree.
       @nodes = EquiBlobsFile.new(@dir, @name,
                                  BTreeNode::node_bytes(@order))
-      @nodes.register_custom_offset('first_leaf')
-      @nodes.register_custom_offset('last_leaf')
+      @nodes.register_custom_data('first_leaf')
+      @nodes.register_custom_data('last_leaf')
       @node_cache = PersistentObjectCache.new(512, BTreeNode, self)
       @root = @first_leaf = @last_leaf = nil
 
@@ -145,14 +145,14 @@ module PEROBS
     # @param node [BTreeNode]
     def set_first_leaf(node)
       @first_leaf = node
-      @nodes.set_custom_offset('first_leaf', node.node_address)
+      @nodes.set_custom_data('first_leaf', node.node_address)
     end
 
     # Set the address of the last leaf node.
     # @param node [BTreeNode]
     def set_last_leaf(node)
       @last_leaf = node
-      @nodes.set_custom_offset('last_leaf', node.node_address)
+      @nodes.set_custom_data('last_leaf', node.node_address)
     end
 
     # Insert a new value into the tree using the key as a unique index. If the

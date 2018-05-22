@@ -60,7 +60,7 @@ module PEROBS
       end
       @entry_bytes = entry_bytes
       @first_entry_default = first_entry_default
-      clear_custom_offsets
+      clear_custom_data
       reset_counters
 
       # The File handle.
@@ -105,54 +105,54 @@ module PEROBS
     end
 
     # In addition to the standard offsets for the first entry and the first
-    # space any number of additional offsets can be registered. This must be
+    # space any number of additional data fields can be registered. This must be
     # done right after the object is instanciated and before the open() method
-    # is called.
+    # is called. Each field represents a 64 bit unsigned integer.
     # @param name [String] The label for this offset
     # @param default_value [Integer] The default value for the offset
-    def register_custom_offset(name, default_value = 0)
-      if @custom_offsets_labels.include?(name)
-        PEROBS.log.fatal "Custom offset #{name} has already been registered"
+    def register_custom_data(name, default_value = 0)
+      if @custom_data_labels.include?(name)
+        PEROBS.log.fatal "Custom data field #{name} has already been registered"
       end
 
-      @custom_offsets_labels << name
-      @custom_offsets_values << default_value
-      @custom_offsets_defaults << default_value
+      @custom_data_labels << name
+      @custom_data_values << default_value
+      @custom_data_defaults << default_value
     end
 
-    # Reset (delete) all custom offset labels that have been registered.
-    def clear_custom_offsets
+    # Reset (delete) all custom data labels that have been registered.
+    def clear_custom_data
       unless @f.nil?
-        PEROBS.log.fatal "clear_custom_offsets should only be called when " +
+        PEROBS.log.fatal "clear_custom_data should only be called when " +
           "the file is not opened"
       end
 
-      @custom_offsets_labels = []
-      @custom_offsets_values = []
-      @custom_offsets_defaults = []
+      @custom_data_labels = []
+      @custom_data_values = []
+      @custom_data_defaults = []
     end
 
-    # Set the registered custom offset to the given value.
+    # Set the registered custom data field to the given value.
     # @param name [String] Label of the offset
     # @param value [Integer] Value
-    def set_custom_offset(name, value)
-      unless @custom_offsets_labels.include?(name)
-        PEROBS.log.fatal "Unknown custom offset #{name}"
+    def set_custom_data(name, value)
+      unless @custom_data_labels.include?(name)
+        PEROBS.log.fatal "Unknown custom data field #{name}"
       end
 
-      @custom_offsets_values[@custom_offsets_labels.index(name)] = value
+      @custom_data_values[@custom_data_labels.index(name)] = value
       write_header
     end
 
-    # Get the registered custom offset value.
+    # Get the registered custom data field value.
     # @param name [String] Label of the offset
-    # @return [Integer] Value of the custom offset
-    def get_custom_offset(name)
-      unless @custom_offsets_labels.include?(name)
-        PEROBS.log.fatal "Unknown custom offset #{name}"
+    # @return [Integer] Value of the custom data field
+    def get_custom_data(name)
+      unless @custom_data_labels.include?(name)
+        PEROBS.log.fatal "Unknown custom data field #{name}"
       end
 
-      @custom_offsets_values[@custom_offsets_labels.index(name)]
+      @custom_data_values[@custom_data_labels.index(name)]
     end
 
     # Erase the backing store. This method should only be called when the file
@@ -383,7 +383,7 @@ module PEROBS
       @first_space = 0
 
       # Copy default custom values
-      @custom_offsets_values = @custom_offsets_defaults.dup
+      @custom_data_values = @custom_data_defaults.dup
     end
 
     def read_header
@@ -391,9 +391,9 @@ module PEROBS
         @f.seek(0)
         @total_entries, @total_spaces, @first_entry, @first_space =
           @f.read(HEADER_SIZE).unpack('QQQQ')
-        custom_labels_count = @custom_offsets_labels.length
+        custom_labels_count = @custom_data_labels.length
         if custom_labels_count > 0
-          @custom_offsets_values =
+          @custom_data_values =
             @f.read(custom_labels_count * 8).unpack("Q#{custom_labels_count}")
         end
 
@@ -407,9 +407,9 @@ module PEROBS
       begin
         @f.seek(0)
         @f.write(header_ary.pack('QQQQ'))
-        unless @custom_offsets_values.empty?
-          @f.write(@custom_offsets_values.
-                   pack("Q#{@custom_offsets_values.length}"))
+        unless @custom_data_values.empty?
+          @f.write(@custom_data_values.
+                   pack("Q#{@custom_data_values.length}"))
         end
         @f.flush
       end
@@ -628,13 +628,13 @@ module PEROBS
     # Translate a blob address to the actual offset in the file.
     def address_to_offset(address)
       # Since address 0 is illegal, we can use address - 1 as index here.
-      HEADER_SIZE + @custom_offsets_labels.length * 8 +
+      HEADER_SIZE + @custom_data_labels.length * 8 +
         (address - 1) * (1 + @entry_bytes)
     end
 
     # Translate the file offset to the address of a blob.
     def offset_to_address(offset)
-      (offset - HEADER_SIZE - @custom_offsets_labels.length * 8) /
+      (offset - HEADER_SIZE - @custom_data_labels.length * 8) /
         (1 + @entry_bytes) + 1
     end
 
