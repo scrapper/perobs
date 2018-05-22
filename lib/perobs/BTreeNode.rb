@@ -230,8 +230,7 @@ module PEROBS
 
         # Once we have reached a leaf node we can insert or replace the value.
         if node.is_leaf
-          node.insert_element(key, value)
-          return
+          return node.insert_element(key, value)
         else
           # Descend into the right child node to add the value to.
           node = node.children[node.search_key_index(key)]
@@ -343,6 +342,7 @@ module PEROBS
     # @param key [Integer] key to address the value or child
     # @param value_or_child [Integer or BTreeNode] value or BTreeNode
     #        reference
+    # @return true for insert, false for overwrite
     def insert_element(key, value_or_child)
       if @keys.size >= @tree.order
         PEROBS.log.fatal "Cannot insert into a full BTreeNode"
@@ -357,6 +357,9 @@ module PEROBS
         else
           @children[i + 1] = link(value_or_child)
         end
+        @tree.node_cache.insert(self)
+
+        return false
       else
         # Create a new entry
         @keys.insert(i, key)
@@ -365,8 +368,10 @@ module PEROBS
         else
           @children.insert(i + 1, link(value_or_child))
         end
+        @tree.node_cache.insert(self)
+
+        return true
       end
-      @tree.node_cache.insert(self)
     end
 
     # Remove the element at the given index.

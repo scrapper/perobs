@@ -141,7 +141,7 @@ module PEROBS
       end
 
       @custom_data_values[@custom_data_labels.index(name)] = value
-      write_header
+      write_header if @f
     end
 
     # Get the registered custom data field value.
