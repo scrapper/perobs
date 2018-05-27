@@ -40,7 +40,7 @@ module PEROBS
   # have N + 1 references to child nodes instead.
   class BTree
 
-    attr_reader :order, :nodes, :node_cache, :first_leaf, :last_leaf
+    attr_reader :order, :nodes, :node_cache, :first_leaf, :last_leaf, :size
 
     # Create a new BTree object.
     # @param dir [String] Directory to store the tree file
@@ -64,10 +64,12 @@ module PEROBS
       # This EquiBlobsFile contains the nodes of the BTree.
       @nodes = EquiBlobsFile.new(@dir, @name,
                                  BTreeNode::node_bytes(@order))
-      @nodes.register_custom_offset('first_leaf')
-      @nodes.register_custom_offset('last_leaf')
+      @nodes.register_custom_data('first_leaf')
+      @nodes.register_custom_data('last_leaf')
+      @nodes.register_custom_data('btree_size')
       @node_cache = PersistentObjectCache.new(512, BTreeNode, self)
       @root = @first_leaf = @last_leaf = nil
+      @size = 0
 
       # This BTree implementation uses a write cache to improve write
       # performance of multiple successive read/write operations. This also
@@ -96,6 +98,9 @@ module PEROBS
         BTreeNode::create(self) :
         BTreeNode::load(self, @nodes.first_entry)
       set_root(node)
+
+      # Get the total number of entries that are stored in the tree.
+      @size = @nodes.get_custom_data('btree_size')
     end
 
     # Close the tree file.
@@ -109,6 +114,7 @@ module PEROBS
     def clear
       @node_cache.clear
       @nodes.clear
+      @size = 0
       set_root(BTreeNode::create(self))
     end
 
@@ -117,6 +123,7 @@ module PEROBS
     # all stored data from the BTree.
     def erase
       @nodes.erase
+      @size = 0
       @root = nil
       @dirty_flag.forced_unlock
     end
@@ -124,6 +131,7 @@ module PEROBS
     # Flush all pending modifications into the tree file.
     def sync
       @node_cache.flush(true)
+      @nodes.set_custom_data('btree_size', @size)
       @nodes.sync
       @dirty_flag.unlock if @dirty_flag.is_locked?
     end
@@ -131,7 +139,19 @@ module PEROBS
     # Check if the tree file contains any errors.
     # @return [Boolean] true if no erros were found, false otherwise
     def check(&block)
-      @root.check(&block)
+      i = 0
+      res = @root.check do |k, v|
+        yield(k, v) if block_given?
+        i += 1
+      end
+
+      unless i == @size
+        PEROBS.log.error "The BTree size (#{@size}) and the number of " +
+          "found entries (#{i}) don't match"
+        return false
+      end
+
+      res
     end
 
     # Register a new node as root node of the tree.
@@ -145,14 +165,14 @@ module PEROBS
     # @param node [BTreeNode]
     def set_first_leaf(node)
       @first_leaf = node
-      @nodes.set_custom_offset('first_leaf', node.node_address)
+      @nodes.set_custom_data('first_leaf', node.node_address)
     end
 
     # Set the address of the last leaf node.
     # @param node [BTreeNode]
     def set_last_leaf(node)
       @last_leaf = node
-      @nodes.set_custom_offset('last_leaf', node.node_address)
+      @nodes.set_custom_data('last_leaf', node.node_address)
     end
 
     # Insert a new value into the tree using the key as a unique index. If the
@@ -160,7 +180,7 @@ module PEROBS
     # @param key [Integer] Unique key
     # @param value [Integer] value
     def insert(key, value)
-      @root.insert(key, value)
+      @size += 1 if @root.insert(key, value)
       @node_cache.flush
     end
 
@@ -175,7 +195,7 @@ module PEROBS
     # Find and remove the value associated with the given key. If no entry was
     # found, return nil, otherwise the found value.
     def remove(key)
-      removed_value = @root.remove(key)
+      @size -= 1 unless (removed_value = @root.remove(key)).nil?
 
       # Check if the root node only contains one child link after the delete
       # operation. Then we can delete that node and pull the tree one level

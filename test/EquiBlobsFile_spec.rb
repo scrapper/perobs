@@ -194,9 +194,9 @@ describe PEROBS::EquiBlobsFile do
   it 'should support custom offsets' do
     @bf.close
     @bf.erase
-    @bf.clear_custom_offsets
-    @bf.register_custom_offset('foo', 42)
-    @bf.register_custom_offset('bar', 43)
+    @bf.clear_custom_data
+    @bf.register_custom_data('foo', 42)
+    @bf.register_custom_data('bar', 43)
     @bf.open
     expect(@bf.total_entries).to eql(0)
     expect(@bf.total_spaces).to eql(0)
