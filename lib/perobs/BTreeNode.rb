@@ -404,7 +404,8 @@ module PEROBS
 
     def remove_child(node)
       unless (index = search_node_index(node))
-        PEROBS.log.fatal "Cannot remove child #{node._id} from node #{@_id}"
+        PEROBS.log.fatal "Cannot remove child #{node.node_address} " +
+          "from node #{@node_address}"
       end
 
       if index == 0
@@ -737,7 +738,7 @@ module PEROBS
               if i > 0
                 unless node.children[i - 1].next_sibling == child
                   node.error "next_sibling of node " +
-                    "#{node.children[i - 1]._id} " +
+                    "#{node.children[i - 1].node_address} " +
                     "must point to node #{child.node_address}"
                   return false
                 end
@@ -745,7 +746,7 @@ module PEROBS
               if i < node.children.length - 1
                 unless child == node.children[i + 1].prev_sibling
                   node.error "prev_sibling of node " +
-                    "#{node.children[i + 1]._id} " +
+                    "#{node.children[i + 1].node_address} " +
                     "must point to node #{child.node_address}"
                   return false
                 end
