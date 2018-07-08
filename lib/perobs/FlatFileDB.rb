@@ -143,6 +143,11 @@ module PEROBS
       end
     end
 
+    # @return [Integer] Number of objects stored in the DB.
+    def item_counter
+      @flat_file.item_counter
+    end
+
     def search_object(id)
       @flat_file.search_object(id)
     end

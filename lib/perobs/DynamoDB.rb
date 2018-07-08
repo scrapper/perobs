@@ -35,6 +35,10 @@ module PEROBS
   # This class implements an Amazon DynamoDB storage engine for PEROBS.
   class DynamoDB < DataBase
 
+    INTERNAL_ITEMS = %w( config item_counter )
+
+    attr_reader :item_counter
+
     # Create a new DynamoDB object.
     # @param db_name [String] name of the DB directory
     # @param options [Hash] options to customize the behavior. Currently only
@@ -62,12 +66,25 @@ module PEROBS
 
       @dynamodb = Aws::DynamoDB::Client.new
       @table_name = db_name
-      ensure_table_exists(@table_name)
+      @config = nil
+      # The number of items currently stored in the DB.
+      @item_counter = nil
+      if create_table(@table_name)
+        @config = { 'serializer' => @serializer }
+        put_hash('config', @config)
+        @item_counter = 0
+        dynamo_put_item('item_counter', @item_counter.to_s)
+      else
+        @config = get_hash('config')
+        if @config['serializer'] != @serializer
+          raise ArgumentError, "DynamoDB #{@table_name} was created with " +
+            "serializer #{@config['serializer']} but was now opened with " +
+            "serializer #{@serializer}."
+        end
+        @item_counter = dynamo_get_item('item_counter').to_i
+      end
 
       # Read the existing DB config.
-      @config = get_hash('config')
-      check_option('serializer')
-      put_hash('config', @config)
     end
 
     # Delete the entire database. The database is no longer usable after this
@@ -112,6 +129,13 @@ module PEROBS
     # Store the given object into the cluster files.
     # @param obj [Hash] Object as defined by PEROBS::ObjectBase
     def put_object(obj, id)
+      id_str = id.to_s
+      unless dynamo_get_item(id_str)
+        # The is no object with this ID yet. Increase the item counter.
+        @item_counter += 1
+        dynamo_put_item('item_counter', @item_counter.to_s)
+      end
+
       dynamo_put_item(id.to_s, serialize(obj))
     end
 
@@ -128,8 +152,6 @@ module PEROBS
       each_item do |id|
         dynamo_mark_item(id, false)
       end
-      # Mark the 'config' item so it will not get deleted.
-      dynamo_mark_item('config')
     end
 
     # Permanently delete all objects that have not been marked. Those are
@@ -141,8 +163,10 @@ module PEROBS
         unless dynamo_is_marked?(id)
           dynamo_delete_item(id)
           deleted_ids << id
+          @item_counter -= 1
         end
       end
+      dynamo_put_item('item_counter', @item_counter.to_s)
 
       deleted_ids
     end
@@ -163,7 +187,17 @@ module PEROBS
     # @param repair [TrueClass/FalseClass] True if found errors should be
     #        repaired.
     def check_db(repair = false)
-      # TODO: See if we can add checks here
+      unless (item_counter = dynamo_get_item('item_counter')) &&
+             item_counter == @item_counter
+        PEROBS.log.error "@item_counter variable (#{@item_counter}) and " +
+          "item_counter table entry (#{item_counter}) don't match"
+      end
+      item_counter = 0
+      each_item { item_counter += 1 }
+      unless item_counter == @item_counter
+        PEROBS.log.error "Table contains #{item_counter} items but " +
+          "@item_counter is #{@item_counter}"
+      end
     end
 
     # Check if the stored object is syntactically correct.
@@ -185,9 +219,11 @@ module PEROBS
 
     private
 
-    def ensure_table_exists(table_name)
+    def create_table(table_name)
       begin
         @dynamodb.describe_table(:table_name => table_name)
+        # The table exists already. No need to create it.
+        return false
       rescue Aws::DynamoDB::Errors::ResourceNotFoundException
         @dynamodb.create_table(
           :table_name => table_name,
@@ -210,6 +246,8 @@ module PEROBS
         )
 
         @dynamodb.wait_until(:table_exists, table_name: table_name)
+        # The table was successfully created.
+        return true
       end
     end
 
@@ -251,6 +289,9 @@ module PEROBS
         break if resp.count <= 0
 
         resp.items.each do |item|
+          # Skip all internal items
+          next if INTERNAL_ITEMS.include?(item['Id'])
+
           yield(item['Id'])
         end
 

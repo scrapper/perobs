@@ -278,6 +278,11 @@ module PEROBS
       nil
     end
 
+    # @return [Integer] Number of items stored in the DB.
+    def item_counter
+      @index.nodes_count
+    end
+
     # Read the object at the specified address.
     # @param addr [Integer] Offset in the flat file
     # @param id [Integer] ID of the data blob
