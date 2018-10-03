@@ -550,7 +550,13 @@ module PEROBS
         # Get the next PEROBS object to check
         ref_obj, id = todo_list.pop
 
-        if (obj = object_by_id(id))
+        begin
+          obj = object_by_id(id)
+        rescue PEROBS::FatalError
+          obj = nil
+        end
+
+        if obj
           # The object exists and is OK. Mark is as checked.
           @db.mark(id)
           # Now look at all other objects referenced by this object.

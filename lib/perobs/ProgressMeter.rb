@@ -37,7 +37,7 @@ module PEROBS
       @name = name
       unless max_value >= 0
         raise ArgumentError, "Maximum value (#{max_value}) must be larger " +
-          "or equan to 0"
+          "or equal to 0"
       end
       @max_value = max_value
       @current_value = 0
