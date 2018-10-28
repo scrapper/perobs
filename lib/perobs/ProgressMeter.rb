@@ -29,11 +29,20 @@ require 'time'
 
 module PEROBS
 
+  # This is the base class for all ProgressMeter classes. It only logs into
+  # the PEROBS log. You need to create a derived class that overloads
+  # print_bar() and print_time() to provide more fancy outputs.
   class ProgressMeter
 
-    LINE_LENGTH = 79
+    def initialize
+      @name = nil
+      @max_value = nil
+      @current_value = nil
+      @start_time = nil
+      @end_time = nil
+    end
 
-    def initialize(name, max_value)
+    def start(name, max_value)
       @name = name
       unless max_value >= 0
         raise ArgumentError, "Maximum value (#{max_value}) must be larger " +
@@ -68,23 +77,9 @@ module PEROBS
     private
 
     def print_bar
-      percent = @max_value == 0 ? 100.0 :
-        (@current_value.to_f / @max_value) * 100.0
-      percent = 0.0 if percent < 0
-      percent = 100.0 if percent > 100.0
-
-      meter = "<#{percent.to_i}%>"
-
-      bar_length = LINE_LENGTH - @name.chars.length - 3 - meter.chars.length
-      left_bar = '*' * (bar_length * percent / 100.0)
-      right_bar = ' ' * (bar_length - left_bar.chars.length)
-
-      print "\r#{@name} [#{left_bar}#{meter}#{right_bar}]"
     end
 
     def print_time
-      s = "\r#{@name} [#{secsToHMS(@end_time - @start_time)}]"
-      puts s + (' ' * (LINE_LENGTH - s.chars.length + 1))
     end
 
     def secsToHMS(secs)

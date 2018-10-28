@@ -2,7 +2,8 @@
 #
 # = Store.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015, 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016, 2017, 2018
+# by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -134,8 +135,14 @@ module PEROBS
     #                      :yaml : Can also handle most Ruby data types and is
     #                      portable between Ruby versions (1.9 and later).
     #                      Unfortunately, it is 10x slower than marshal.
+    #     :progressmeter : reference to a ProgressMeter object that receives
+    #                      progress information during longer running tasks.
+    #                      It defaults to ProgressMeter which only logs into
+    #                      the log. Use ConsoleProgressMeter or a derived
+    #                      class for more fancy progress reporting.
     def initialize(data_base, options = {})
       # Create a backing store handler
+      options[:progressmeter] ||= ProgressMeter.new
       @db = (options[:engine] || FlatFileDB).new(data_base, options)
       @db.open
       # Create a map that can translate classes to numerical IDs and vice

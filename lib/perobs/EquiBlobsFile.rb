@@ -51,10 +51,14 @@ module PEROBS
     # Create a new stack file in the given directory with the given file name.
     # @param dir [String] Directory
     # @param name [String] File name
+    # @param progressmeter [ProgressMeter] Reference to a progress meter
+    #        object
     # @param entry_bytes [Integer] Number of bytes each entry must have
     # @param first_entry_default [Integer] Default address of the first blob
-    def initialize(dir, name, entry_bytes, first_entry_default = 0)
+    def initialize(dir, name, progressmeter, entry_bytes,
+                   first_entry_default = 0)
       @file_name = File.join(dir, name + '.blobs')
+      @progressmeter = progressmeter
       if entry_bytes < 8
         PEROBS.log.fatal "EquiBlobsFile entry size must be at least 8"
       end
@@ -438,8 +442,8 @@ module PEROBS
       return true if next_offset == 0
 
       total_spaces = 0
-      ProgressMeter.new('Checking EquiBlobsFile spaces list',
-                        @total_spaces) do |pm|
+      @progressmeter.start('Checking EquiBlobsFile spaces list',
+                           @total_spaces) do |pm|
         begin
           while next_offset != 0
             # Check that the marker byte is 0
@@ -491,8 +495,8 @@ module PEROBS
       next_offset = address_to_offset(1)
       total_entries = 0
       total_spaces = 0
-      ProgressMeter.new('Checking EquiBlobsFile entries',
-                        @total_spaces + @total_entries) do |pm|
+      @progressmeter.start('Checking EquiBlobsFile entries',
+                           @total_spaces + @total_entries) do |pm|
         begin
           @f.seek(next_offset)
           while !@f.eof

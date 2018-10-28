@@ -2,7 +2,7 @@
 #
 # = BTreeDB.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016, 2018 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -58,7 +58,7 @@ module PEROBS
     #                         nodes. The insert/find/delete time grows
     #                         linearly with the size.
     def initialize(db_name, options = {})
-      super(options[:serializer] || :json)
+      super(options)
 
       @db_dir = db_name
       # Create the database directory if it doesn't exist yet.

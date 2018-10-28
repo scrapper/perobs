@@ -27,13 +27,15 @@ require 'fileutils'
 
 require 'spec_helper'
 require 'perobs/EquiBlobsFile'
+require 'perobs/ProgressMeter'
 
 describe PEROBS::EquiBlobsFile do
 
   before(:all) do
     @db_dir = generate_db_name('EquiBlobsFile')
     FileUtils.mkdir_p(@db_dir)
-    @bf = PEROBS::EquiBlobsFile.new(@db_dir, 'EquiBlobsFile', 8)
+    @bf = PEROBS::EquiBlobsFile.new(@db_dir, 'EquiBlobsFile',
+                                    PEROBS::ProgressMeter.new, 8)
   end
 
   after(:all) do

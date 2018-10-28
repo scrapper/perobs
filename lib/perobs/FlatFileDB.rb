@@ -2,7 +2,8 @@
 #
 # = FlatFileDB.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016, 2017, 2018
+# by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -50,8 +51,9 @@ module PEROBS
     # @param options [Hash] options to customize the behavior. Currently only
     #        the following options are supported:
     #        :serializer    : Can be :marshal, :json, :yaml
+    #        :progressmeter : Reference to a ProgressMeter object
     def initialize(db_name, options = {})
-      super(options[:serializer] || :json)
+      super(options)
 
       @db_dir = db_name
       # Create the database directory if it doesn't exist yet.
@@ -68,7 +70,7 @@ module PEROBS
 
     # Open the FlatFileDB for transactions.
     def open
-      @flat_file = FlatFile.new(@db_dir)
+      @flat_file = FlatFile.new(@db_dir, @progressmeter)
       @flat_file.open
       PEROBS.log.info "FlatFile '#{@db_dir}' opened"
     end

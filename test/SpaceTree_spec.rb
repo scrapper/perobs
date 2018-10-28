@@ -27,13 +27,14 @@ require 'fileutils'
 
 require 'spec_helper'
 require 'perobs/SpaceTree'
+require 'perobs/ProgressMeter'
 
 describe PEROBS::SpaceTree do
 
   before(:all) do
     @db_dir = generate_db_name('SpaceTree')
     FileUtils.mkdir_p(@db_dir)
-    @m = PEROBS::SpaceTree.new(@db_dir)
+    @m = PEROBS::SpaceTree.new(@db_dir, PEROBS::ProgressMeter.new)
   end
 
   after(:all) do

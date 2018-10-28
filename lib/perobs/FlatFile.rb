@@ -44,12 +44,13 @@ module PEROBS
 
     # Create a new FlatFile object for a database in the given path.
     # @param dir [String] Directory path for the data base file
-    def initialize(dir)
+    def initialize(dir, progressmeter)
       @db_dir = dir
+      @progressmeter = progressmeter
       @f = nil
-      @index = BTree.new(@db_dir, 'index', INDEX_BTREE_ORDER)
-      @marks = BTree.new(@db_dir, 'marks', INDEX_BTREE_ORDER)
-      @space_list = SpaceTree.new(@db_dir)
+      @index = BTree.new(@db_dir, 'index', INDEX_BTREE_ORDER, @progressmeter)
+      @marks = BTree.new(@db_dir, 'marks', INDEX_BTREE_ORDER, @progressmeter)
+      @space_list = SpaceTree.new(@db_dir, @progressmeter)
     end
 
     # Open the flat file for reading and writing.
@@ -437,11 +438,12 @@ module PEROBS
       # First check the database blob file. Each entry should be readable and
       # correct and all IDs must be unique. We use a shadow index to keep
       # track of the already found IDs.
-      new_index = BTree.new(@db_dir, 'new-index', INDEX_BTREE_ORDER)
+      new_index = BTree.new(@db_dir, 'new-index', INDEX_BTREE_ORDER,
+                            @progressmeter)
       new_index.erase
       new_index.open
 
-      ProgressMeter.new('Checking FlatFile blobs', @f.size) do |pm|
+      @progressmeter.start('Checking FlatFile blobs', @f.size) do |pm|
         each_blob_header do |pos, header|
           if header.is_valid?
             # We have a non-deleted entry.
@@ -523,7 +525,7 @@ module PEROBS
       begin
         nodes = 0
         index_ok = false
-        ProgressMeter.new('Checking index', @index.nodes_count) do |pm|
+        @progressmeter.start('Checking index', @index.nodes_count) do |pm|
           index_ok = @index.check do |id, address|
             has_id_at?(id, address)
             pm.update(nodes += 1)
@@ -551,7 +553,7 @@ module PEROBS
       @index.clear
       @space_list.clear
 
-      ProgressMeter.new('Re-generating FlatFileDB index', @f.size) do |pm|
+      @progressmeter.start('Re-generating FlatFileDB index', @f.size) do |pm|
         each_blob_header do |pos, header|
           if header.is_valid?
             if (duplicate_pos = @index.get(header.id))
@@ -683,7 +685,7 @@ module PEROBS
     def cross_check_entries
       errors = 0
 
-      ProgressMeter.new('Cross checking FlatFileDB', @f.size) do |pm|
+      @progressmeter.start('Cross checking FlatFileDB', @f.size) do |pm|
         each_blob_header do |pos, header|
           if !header.is_valid?
             if header.length > 0

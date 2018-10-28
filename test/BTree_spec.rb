@@ -27,13 +27,14 @@ require 'fileutils'
 
 require 'spec_helper'
 require 'perobs/BTree'
+require 'perobs/ProgressMeter'
 
 describe PEROBS::BTree do
 
   before(:all) do
     @db_dir = generate_db_name('BTree')
     FileUtils.mkdir_p(@db_dir)
-    @m = PEROBS::BTree.new(@db_dir, 'btree', 11)
+    @m = PEROBS::BTree.new(@db_dir, 'btree', 11, PEROBS::ProgressMeter.new)
   end
 
   after(:all) do

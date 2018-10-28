@@ -2,7 +2,7 @@
 #
 # = SpaceTree.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2016, 2017, 2018 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -44,11 +44,12 @@ module PEROBS
 
     # Manage the free spaces tree in the specified directory
     # @param dir [String] directory path of an existing directory
-    def initialize(dir)
+    def initialize(dir, progressmeter)
       @dir = dir
+      @progressmeter = progressmeter
 
       # This EquiBlobsFile contains the nodes of the SpaceTree.
-      @nodes = EquiBlobsFile.new(@dir, 'database_spaces',
+      @nodes = EquiBlobsFile.new(@dir, 'database_spaces', progressmeter,
                                  SpaceTreeNode::NODE_BYTES, 1)
 
       # Benchmark runs showed a cache size of 128 to be a good compromise

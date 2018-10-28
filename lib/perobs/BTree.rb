@@ -47,9 +47,12 @@ module PEROBS
     # @param name [String] Base name of the BTree related files in 'dir'
     # @param order [Integer] The maximum number of keys per node. This number
     #        must be odd and larger than 2 and smaller than 2**16 - 1.
-    def initialize(dir, name, order)
+    # @param progressmeter [ProgressMeter] reference to a ProgressMeter object
+    def initialize(dir, name, order, progressmeter)
       @dir = dir
       @name = name
+      @progressmeter = progressmeter
+
       unless order > 2
         PEROBS.log.fatal "BTree order must be larger than 2, not #{order}"
       end
@@ -62,7 +65,7 @@ module PEROBS
       @order = order
 
       # This EquiBlobsFile contains the nodes of the BTree.
-      @nodes = EquiBlobsFile.new(@dir, @name,
+      @nodes = EquiBlobsFile.new(@dir, @name, @progressmeter,
                                  BTreeNode::node_bytes(@order))
       @nodes.register_custom_data('first_leaf')
       @nodes.register_custom_data('last_leaf')

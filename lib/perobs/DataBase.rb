@@ -2,7 +2,7 @@
 #
 # = DataBase.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2018 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -42,8 +42,9 @@ module PEROBS
 
     # Create a new DataBase object. This method must be overwritten by the
     # deriving classes and then called via their constructor.
-    def initialize(serializer = :json)
-      @serializer = serializer
+    def initialize(options)
+      @serializer = options[:serializer] || :json
+      @progressmeter = options[:progressmeter]
       @config = {}
     end
 

@@ -2,7 +2,8 @@
 #
 # = DynamoDB.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016, 2017, 2018
+# by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -54,7 +55,7 @@ module PEROBS
         options[:serializer] = :yaml
       end
 
-      super(options[:serializer] || :json)
+      super(options)
 
       if options.include?(:aws_id) && options.include?(:aws_key)
         Aws.config[:credentials] = Aws::Credentials.new(options[:aws_id],
