@@ -61,9 +61,9 @@ module PEROBS
     end
 
     def update(value)
-      return unless value.to_i > @current_value
+      return unless (value_i = value.to_i) > @current_value
 
-      @current_value = value.to_i
+      @current_value = value_i
       print_bar
     end
 

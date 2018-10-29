@@ -39,6 +39,8 @@ require 'perobs/Hash'
 require 'perobs/Array'
 require 'perobs/BigTree'
 require 'perobs/BigHash'
+require 'perobs/ProgressMeter'
+require 'perobs/ConsoleProgressMeter'
 
 # PErsistent Ruby OBject Store
 module PEROBS
@@ -142,7 +144,7 @@ module PEROBS
     #                      class for more fancy progress reporting.
     def initialize(data_base, options = {})
       # Create a backing store handler
-      options[:progressmeter] ||= ProgressMeter.new
+      @progressmeter = (options[:progressmeter] ||= ProgressMeter.new)
       @db = (options[:engine] || FlatFileDB).new(data_base, options)
       @db.open
       # Create a map that can translate classes to numerical IDs and vice
@@ -381,19 +383,22 @@ module PEROBS
     #        made.
     # @return [Integer] The number of references to bad objects found.
     def check(repair = false)
+      stats = { :errors => 0, :object_cnt => 0 }
+
       # All objects must have in-db version.
       sync
       # Run basic consistency checks first.
-      errors = @db.check_db(repair)
+      stats[:errors] += @db.check_db(repair)
 
       # We will use the mark to mark all objects that we have checked already.
       # Before we start, we need to clear all marks.
       @db.clear_marks
 
-      objects = 0
-      @root_objects.each do |name, id|
-        objects += 1
-        errors += check_object(id, repair)
+      @progressmeter.start("Checking object link structure",
+                           @db.item_counter) do
+        @root_objects.each do |name, id|
+          check_object(id, repair, stats)
+        end
       end
 
       # Delete all broken root objects.
@@ -402,17 +407,19 @@ module PEROBS
           unless (res = @db.check(id, repair))
             PEROBS.log.error "Discarding broken root object '#{name}' " +
               "with ID #{id}"
-            errors += 1
+            stats[:errors] += 1
           end
           !res
         end
       end
 
-      if errors > 0
+      if stats[:errors] > 0
         if repair
-          PEROBS.log.error "#{errors} errors found in #{objects} objects"
+          PEROBS.log.error "#{stats[:errors]} errors found in " +
+            "#{stats[:object_cnt]} objects"
         else
-          PEROBS.log.fatal "#{errors} errors found in #{objects} objects"
+          PEROBS.log.fatal "#{stats[:errors]} errors found in " +
+            "#{stats[:object_cnt]} objects"
         end
       else
         PEROBS.log.debug "No errors found"
@@ -421,7 +428,7 @@ module PEROBS
       # Ensure that any fixes are written into the DB.
       sync if repair
 
-      errors
+      stats[:errors]
     end
 
     # This method will execute the provided block as an atomic transaction
@@ -545,8 +552,7 @@ module PEROBS
     #        with
     # @param repair [Boolean] Delete refernces to broken objects if true
     # @return [Integer] The number of references to bad objects.
-    def check_object(start_id, repair)
-      errors = 0
+    def check_object(start_id, repair, stats)
       @db.mark(start_id)
       # The todo list holds a touple for each object that still needs to be
       # checked. The first item is the referring object and the second is the
@@ -586,11 +592,11 @@ module PEROBS
                 ref_obj.inspect
             end
           end
-          errors += 1
+          stats[:errors] += 1
         end
-      end
 
-      errors
+        @progressmeter.update(stats[:object_cnt] += 1)
+      end
     end
 
   end
