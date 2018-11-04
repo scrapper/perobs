@@ -233,9 +233,9 @@ module PEROBS
       @nodes.delete_blob(address)
     end
 
-    # @return [Integer] The number of nodes in the tree.
-    def nodes_count
-      @nodes.total_entries
+    # @return [Integer] The number of entries stored in the tree.
+    def entries_count
+      @size
     end
 
     # @return [String] Human reable form of the tree.

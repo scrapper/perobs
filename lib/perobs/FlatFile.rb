@@ -281,7 +281,7 @@ module PEROBS
 
     # @return [Integer] Number of items stored in the DB.
     def item_counter
-      @index.nodes_count
+      @index.entries_count
     end
 
     # Read the object at the specified address.
@@ -525,7 +525,7 @@ module PEROBS
       begin
         nodes = 0
         index_ok = false
-        @progressmeter.start('Checking index', @index.nodes_count) do |pm|
+        @progressmeter.start('Checking index', @index.entries_count) do |pm|
           index_ok = @index.check do |id, address|
             has_id_at?(id, address)
             pm.update(nodes += 1)
