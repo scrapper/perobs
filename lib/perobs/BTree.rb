@@ -70,7 +70,7 @@ module PEROBS
       @nodes.register_custom_data('first_leaf')
       @nodes.register_custom_data('last_leaf')
       @nodes.register_custom_data('btree_size')
-      @node_cache = PersistentObjectCache.new(512, BTreeNode, self)
+      @node_cache = PersistentObjectCache.new(16384, 5000, BTreeNode, self)
       @root = @first_leaf = @last_leaf = nil
       @size = 0
 
@@ -108,6 +108,11 @@ module PEROBS
 
     # Close the tree file.
     def close
+
+      def val_perc(value, total)
+        "#{value} (#{(value.to_f / total*100.0).to_i}%)"
+      end
+
       sync
       @nodes.close
       @root = nil

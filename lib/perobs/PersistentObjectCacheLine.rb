@@ -34,32 +34,42 @@ module PEROBS
     class Entry < Struct.new(:obj, :modified)
     end
 
-    WATERMARK = 4
+    # This defines the minimum size of the cache line. If it is too large, the
+    # time to find an entry will grow too much. If it is too small the number
+    # of cache lines will be too large and create more store overhead. By
+    # running benchmarks it turned out that 8 is a pretty good compromise.
+    WATERMARK = 8
 
     def initialize
       @entries = []
     end
 
     def insert(object, modified)
-      @entries.each do |e|
-        if e.obj.uid == object.uid
-          if modified && !e.modified
-            e.modified = true
-          end
-          return
-        end
+      if (index = @entries.find_index{ |e| e.obj.uid == object.uid })
+        # We have found and removed an existing entry for this particular
+        # object. If the modified flag is set, ensure that the entry has it
+        # set as well.
+        entry = @entries.delete_at(index)
+        entry.modified = true if modified && !entry.modified
+      else
+        # There is no existing entry for this object. Create a new one.
+        entry = Entry.new(object, modified)
       end
 
-      # Insert the new entry at the beginning of the line.
-      @entries.unshift(Entry.new(object, modified))
+      # Insert the entry at the beginning of the line.
+      @entries.unshift(entry)
     end
 
     def get(uid)
-      @entries.each do |e|
-        return e if e.obj.uid == uid
+      if (index = @entries.find_index{ |e| e.obj.uid == uid })
+        if index > 0
+          # Move the entry to the front.
+          @entries.unshift(@entries.delete_at(index))
+        end
+        @entries.first
+      else
+        nil
       end
-
-      nil
     end
 
     # Delete the entry that matches the given UID

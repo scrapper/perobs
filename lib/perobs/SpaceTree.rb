@@ -54,7 +54,7 @@ module PEROBS
 
       # Benchmark runs showed a cache size of 128 to be a good compromise
       # between read and write performance trade-offs and memory consumption.
-      @cache = PersistentObjectCache.new(128, SpaceTreeNode, self)
+      @cache = PersistentObjectCache.new(128, 5000, SpaceTreeNode, self)
     end
 
     # Open the SpaceTree file.

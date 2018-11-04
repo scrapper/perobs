@@ -31,29 +31,32 @@ module PEROBS
 
   class PersistentObjectCache
 
-    FLUSH_WATERMARK = 500
-
     # This cache class manages the presence of objects that primarily live in
     # a backing store but temporarily exist in memory as well. To work with
     # these objects, direct references must be only very short lived. Indirect
     # references can be done via a unique ID that the object must provide. Due
     # to the indirect references the Ruby garbage collector can collect these
     # objects and the cache is notified via a finalizer that the objects must
-    # provide. The finalize must call the _collect() method. To reduce the
+    # provide. The finalizer must call the _collect() method. To reduce the
     # read and write latencies of the backing store this class keeps a subset
     # of the objects in memory which prevents them from being collected. All
     # references to the objects must be resolved via the get() method to
-    # prevent duplicate instances in memory of the same in-store object.
-    # @param size [Integer] Maximum number of objects to be cached at a time
+    # prevent duplicate instances in memory of the same in-store object. The
+    # cache uses a least-recently-used (LRU) scheme to cache objects.
+    # @param size [Integer] Minimum number of objects to be cached at a time
+    # @param flush_delay [Integer] Determines how often non-forced flushes are
+    #        ignored in a row before the flush is really done.
     # @param klass [Class] The class of the objects to be cached. Objects must
     #        provide a uid() method that returns a unique ID for every object.
     # @param collection [] The object collection the objects belong to. It
     #        must provide a ::load method.
-    def initialize(size, klass, collection)
+    def initialize(size, flush_delay, klass, collection)
       @size = size
+      @line_count = @size / PersistentObjectCacheLine::WATERMARK
       @klass = klass
       @collection = collection
-      @flush_counter = FLUSH_WATERMARK
+      @flush_delay = @flush_counter = flush_delay
+
       clear
     end
 
@@ -65,13 +68,13 @@ module PEROBS
       # This allows the object to be collected by the garbage collector.
       @in_memory_objects[object.uid] = object.object_id
 
-      @lines[object.uid % @size].insert(object, modified)
+      @lines[object.uid % @line_count].insert(object, modified)
     end
 
     # Retrieve a object reference from the cache.
     # @param uid [Integer] uid of the object to retrieve.
     def get(uid)
-      if (entry = @lines[uid % @size].get(uid))
+      if (entry = @lines[uid % @line_count].get(uid))
         return entry.obj
       end
 
@@ -107,7 +110,7 @@ module PEROBS
       # access it anymore.
       @in_memory_objects.delete(uid)
 
-      @lines[uid % @size].delete(uid)
+      @lines[uid % @line_count].delete(uid)
     end
 
     # Remove a object from the in-memory list. This is an internal method
@@ -129,7 +132,7 @@ module PEROBS
     def flush(now = false)
       if now || (@flush_counter -= 1) <= 0
         @lines.each { |line| line.flush(now) }
-        @flush_counter = FLUSH_WATERMARK
+        @flush_counter = @flush_delay
       end
     end
 
@@ -144,7 +147,9 @@ module PEROBS
       @in_memory_objects = {}
       # This is the actual cache. The Array stores objects as Entry objects to
       # also store the modified/not-modified state.
-      @lines = ::Array.new(@size) { |i| PersistentObjectCacheLine.new }
+      @lines = ::Array.new(@line_count) do |i|
+        PersistentObjectCacheLine.new
+      end
     end
 
   end
