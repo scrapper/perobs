@@ -61,13 +61,13 @@ module PEROBS
         raise ArgumentError, "IDListPage is already full"
       end
       index = @values.bsearch_index { |v| v >= id } || @values.length
-      if @values[index] == id
-        raise ArgumentError, "Page contains already value #{id}"
-      end
 
-      @values.insert(index, id)
-      @node.page_entries = @values.length
-      @page_file.mark_page_as_modified(self)
+      # If the value isn't stored already, insert it.
+      if @values[index] != id
+        @values.insert(index, id)
+        @node.page_entries = @values.length
+        @page_file.mark_page_as_modified(self)
+      end
     end
 
     def include?(id)

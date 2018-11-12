@@ -31,6 +31,7 @@ require 'perobs/Log'
 require 'perobs/FlatFileBlobHeader'
 require 'perobs/BTree'
 require 'perobs/SpaceTree'
+require 'perobs/IDList'
 
 module PEROBS
 
@@ -49,7 +50,7 @@ module PEROBS
       @progressmeter = progressmeter
       @f = nil
       @index = BTree.new(@db_dir, 'index', INDEX_BTREE_ORDER, @progressmeter)
-      @marks = BTree.new(@db_dir, 'marks', INDEX_BTREE_ORDER, @progressmeter)
+      @marks = nil
       @space_list = SpaceTree.new(@db_dir, @progressmeter)
     end
 
@@ -153,7 +154,7 @@ module PEROBS
 
       deleted_ids = []
       each_blob_header do |pos, header|
-        if header.is_valid? && @marks.get(header.id).nil?
+        if header.is_valid? && !@marks.include?(header.id)
           delete_obj_by_address(pos, header.id)
           deleted_ids << header.id
         end
@@ -324,19 +325,19 @@ module PEROBS
     # Mark the object with the given ID.
     # @param id [Integer] ID of the object
     def mark_obj_by_id(id)
-      @marks.insert(id, 0)
+      @marks.insert(id)
     end
 
     # Return true if the object with the given ID is marked, false otherwise.
     # @param id [Integer] ID of the object
     def is_marked_by_id?(id)
-      !@marks.get(id).nil?
+      @marks.include?(id)
     end
 
     # Clear alls marks.
     def clear_all_marks
-      @marks.erase
-      @marks.open
+      @marks.erase if @marks
+      @marks = IDList.new(@db_dir, 'marks', 512 * 8 * 8)
     end
 
     # Eliminate all the holes in the file. This is an in-place

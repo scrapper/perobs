@@ -89,7 +89,8 @@ module PEROBS
 
       if @page_idx
         # The node is a leaf node. Check if we can add the value to the page.
-        if page.is_full? && !page.include?(id)
+        if page.is_full?
+          return if page.include?(id)
           # The page is already full. We have to turn the node into a tree
           # node and then continue to traverse the tree. We only split the
           # pages if the value wasn't already included in the page. This

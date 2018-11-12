@@ -457,7 +457,10 @@ module PEROBS
       stack = [ 0 ] + @root_objects.values
       while !stack.empty?
         # Get an object index from the stack.
-        unless (obj = object_by_id(id = stack.pop))
+        id = stack.pop
+        next if @db.is_marked?(id)
+
+        unless (obj = object_by_id(id))
           PEROBS.log.fatal "Database is corrupted. Object with ID #{id} " +
             "not found."
         end

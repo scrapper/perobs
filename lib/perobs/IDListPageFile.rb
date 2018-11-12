@@ -109,9 +109,9 @@ module PEROBS
         # base_id as the first value. Since the IDListNode has the page entry
         # count this value will be discarded again during the load operation.
         if page.values.empty?
-          ary = [ page.node.base_id ] + Array.new(@page_size - 1, 0)
+          ary = [ page.node.base_id ] + ::Array.new(@page_size - 1, 0)
         else
-          ary = page.values + Array.new(@page_size - page.values.length, 0)
+          ary = page.values + ::Array.new(@page_size - page.values.length, 0)
         end
         @f.write(ary.pack("Q#{@page_size}"))
       rescue IOError => e
