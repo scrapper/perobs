@@ -29,7 +29,7 @@ module PEROBS
 
   class IDListPage
 
-    attr_reader :uid
+    attr_reader :uid, :values
     attr_accessor :node
 
     def initialize(page_file, node, uid, values = [])

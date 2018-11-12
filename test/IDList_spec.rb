@@ -40,12 +40,6 @@ module PEROBS
 
   end
 
-  class IDListPage
-
-    attr_reader :values
-
-  end
-
   describe IDList do
 
     before(:all) do
