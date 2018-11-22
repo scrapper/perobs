@@ -337,7 +337,7 @@ module PEROBS
     # Clear alls marks.
     def clear_all_marks
       @marks.erase if @marks
-      @marks = IDList.new(@db_dir, 'marks', 512 * 8 * 8)
+      @marks = IDList.new(@db_dir, 'marks', 8)
     end
 
     # Eliminate all the holes in the file. This is an in-place

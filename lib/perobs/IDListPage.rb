@@ -74,9 +74,9 @@ module PEROBS
       !(v = @values.bsearch { |v| v >= id }).nil? && v == id
     end
 
-    def delete(mask)
+    def delete(mask, bit_pattern)
       a = []
-      @values.delete_if { |v| (v & mask) != 0 ? a << v : false }
+      @values.delete_if { |v| (v & mask) == bit_pattern ? a << v : false }
       @node.page_entries = @values.length
       @page_file.mark_page_as_modified(self)
       a
@@ -84,7 +84,7 @@ module PEROBS
 
     def check
       base_id = @node.base_id
-      mask_bits = @node.mask_bits
+      mask_bits = @node.level * IDListNode::ORDER
 
       unless @node.page_entries == @values.length
         raise RuntimeError, "Mismatch between node page_entries " +
@@ -105,6 +105,10 @@ module PEROBS
         end
         last_value = v
       end
+    end
+
+    def to_s
+      "[ #{@values.join(', ')} ]"
     end
 
   end

@@ -30,20 +30,23 @@ require 'perobs/IDListPage'
 
 module PEROBS
 
-  # The IDListNode class provides the nodes of the binary tree that is used to
-  # store the IDListPage objects. The tree uses mask_bits least
-  # significant bits of the base_id to describe the values that are stored in
-  # the sub-tree or page. Descending the tree from the root adds an LSB for
-  # each level. The base_id specifies the bits that are common to all values
-  # stored in the subtree or page. A leaf node references a page by the page
-  # index. Tree nodes don't have a page but reference to other IDListNode
-  # objects. The zero subtree stores all values that have this particular bit
-  # (as specified by the node level) set to 0. The one subtree stores all
-  # values that have the bit set to 1.
+  # The IDListNode class provides the nodes of a tree that is used to store
+  # the IDListPage objects. The root node is at level 0, the sub nodes of the
+  # root node at level 1 and so on. On each level the nodes uses ORDER bits of
+  # the ID to select which sub-node to branch into. The LSB of the masked bits
+  # is at position ORDER * @level. The base_id specifies the bits that are
+  # common to all values stored in the subtree or page. A leaf node references
+  # a page by the page index. Tree nodes don't have a page but have 2 ** ORDER
+  # references to their sub-IDListNode objects.
   class IDListNode
 
+    # The ORDER determines the number of bits each node uses to select the sub
+    # node. Each tree node has 2 ** ORDER sub nodes. Performance tests have
+    # shown that an ORDER of 7 is the sweet spot that yields best resulsts.
+    ORDER = 7
+
     attr_accessor :page_entries
-    attr_reader :base_id, :mask_bits, :page_idx
+    attr_reader :base_id, :level, :page_idx
 
     # Create a new IDListNode object.
     # @param page_file [IDListPageFile] The page file that is the primary
@@ -51,23 +54,24 @@ module PEROBS
     #        by their index in the page file.
     # @param base_id [Integer] The mask_bits LSBs of this value are common to
     #        all values stored in this subtree.
-    # @param mask_bits [Integer] Number of bits
+    # @param level [Integer] The level of the node in the tree. The root node
+    #        has level 0, its children are on level 1 and so on.
     # @param page_idx [Integer] Specifies the page that holds all values of
     #        this node.
-    def initialize(page_file, base_id, mask_bits, page_idx = nil)
+    def initialize(page_file, base_id, level, page_idx = nil)
       @page_file = page_file
       @base_id = base_id
-      @mask_bits = mask_bits
+      @level = level
+      @bit_mask = (2 ** (@level * ORDER)) - 1
 
-      if @base_id > ((2 ** @mask_bits) - 1)
+      if @base_id > @bit_mask
         raise ArgumentError, "base_id #{'%016X' % @base_id} must not be " +
-          "larger than mask #{'%016X' % ((2 ** @mask_bits) - 1)}"
+          "larger than mask #{'%016X' % @bit_mask}"
       end
 
-      # References to the subtree nodes. These must be both nil for leaf
-      # nodes.
-      @zero = nil
-      @one = nil
+      # References to the subtree nodes. These must be all nil for leaf
+      # nodes non referencing an IDListNode object for tree nodes.
+      @sub_nodes = ::Array.new(2 ** ORDER, nil)
 
       # This page_entries counter must always correspond with the number of
       # entries in the page. It is usually set from the IDListPage object
@@ -81,35 +85,30 @@ module PEROBS
     # Insert a value into the subtree.
     # @param id [Integer] Value to insert
     def insert(id)
-      if (id & ((2 ** @mask_bits) - 1)) != @base_id
+      if (id & @bit_mask) != @base_id
         raise ArgumentError,
           "ID #{'%016X' % id} does not belong to node with base_id " +
-          "#{'%016X' % @base_id} and mask #{(2 ** @mask_bits) - 1}"
+          "#{'%016X' % @base_id} and mask #{'%016X' % @bit_mask}"
       end
 
       if @page_idx
+        p = page
         # The node is a leaf node. Check if we can add the value to the page.
-        if page.is_full?
-          return if page.include?(id)
+        if p.is_full?
+          return if p.include?(id)
           # The page is already full. We have to turn the node into a tree
           # node and then continue to traverse the tree. We only split the
           # pages if the value wasn't already included in the page. This
           # prevents empty pages to occur after a split.
           split_page
         else
-          # We can insert the value into the page.
-          page.insert(id)
-          return
+          return p.insert(id)
         end
       end
 
-      # We still have not found a leaf node. Use the @mask_bits-th bit of id
-      # to determine which subtree we have to descent into.
-      if (id & (1 << @mask_bits)) != 0
-        @one.insert(id)
-      else
-        @zero.insert(id)
-      end
+      # We still have not found a leaf node. Use the for this node relevant
+      # bits of the id to determine which subtree we have to descent into.
+      @sub_nodes[node_bits(id)].insert(id)
     end
 
     # Check if the given value is already included in the subtree.
@@ -122,18 +121,14 @@ module PEROBS
       else
         # This is a tree node. Use the @mask_bits-th bit of id
         # to determine which subtree we have to descent into.
-        if (id & (1 << @mask_bits)) != 0
-          @one.include?(id)
-        else
-          @zero.include?(id)
-        end
+        @sub_nodes[node_bits(id)].include?(id)
       end
     end
 
     def node(id)
       return self if @page_idx
 
-      (id & (1 << @mask_bits)) != 0 ? @one.node(id) : @zero.node(id)
+      @sub_nodes[node_bits(id)].node(id)
     end
 
     def page_entries=(value)
@@ -141,26 +136,47 @@ module PEROBS
     end
 
     def check
-      if (@zero.nil? && !@one.nil?) || (!@zero.nil? && @one.nil?)
-        raise RuntimeError, "@zero and @one must either both be nil or not nil"
+      all_nodes_are_nil = true
+      all_nodes_are_set = true
+      @sub_nodes.each do |n|
+        all_nodes_are_nil = false if !n.nil?
+        all_nodes_are_set = false if n.nil?
       end
-
-      if @zero.nil? && @page_idx.nil?
-        raise RuntimeError, "@zero and @page_idx can't both be nil"
-      end
-      if !@zero.nil? && !@page_idx.nil?
-        raise RuntimeError, "@zero and @page_idx can't both be not nil"
-      end
-
       if @page_idx
+        unless all_nodes_are_nil
+          raise RuntimeError, "All subnodes must be nil if a @page_idx is set"
+        end
+
         page.check
       else
-        @zero.check
-        @one.check
+        unless all_nodes_are_set
+          raise RuntimeError, "All subnodes must be set unless a @page_idx " +
+            "is set"
+        end
+
+        @sub_nodes.each { |n| n.check }
       end
     end
 
+    def to_s(prefix = '')
+      s = "#{prefix}#{prefix[-1] == ' ' ? '`' : '-'}+ " +
+        "L: #{@level} BaseID: #{@base_id}" +
+        "#{ @page_idx ? " #{page.to_s}" : ''}\n"
+      unless @page_idx
+        @sub_nodes.each_with_index do |n, i|
+          decorator = i < @sub_nodes.length - 1 ? ' |' : '  '
+          s += n.to_s(prefix + decorator) unless n.nil?
+        end
+      end
+
+      s
+    end
+
     private
+
+    def node_bits(id)
+      (id >> (@level * ORDER)) & ((2 ** ORDER) - 1)
+    end
 
     def page
       # The leaf pages reference the IDListPage objects only by their index.
@@ -175,18 +191,22 @@ module PEROBS
       # When the page becomes full, we have to convert the leaf node into a
       # tree node with two new leaf nodes. The zero node will inherit the page
       # reference.
-      @zero = IDListNode.new(@page_file, @base_id, @mask_bits + 1, @page_idx)
+      @sub_nodes[0] = IDListNode.new(@page_file, @base_id, @level + 1,
+                                     @page_idx)
       # Delete the page reference as this node is no longer a leaf node.
       @page_idx = nil
       # The page now belongs to the zero node.
-      p.node = @zero
+      p.node = @sub_nodes.first
       # The one node will get a new page. The base_id of the one node gets a 1
       # bit added to the left.
-      next_base_id = (1 << @mask_bits) + @base_id
-      @one = IDListNode.new(@page_file, next_base_id, @mask_bits + 1)
-      # Remove all values that have a 1 bit at the specific bit for this new
-      # level and insert them into the one node.
-      p.delete(1 << @mask_bits).each { |id| @one.insert(id) }
+      1.upto(@sub_nodes.length - 1) do |i|
+        next_base_id = (i << (@level * ORDER)) + @base_id
+        @sub_nodes[i] = IDListNode.new(@page_file, next_base_id, @level + 1)
+        # Remove all values from old page that now belong in this sub node and
+        # move them over.
+        mask = (1 << ((@level + 1) * ORDER)) - 1
+        p.delete(mask, next_base_id).each { |id| @sub_nodes[i].insert(id) }
+      end
     end
 
   end

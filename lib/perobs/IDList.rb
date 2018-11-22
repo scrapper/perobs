@@ -47,12 +47,11 @@ module PEROBS
     #        that will be kept in memory. If the list is larger, values will
     #        be cached in the specified file.
     # @param page_size [Integer] The number of values per page. The default
-    #        value is 512 which then matches the 4 Kbytes block size used on
-    #        many file systems.
-    def initialize(dir, name, max_in_memory, page_size = 512)
+    #        value is 32 which was found the best performing config in  tests.
+    def initialize(dir, name, max_in_memory, page_size = 32)
       # The page_file manages the pages that store the values.
       @page_file = IDListPageFile.new(self, dir, name,
-                                      max_in_memory / page_size, page_size)
+                                      max_in_memory, page_size)
       # The root node of the binary tree that provides quick access to the
       # respective page.
       @root = IDListNode.new(@page_file, 0, 0)
@@ -87,6 +86,12 @@ module PEROBS
     # a RuntimeError in case a problem is found.
     def check
       @root.check
+    end
+
+    # Print a human readable form of the tree that stores the list. This is
+    # only meant for debugging purposes and does not scale for larger trees.
+    def to_s
+      "\n" + @root.to_s
     end
 
   end
