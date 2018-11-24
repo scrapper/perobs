@@ -40,7 +40,7 @@ module PEROBS
   # nothing to do with it.
   class IDListPageFile
 
-    attr_reader :page_size
+    attr_reader :page_size, :pages
 
     # Create a new IDListPageFile object that uses the given file in the given
     # directory as cache file.
@@ -69,7 +69,11 @@ module PEROBS
         @f.seek(index * @page_size * 8)
         # Read the first page entry. It will allow us to find the
         # corresponding IDListPageRecord.
-        page_finder_id = @f.read(8).unpack('Q').first
+        if (word = @f.read(8)).nil?
+          PEROBS.log.fatal "Entry with index #{index} does not exist " +
+            "in #{@file_name}"
+        end
+        page_finder_id = word.unpack('Q').first
       rescue IOError => e
         PEROBS.log.fatal "Cannot read cache file #{@file_name}: #{e.message}"
       end
