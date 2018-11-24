@@ -26,16 +26,30 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 require 'perobs/IDListPage'
+require 'perobs/IDListPageRecord'
 require 'perobs/Log'
 require 'perobs/PersistentObjectCache'
 
 module PEROBS
 
+  # The IDListPageFile class provides filesystem based cache for the
+  # IDListPage objects. The IDListRecord objects only hold the index of the
+  # page in this cache. This allows the pages to be garbage collected and
+  # swapped to the file. If accessed, the pages will be swaped in again. While
+  # this process is similar to the demand paging of the OS it has absolutely
+  # nothing to do with it.
   class IDListPageFile
 
     attr_reader :page_size
 
-    def initialize(list, dir, name, max_in_memory, page_size = 512)
+    # Create a new IDListPageFile object that uses the given file in the given
+    # directory as cache file.
+    # @param list [IDList] The IDList object that caches pages here
+    # @param dir [String] An existing directory
+    # @param name [String] A file name (without path)
+    # @param max_in_memory [Integer] Maximum number of pages to keep in memory
+    # @param page_size [Integer] The number of values in each page
+    def initialize(list, dir, name, max_in_memory, page_size)
       @list = list
       @file_name = File.join(dir, name + '.cache')
       @page_size = page_size
@@ -45,47 +59,82 @@ module PEROBS
       @page_counter = 0
     end
 
+    # Load the IDListPage from the cache file.
+    # @param index [Integer] Index in the cache file.
+    # @return [IDListPage] The loaded values
     def load(index)
       begin
+        # All pages have the same size indipendently of their actual number of
+        # entries.
         @f.seek(index * @page_size * 8)
-        values = @f.read(@page_size * 8).unpack("Q#{@page_size}")
+        # Read the first page entry. It will allow us to find the
+        # corresponding IDListPageRecord.
+        page_finder_id = @f.read(8).unpack('Q').first
       rescue IOError => e
         PEROBS.log.fatal "Cannot read cache file #{@file_name}: #{e.message}"
       end
-      # We use the first value to find the corresponding IDListNode.
-      node = @list.node(values[0])
-      unless node.page_idx == index
-        PEROBS.log.fatal "Page index of found node (#{node.page_idx}) and " +
-          "the target index (#{index}) don't match"
+
+      # We use the first value to find the corresponding IDListPage.
+      record = @list.record(page_finder_id)
+      unless record.page_idx == index
+        PEROBS.log.fatal "Page index of found record (#{record.page_idx}) " +
+          "and the target index (#{index}) don't match"
       end
-      page_entries = node.page_entries
-      page = IDListPage.new(self, node, index, values.slice(0, page_entries))
+
+      # The IDListPageRecord will tell us the actual number of values stored
+      # in this page.
+      if (page_entries = record.page_entries) == 0
+        # The page is empty.
+        values = []
+      else
+        begin
+          # Rewind and read all values.
+          @f.seek(-8, IO::SEEK_CUR)
+          values = @f.read(page_entries * 8).unpack("Q#{page_entries}")
+        rescue => e
+          PEROBS.log.fatal "Cannot read cache file #{@file_name}: #{e.message}"
+        end
+      end
+
+      # Create the IDListPage object with the given values.
+      page = IDListPage.new(self, record, index, values)
       @pages.insert(page, false)
-      page.check
 
       page
     end
 
+    # Return the number of registered pages.
     def page_count
       @page_counter
     end
 
-    def new_page(node)
+    # Create a new IDListPage and register it.
+    # @param record [IDListPageRecord] The corresponding record.
+    # @param values [Array of Integer] The values stored in the page
+    # @return [IDListPage]
+    def new_page(record, values = [])
       idx = @page_counter
-      @pages.insert(IDListPage.new(self, node, idx))
       @page_counter += 1
+      @pages.insert(IDListPage.new(self, record, idx, values))
       idx
     end
 
+    # Return the IDListPage object with the given index.
+    # @param index [Integer] index of the page to get
+    # @return [IDListPage] The page corresponding to the index.
     def page(index)
       @pages.get(index) || load(index)
     end
 
+    # Mark a page as modified. This means it has to be written into the cache
+    # before it is removed from memory.
+    # @param page [IDListPage] page reference
     def mark_page_as_modified(page)
       @pages.insert(page)
       @pages.flush
     end
 
+    # Discard all pages and erase the cache file.
     def erase
       @pages.clear
       @page_counter = 0
@@ -98,8 +147,10 @@ module PEROBS
       @f = nil
     end
 
+    # Save the given IDListPage into the cache file.
+    # @param page [IDListPage] page to store
     def save_page(page)
-      if page.node.page_entries != page.values.length
+      if page.record.page_entries != page.values.length
         raise RuntimeError, "page_entries mismatch for node #{page.uid}"
       end
       begin
@@ -108,12 +159,8 @@ module PEROBS
         # corresponding IDListNode again in the load method we store the
         # base_id as the first value. Since the IDListNode has the page entry
         # count this value will be discarded again during the load operation.
-        if page.values.empty?
-          ary = [ page.node.base_id ] + ::Array.new(@page_size - 1, 0)
-        else
-          ary = page.values + ::Array.new(@page_size - page.values.length, 0)
-        end
-        @f.write(ary.pack("Q#{@page_size}"))
+        ary = page.values.empty? ? [ page.record.min_id ] : page.values
+        @f.write(ary.pack('Q*'))
       rescue IOError => e
         PEROBS.log.fatal "Cannot write cache file #{@file_name}: #{e.message}"
       end

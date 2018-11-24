@@ -30,14 +30,14 @@ module PEROBS
   class IDListPage
 
     attr_reader :uid, :values
-    attr_accessor :node
+    attr_accessor :record
 
-    def initialize(page_file, node, uid, values = [])
+    def initialize(page_file, record, uid, values = [])
       @page_file = page_file
-      @node = node
+      @record = record
       @uid = uid
       @values = values
-      @node.page_entries = @values.length
+      @record.page_entries = @values.length
     end
 
     def IDListPage::load(page_file, uid)
@@ -65,7 +65,7 @@ module PEROBS
       # If the value isn't stored already, insert it.
       if @values[index] != id
         @values.insert(index, id)
-        @node.page_entries = @values.length
+        @record.page_entries = @values.length
         @page_file.mark_page_as_modified(self)
       end
     end
@@ -74,34 +74,20 @@ module PEROBS
       !(v = @values.bsearch { |v| v >= id }).nil? && v == id
     end
 
-    def delete(mask, bit_pattern)
+    def delete(max_id)
       a = []
-      @values.delete_if { |v| (v & mask) == bit_pattern ? a << v : false }
-      @node.page_entries = @values.length
+      @values.delete_if { |v| v > max_id ? a << v : false }
+      @record.page_entries = @values.length
       @page_file.mark_page_as_modified(self)
       a
     end
 
     def check
-      base_id = @node.base_id
-      mask_bits = @node.level * IDListNode::ORDER
-
-      unless @node.page_entries == @values.length
-        raise RuntimeError, "Mismatch between node page_entries " +
-          "(#{@node.page_entries}) and number of values (#{@values.length})"
-      end
-
       last_value = nil
       @values.each_with_index do |v, i|
         if last_value && last_value >= v
           raise RuntimeError, "Values must be strictly ascending: " +
             "#{@values.inspect}"
-        end
-        if (v & ((2 ** mask_bits) - 1)) != base_id
-          raise RuntimeError,
-            "IDListPage entry #{i} (#{'%016X' % v}) should not be in node " +
-            "with base_id #{'%016X' % base_id} and mask " +
-            "#{'%016X' % ((2 ** mask_bits) - 1)}"
         end
         last_value = v
       end

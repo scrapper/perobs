@@ -28,18 +28,6 @@ require 'perobs/IDList'
 
 module PEROBS
 
-  class IDList
-
-    def page_count
-      @page_file.page_count
-    end
-
-    def page(index)
-      @page_file.page(index)
-    end
-
-  end
-
   describe IDList do
 
     before(:all) do
@@ -54,70 +42,15 @@ module PEROBS
     end
 
     it 'should not contain any values' do
+      expect(@list.to_a).to eql []
       expect(@list.include?(0)).to be false
       expect(@list.include?(1)).to be false
-      expect(@list.page_count).to eql 1
-      expect(@list.page(0).values).to eql []
       expect { @list.check }.to_not raise_error
-    end
-
-    it 'should fill the first page' do
-      a = (0..((2 ** IDListNode::ORDER) - 1)).to_a
-      a.each do |i|
-        @list.insert(i)
-        expect(@list.include?(i)).to be true
-      end
-      expect(@list.page_count).to eql 2 ** IDListNode::ORDER
-      expect { @list.check }.to_not raise_error
-    end
-
-    it 'should fill the 2nd level pages' do
-      a = ((2 ** IDListNode::ORDER)..((2 ** (IDListNode::ORDER + 2)) - 1)).to_a
-      a.each do |i|
-        @list.insert(i)
-        expect(@list.include?(i)).to be true
-      end
-      expect(@list.page_count).to eql 2 ** IDListNode::ORDER
-      expect { @list.check }.to_not raise_error
-     end
-
-    it 'should fill the 3rd level pages' do
-      a = ((2 ** (IDListNode::ORDER + 2))..
-           ((2 ** (IDListNode::ORDER + 4)) - 1)).to_a
-      a.each do |i|
-        @list.insert(i)
-        expect(@list.include?(i)).to be true
-      end
-      expect(@list.page_count).to eql (2 ** IDListNode::ORDER) ** 2
-      expect { @list.check }.to_not raise_error
-    end
-
-    it 'should still find all the values 3rd level' do
-      0.upto((2 ** (IDListNode::ORDER + 4)) - 1) do |i|
-        expect(@list.include?(i)).to be true
-      end
-    end
-
-    it 'should fill the 4th level' do
-      a = ((2 ** (IDListNode::ORDER + 4))..
-           ((2 ** (IDListNode::ORDER + 6)) - 1)).to_a
-      a.each do |i|
-        @list.insert(i)
-        expect(@list.include?(i)).to be true
-      end
-      expect(@list.page_count).to eql (2 ** IDListNode::ORDER) ** 3
-      expect { @list.check }.to_not raise_error
-    end
-
-    it 'should still find all the values on the 4th level' do
-      0.upto((2 ** (IDListNode::ORDER + 6)) - 1) do |i|
-        expect(@list.include?(i)).to be true
-      end
     end
 
     it 'should store a large number of values' do
       vals = []
-      10000.times do
+      50000.times do
         v = rand(2 ** 64)
         vals << v
         @list.insert(v)
