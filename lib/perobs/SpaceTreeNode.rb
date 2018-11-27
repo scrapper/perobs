@@ -75,17 +75,7 @@ module PEROBS
       @equal = equal
       @larger = larger
 
-      ObjectSpace.define_finalizer(
-        self, SpaceTreeNode._finalize(@tree, @node_address, object_id))
       @tree.cache.insert(self, false)
-    end
-
-    # This method generates the destructor for the objects of this class. It
-    # is done this way to prevent the Proc object hanging on to a reference to
-    # self which would prevent the object from being collected. This internal
-    # method is not intended for users to call.
-    def SpaceTreeNode._finalize(tree, node_address, ruby_object_id)
-      proc { tree.cache._collect(node_address, ruby_object_id) }
     end
 
     # Create a new SpaceTreeNode. This method should be used for the creation
@@ -106,7 +96,7 @@ module PEROBS
     # Restore a node from the backing store at the given address and tree.
     # @param tree [SpaceTree] The tree the node belongs to
     # @param node_address [Integer] The address in the file.
-    def SpaceTreeNode::load(tree, node_address)
+    def SpaceTreeNode::load(tree, node_address, unused = nil)
       unless node_address > 0
         PEROBS.log.fatal "node_address (#{node_address}) must be larger than 0"
       end

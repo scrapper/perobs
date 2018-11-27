@@ -75,18 +75,7 @@ module PEROBS
         @values = []
       end
 
-      ObjectSpace.define_finalizer(
-        self, BTreeNode._finalize(@tree, @node_address, object_id))
       @tree.node_cache.insert(self, false)
-
-    end
-
-    # This method generates the destructor for the objects of this class. It
-    # is done this way to prevent the Proc object hanging on to a reference to
-    # self which would prevent the object from being collected. This internal
-    # method is not intended for users to call.
-    def BTreeNode::_finalize(tree, node_address, ruby_object_id)
-      proc { tree.node_cache._collect(node_address, ruby_object_id) }
     end
 
     # Create a new SpaceTreeNode. This method should be used for the creation
@@ -131,7 +120,7 @@ module PEROBS
     # Restore a node from the backing store at the given address and tree.
     # @param tree [BTree] The tree the node belongs to
     # @param address [Integer] The address in the blob file.
-    def BTreeNode::load(tree, address)
+    def BTreeNode::load(tree, address, unused = nil)
       unless address.is_a?(Integer)
         PEROBS.log.fatal "address is not Integer: #{address.class}"
       end
@@ -487,6 +476,7 @@ module PEROBS
     end
 
     def copy_elements(src_idx, dest_node, dst_idx = 0, count = nil)
+      dest_node = dest_node.get_node
       unless count
         count = @tree.order - src_idx
       end
@@ -947,8 +937,8 @@ module PEROBS
           node.parent = link(self)
         end
         @tree.node_cache.insert(self)
-        @tree.node_cache.insert(prev_node)
-        @tree.node_cache.insert(@parent)
+        @tree.node_cache.insert(prev_node.get_node)
+        @tree.node_cache.insert(@parent.get_node)
 
         return true
       end
@@ -984,8 +974,8 @@ module PEROBS
           node.parent = link(self)
         end
         @tree.node_cache.insert(self)
-        @tree.node_cache.insert(next_node)
-        @tree.node_cache.insert(next_node.parent)
+        @tree.node_cache.insert(next_node.get_node)
+        @tree.node_cache.insert(next_node.parent.get_node)
 
         return true
       end
@@ -1000,7 +990,7 @@ module PEROBS
       while node
         if (index = node.keys.index(old_key))
           node.keys[index] = new_key
-          @tree.node_cache.insert(node)
+          @tree.node_cache.insert(node.get_node)
           return
         end
         node = node.parent

@@ -128,7 +128,7 @@ module PEROBS
       # This method will convert the index into a reference to the actual
       # object. These references should be very short-lived as a life
       # reference prevents the page object from being collected.
-      @page_file.page(@page_idx)
+      @page_file.page(self)
     end
   end
 

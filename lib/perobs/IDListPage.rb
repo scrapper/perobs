@@ -40,8 +40,8 @@ module PEROBS
       @record.page_entries = @values.length
     end
 
-    def IDListPage::load(page_file, uid)
-      page_file.load(uid)
+    def IDListPage::load(page_file, uid, ref)
+      page_file.load(uid, ref)
     end
 
     def is_full?
@@ -77,8 +77,10 @@ module PEROBS
     def delete(max_id)
       a = []
       @values.delete_if { |v| v > max_id ? a << v : false }
-      @record.page_entries = @values.length
-      @page_file.mark_page_as_modified(self)
+      unless a.empty?
+        @record.page_entries = @values.length
+        @page_file.mark_page_as_modified(self)
+      end
       a
     end
 

@@ -33,7 +33,7 @@ module PEROBS
     before(:all) do
       @db_dir = generate_db_name('IDList')
       FileUtils.mkdir_p(@db_dir)
-      @list = PEROBS::IDList.new(@db_dir, 'idlist', 512, 4)
+      @list = PEROBS::IDList.new(@db_dir, 'idlist', 512, 32)
     end
 
     after(:all) do
@@ -52,14 +52,13 @@ module PEROBS
       vals = []
       50000.times do
         v = rand(2 ** 64)
+        @list.include?(v) if rand(4) == 0
         vals << v
         @list.insert(v)
         expect(@list.include?(v)).to be true
         v = vals[rand(vals.length)]
-        unless @list.include?(v)
-          $stderr.puts "Lost #{v}"
-        end
         expect(@list.include?(v)).to be true
+        expect { @list.check }.to_not raise_error if rand(1000) == 0
       end
       expect { @list.check }.to_not raise_error
       vals.each do |v|
