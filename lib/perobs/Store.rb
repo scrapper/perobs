@@ -531,12 +531,19 @@ module PEROBS
     def mark
       classes = Set.new
       marked_objects = 0
-      each { |obj| classes.add(obj.class); marked_objects += 1 }
+      @progressmeter.start("Marking linked objects",
+                           @db.item_counter) do
+        each do |obj|
+          classes.add(obj.class)
+          @progressmeter.update(marked_objects += 1)
+        end
+      end
       @class_map.keep(classes.map { |c| c.to_s })
 
       # The root_objects object is included in the count, but we only want to
       # count user objects here.
-      PEROBS.log.debug "#{marked_objects - 1} objects marked"
+      PEROBS.log.debug "#{marked_objects - 1} of #{@db.item_counter} " +
+        "objects marked"
       @stats.marked_objects = marked_objects - 1
     end
 

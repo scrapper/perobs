@@ -153,10 +153,13 @@ module PEROBS
       t = Time.now
 
       deleted_ids = []
-      each_blob_header do |pos, header|
-        if header.is_valid? && !@marks.include?(header.id)
-          delete_obj_by_address(pos, header.id)
-          deleted_ids << header.id
+      @progressmeter.start('Sweeping unmarked objects',
+                           @index.entries_count) do |pm|
+        each_blob_header do |pos, header|
+          if header.is_valid? && !@marks.include?(header.id)
+            delete_obj_by_address(pos, header.id)
+            deleted_ids << header.id
+          end
         end
       end
       defragmentize
@@ -350,37 +353,39 @@ module PEROBS
       t = Time.now
       PEROBS.log.info "Defragmenting FlatFile"
       # Iterate over all entries.
-      each_blob_header do |pos, header|
-        # Total size of the current entry
-        entry_bytes = FlatFileBlobHeader::LENGTH + header.length
-        if header.is_valid?
-          # We have found a valid entry.
-          valid_blobs += 1
-          if distance > 0
-            begin
-              # Read current entry into a buffer
-              @f.seek(pos)
-              buf = @f.read(entry_bytes)
-              # Write the buffer right after the end of the previous entry.
-              @f.seek(pos - distance)
-              @f.write(buf)
-              # Update the index with the new position
-              @index.insert(header.id, pos - distance)
-              # Mark the space between the relocated current entry and the
-              # next valid entry as deleted space.
-              FlatFileBlobHeader.new(@f, @f.pos, 0,
-                                     distance - FlatFileBlobHeader::LENGTH,
-                                     0, 0).write
-              @f.flush
-            rescue IOError => e
-              PEROBS.log.fatal "Error while moving blob for ID #{header.id}: " +
-                e.message
+      @progressmeter.start('Defragmentizing FlatFile', @f.size) do |pm|
+        each_blob_header do |pos, header|
+          # Total size of the current entry
+          entry_bytes = FlatFileBlobHeader::LENGTH + header.length
+          if header.is_valid?
+            # We have found a valid entry.
+            valid_blobs += 1
+            if distance > 0
+              begin
+                # Read current entry into a buffer
+                @f.seek(pos)
+                buf = @f.read(entry_bytes)
+                # Write the buffer right after the end of the previous entry.
+                @f.seek(pos - distance)
+                @f.write(buf)
+                # Update the index with the new position
+                @index.insert(header.id, pos - distance)
+                # Mark the space between the relocated current entry and the
+                # next valid entry as deleted space.
+                FlatFileBlobHeader.new(@f, @f.pos, 0,
+                                       distance - FlatFileBlobHeader::LENGTH,
+                                       0, 0).write
+                @f.flush
+              rescue IOError => e
+                PEROBS.log.fatal "Error while moving blob for ID " +
+                  "#{header.id}: #{e.message}"
+              end
             end
+            new_file_size = pos + FlatFileBlobHeader::LENGTH + header.length
+          else
+            deleted_blobs += 1
+            distance += entry_bytes
           end
-          new_file_size = pos + FlatFileBlobHeader::LENGTH + header.length
-        else
-          deleted_blobs += 1
-          distance += entry_bytes
         end
       end
       PEROBS.log.info "FlatFile defragmented in #{Time.now - t} seconds"

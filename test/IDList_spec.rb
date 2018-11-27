@@ -50,7 +50,7 @@ module PEROBS
 
     it 'should store a large number of values' do
       vals = []
-      50000.times do
+      500000.times do
         v = rand(2 ** 64)
         @list.include?(v) if rand(4) == 0
         vals << v
