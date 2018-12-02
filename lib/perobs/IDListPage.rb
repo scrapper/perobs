@@ -77,10 +77,12 @@ module PEROBS
     def delete(max_id)
       a = []
       @values.delete_if { |v| v > max_id ? a << v : false }
+
       unless a.empty?
         @record.page_entries = @values.length
         @page_file.mark_page_as_modified(self)
       end
+
       a
     end
 
@@ -88,8 +90,8 @@ module PEROBS
       last_value = nil
       @values.each_with_index do |v, i|
         if last_value && last_value >= v
-          raise RuntimeError, "Values must be strictly ascending: " +
-            "#{@values.inspect}"
+          raise RuntimeError, "The values #{last_value} and #{v} must be " +
+            "strictly ascending: #{@values.inspect}"
         end
         last_value = v
       end

@@ -103,6 +103,10 @@ module PEROBS
     def close
       @space_list.close
       @index.close
+      if @marks
+        @marks.erase
+        @marks = nil
+      end
 
       if @f
         @f.flush
@@ -339,8 +343,11 @@ module PEROBS
 
     # Clear alls marks.
     def clear_all_marks
-      @marks.erase if @marks
-      @marks = IDList.new(@db_dir, 'marks', 8)
+      if @marks
+        @marks.clear
+      else
+        @marks = IDList.new(@db_dir, 'marks', 8)
+      end
     end
 
     # Eliminate all the holes in the file. This is an in-place

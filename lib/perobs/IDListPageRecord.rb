@@ -53,6 +53,8 @@ module PEROBS
     # @param id [Integer]
     # @return [True of False] Return true if found, false otherwise.
     def include?(id)
+      return false if id < @min_id || @max_id < id
+
       page.include?(id)
     end
 
@@ -65,6 +67,11 @@ module PEROBS
     # Insert an ID into the page.
     # @param ID [Integer] The ID to store
     def insert(id)
+      unless @min_id <= id && id <= @max_id
+        raise ArgumentError, "IDs for this page must be between #{@min_id} " +
+          "and #{@max_id}. #{id} is outside this range."
+      end
+
       page.insert(id)
     end
 
@@ -105,7 +112,7 @@ module PEROBS
       values = p.values
       unless @page_entries == values.length
         raise RuntimeError, "Mismatch between node page_entries " +
-          "(#{@page_entries}) and number of values (#{@p.values.length})"
+          "(#{@page_entries}) and number of values (#{p.values.length})"
       end
 
       values.each do |v|
@@ -114,7 +121,7 @@ module PEROBS
             "#{@min_id}"
         end
         if v > @max_id
-          raise RuntimeError, "Page value ${v} is larger than max_id #{@max_id}"
+          raise RuntimeError, "Page value #{v} is larger than max_id #{@max_id}"
         end
       end
 

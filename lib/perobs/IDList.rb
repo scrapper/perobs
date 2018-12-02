@@ -77,6 +77,7 @@ module PEROBS
           page = new_page
         end
       end
+
       # Insert the ID into the page.
       page.insert(id)
     end
@@ -87,17 +88,18 @@ module PEROBS
       @page_records.bsearch { |pr| pr.max_id >= id }.include?(id)
     end
 
-    # Find the IDListRecord that corresponds to the given ID.
-    # @param id [Integer] value to look for
-    # @return [IDListRecord]
-    def record(id)
-      @page_records.bsearch { |pr| pr.max_id >= id }
+    # Clear the list and empty the filesystem cache file.
+    def clear
+      @page_file.clear
+      @page_records = [ IDListPageRecord.new(@page_file, 0, 2 ** 64) ]
     end
 
-    # Erase the list including the filesystem cache file.
+    # Erase the list including the filesystem cache file. The IDList is no
+    # longer usable after this call but the cache file is removed from the
+    # filesystem.
     def erase
       @page_file.erase
-      clear
+      @page_records = nil
     end
 
     # Perform some consistency checks on the internal data structures. Raises
@@ -134,13 +136,6 @@ module PEROBS
     # only meant for debugging purposes and does not scale for larger trees.
     def to_s
       "\n" + @root.to_s
-    end
-
-    private
-
-    def clear
-      @page_records = []
-      @page_records << IDListPageRecord.new(@page_file, 0, 2 ** 64)
     end
 
   end

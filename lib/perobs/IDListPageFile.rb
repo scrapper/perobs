@@ -71,16 +71,16 @@ module PEROBS
         begin
           @f.seek(page_idx * @page_size * 8)
           values = @f.read(entries * 8).unpack("Q#{entries}")
-        rescue => e
+        rescue IOError => e
           PEROBS.log.fatal "Cannot read cache file #{@file_name}: #{e.message}"
         end
       end
 
       # Create the IDListPage object with the given values.
-      page = IDListPage.new(self, record, page_idx, values)
-      @pages.insert(page, false)
+      p = IDListPage.new(self, record, page_idx, values)
+      @pages.insert(p, false)
 
-      page
+      p
     end
 
     # Return the number of registered pages.
@@ -95,7 +95,7 @@ module PEROBS
     def new_page(record, values = [])
       idx = @page_counter
       @page_counter += 1
-      @pages.insert(IDListPage.new(self, record, idx, values))
+      mark_page_as_modified(IDListPage.new(self, record, idx, values))
       idx
     end
 
@@ -103,39 +103,51 @@ module PEROBS
     # @param record [IDListPageRecord] the corresponding IDListPageRecord
     # @return [IDListPage] The page corresponding to the index.
     def page(record)
-      @pages.get(record.page_idx, record) || load(record.page_idx, record)
+      p = @pages.get(record.page_idx, record) || load(record.page_idx, record)
+      unless p.uid == record.page_idx
+        raise RuntimeError, "Page reference mismatch. Record " +
+          "#{record.page_idx} points to page #{p.uid}"
+      end
+
+      p
     end
 
     # Mark a page as modified. This means it has to be written into the cache
     # before it is removed from memory.
-    # @param page [IDListPage] page reference
-    def mark_page_as_modified(page)
-      @pages.insert(page)
+    # @param p [IDListPage] page reference
+    def mark_page_as_modified(p)
+      @pages.insert(p)
       @pages.flush
+    end
+
+    # Clear all pages, erase the cache and re-open it again.
+    def clear
+      @pages.clear
+      @page_counter = 0
+      begin
+        @f.truncate(0)
+      rescue IOError => e
+        raise RuntimeError, "Cannote truncate cache file #{@file_name}: " +
+          e.message
+      end
     end
 
     # Discard all pages and erase the cache file.
     def erase
       @pages.clear
       @page_counter = 0
-      begin
-        @f.close
-        File.delete(@file_name) if File.exist?(@file_name)
-      rescue IOError => e
-        PEROBS.log.fatal "Cannot erase cache file #{@file_name}: #{e.message}"
-      end
-      @f = nil
+      close
     end
 
     # Save the given IDListPage into the cache file.
-    # @param page [IDListPage] page to store
-    def save_page(page)
-      if page.record.page_entries != page.values.length
-        raise RuntimeError, "page_entries mismatch for node #{page.uid}"
+    # @param p [IDListPage] page to store
+    def save_page(p)
+      if p.record.page_entries != p.values.length
+        raise RuntimeError, "page_entries mismatch for node #{p.uid}"
       end
       begin
-        @f.seek(page.uid * @page_size * 8)
-        @f.write(page.values.pack('Q*'))
+        @f.seek(p.uid * @page_size * 8)
+        @f.write(p.values.pack('Q*'))
       rescue IOError => e
         PEROBS.log.fatal "Cannot write cache file #{@file_name}: #{e.message}"
       end
@@ -150,6 +162,16 @@ module PEROBS
       rescue IOError => e
         PEROBS.log.fatal "Cannot open cache file #{@file_name}: #{e.message}"
       end
+    end
+
+    def close
+      begin
+        @f.close
+        File.delete(@file_name) if File.exist?(@file_name)
+      rescue IOError => e
+        PEROBS.log.fatal "Cannot erase cache file #{@file_name}: #{e.message}"
+      end
+      @f = nil
     end
 
   end

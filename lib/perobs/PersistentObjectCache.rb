@@ -76,7 +76,7 @@ module PEROBS
       # This allows the object to be collected by the garbage collector.
       index = object.uid % @size
       if (entry = @entries[index])
-        if entry.object == object
+        if entry.object.equal?(object)
           # We already have an entry for this object and it is marked as
           # modified. We have nothing to do here.
           return if entry.modified
