@@ -55,6 +55,10 @@ module PEROBS
     #        must provide a ::load method.
     def initialize(size, flush_delay, klass, collection)
       @size = size
+      unless klass.respond_to?('_finalize')
+        raise RuntimeError, "Persistent object classes must provide a " +
+          "_finalize method and have it registered as finalizer."
+      end
       @klass = klass
       @collection = collection
       @flush_delay = @flush_counter = flush_delay
@@ -74,6 +78,7 @@ module PEROBS
 
       # Store the object via its Ruby object ID instead of a direct reference.
       # This allows the object to be collected by the garbage collector.
+      @in_memory_objects[object.uid] = object.object_id
       index = object.uid % @size
       if (entry = @entries[index])
         if entry.object.equal?(object)
@@ -107,12 +112,38 @@ module PEROBS
         return object
       end
 
+      if (ruby_object_id = @in_memory_objects[uid])
+        # We have the object in memory so we can just return it.
+        begin
+          object = ObjectSpace._id2ref(ruby_object_id)
+          # Let's make sure the object is really the object we are looking
+          # for. The GC might have recycled it already and the Ruby object ID
+          # could now be used for another object.
+          if object.is_a?(@klass) && object.uid == uid
+            # Let's put the object in the cache. We might need it soon again.
+            insert(object, false)
+            return object
+          end
+        rescue RangeError
+          # Due to a race condition the object can still be in the
+          # @in_memory_objects list but has been collected already by the Ruby
+          # GC. In that case we need to load it again. In this case the
+          # _collect() call will happen much later, potentially after we have
+          # registered a new object with the same ID.
+          @in_memory_objects.delete(uid)
+        end
+      end
+
       @klass::load(@collection, uid, ref)
     end
 
     # Remove a object from the cache.
     # @param uid [Integer] unique ID of object to remove.
     def delete(uid)
+      # The object is likely still in memory, but we really don't want to
+      # access it anymore.
+      @in_memory_objects.delete(uid)
+
       index = uid % @size
       if (entry = @entries[index]) && entry.object.uid == uid
         @entries[index] = nil
@@ -127,6 +158,9 @@ module PEROBS
     # @param ruby_object_id [Integer] The Ruby object ID of the collected
     #        object
     def _collect(address, ruby_object_id)
+      if @in_memory_objects[id] == ruby_object_id
+        @in_memory_objects.delete(address)
+      end
     end
 
     # Write all excess modified objects into the backing store. If now is true
@@ -147,6 +181,14 @@ module PEROBS
 
     # Remove all entries from the cache.
     def clear
+      # A hash that stores all objects by the Ruby object ID that are
+      # currently in memory. Objects are added via insert() and will be
+      # removed via delete() or _collect() called from a Object
+      # finalizer. It only stores the object Ruby object ID hashed by their
+      # address in the file.  This enables them from being collected by the
+      # Ruby garbage collector.
+      @in_memory_objects = {}
+
       @entries = ::Array.new(@size)
     end
 

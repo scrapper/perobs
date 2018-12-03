@@ -38,6 +38,17 @@ module PEROBS
       @uid = uid
       @values = values
       @record.page_entries = @values.length
+
+      ObjectSpace.define_finalizer(
+        self, IDListPage._finalize(@page_file, @uid, object_id))
+    end
+
+    # This method generates the destructor for the objects of this class. It
+    # is done this way to prevent the Proc object hanging on to a reference to
+    # self which would prevent the object from being collected. This internal
+    # method is not intended for users to call.
+    def IDListPage._finalize(page_file, uid, ruby_object_id)
+      proc { page_file.cache._collect(uid, ruby_object_id) }
     end
 
     def IDListPage::load(page_file, uid, ref)
