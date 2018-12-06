@@ -31,9 +31,6 @@ module PEROBS
 
   class PersistentObjectCache
 
-    class Entry < Struct.new(:object, :modified, :flush_counter)
-    end
-
     # This cache class manages the presence of objects that primarily live in
     # a backing store but temporarily exist in memory as well. To work with
     # these objects, direct references must be only very short lived. Indirect
@@ -79,27 +76,13 @@ module PEROBS
       # Store the object via its Ruby object ID instead of a direct reference.
       # This allows the object to be collected by the garbage collector.
       @in_memory_objects[object.uid] = object.object_id
-      index = object.uid % @size
-      if (entry = @entries[index])
-        if entry.object.equal?(object)
-          # We already have an entry for this object and it is marked as
-          # modified. We have nothing to do here.
-          return if entry.modified
 
-          # The existing entry for the same object is not yet marked
-          # modified.
-          entry.modified = true if modified
-
-          return
-        else
-          # The current cache entry is for different modified object. We have to
-          # flush it out first.
-          if entry.modified
-            entry.object.save
-          end
-        end
+      if modified
+        @modified_entries[object.uid] = object
+      else
+        index = object.uid % @size
+        @unmodified_entries[index] = object
       end
-      @entries[index] = Entry.new(object, modified, @flush_times)
 
       nil
     end
@@ -108,7 +91,11 @@ module PEROBS
     # @param uid [Integer] uid of the object to retrieve.
     # @param ref [Object] optional reference to be used by the load method
     def get(uid, ref = nil)
-      if (entry = @entries[uid % @size]) && (object = entry.object).uid == uid
+      if (object = @modified_entries[uid])
+        return object
+      end
+
+      if (object = @unmodified_entries[uid % @size]) && object.uid == uid
         return object
       end
 
@@ -144,9 +131,11 @@ module PEROBS
       # access it anymore.
       @in_memory_objects.delete(uid)
 
+      @modified_entries.delete(uid)
+
       index = uid % @size
-      if (entry = @entries[index]) && entry.object.uid == uid
-        @entries[index] = nil
+      if (object = @unmodified_entries[index]) && object.uid == uid
+        @unmodified_entries[index] = nil
       end
     end
 
@@ -168,12 +157,10 @@ module PEROBS
     # @param now [Boolean]
     def flush(now = false)
       if now || (@flush_counter -= 1) <= 0
-        @entries.each do |entry|
-          if entry && entry.modified
-            entry.object.save
-            entry.modified = false
-          end
+        @modified_entries.each do |id, object|
+          object.save
         end
+        @modified_entries = ::Hash.new
         @flush_counter = @flush_delay
       end
       @flush_times += 1
@@ -189,7 +176,14 @@ module PEROBS
       # Ruby garbage collector.
       @in_memory_objects = {}
 
-      @entries = ::Array.new(@size)
+      # This Array stores all unmodified entries. It has a fixed size and uses
+      # a % operation to compute the index from the object ID.
+      @unmodified_entries = ::Array.new(@size)
+
+      # This Hash stores all modified entries. It can grow and shrink as
+      # needed. A flush operation writes all modified objects into the backing
+      # store.
+      @modified_entries = ::Hash.new
     end
 
   end

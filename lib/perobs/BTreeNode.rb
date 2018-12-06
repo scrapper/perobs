@@ -107,8 +107,6 @@ module PEROBS
       address = tree.nodes.free_address
       node = BTreeNode.new(tree, address, parent, is_leaf, prev_sibling,
                            next_sibling)
-      # This is a new node. Make sure the data is written to the file.
-      tree.node_cache.insert(node)
 
       node = BTreeNodeLink.new(tree, node)
 
@@ -123,6 +121,9 @@ module PEROBS
       elsif is_leaf
         tree.set_last_leaf(BTreeNodeLink.new(tree, node))
       end
+
+      # This is a new node. Make sure the data is written to the file.
+      tree.node_cache.insert(node)
 
       node
     end
