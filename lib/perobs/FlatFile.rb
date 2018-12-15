@@ -157,13 +157,14 @@ module PEROBS
       t = Time.now
 
       deleted_ids = []
-      @progressmeter.start('Sweeping unmarked objects',
-                           @index.entries_count) do |pm|
+      @progressmeter.start('Sweeping unmarked objects', @f.size) do |pm|
         each_blob_header do |pos, header|
           if header.is_valid? && !@marks.include?(header.id)
             delete_obj_by_address(pos, header.id)
             deleted_ids << header.id
           end
+
+          pm.update(pos)
         end
       end
       defragmentize
@@ -279,14 +280,6 @@ module PEROBS
       nil
     end
 
-    def search_object(id)
-      each_blob_header do |pos, header|
-        return read_obj_by_address(pos, id)
-      end
-
-      nil
-    end
-
     # @return [Integer] Number of items stored in the DB.
     def item_counter
       @index.entries_count
@@ -393,6 +386,8 @@ module PEROBS
             deleted_blobs += 1
             distance += entry_bytes
           end
+
+          pm.update(pos)
         end
       end
       PEROBS.log.info "FlatFile defragmented in #{Time.now - t} seconds"
@@ -410,7 +405,7 @@ module PEROBS
 
     # This method iterates over all entries in the FlatFile and removes the
     # entry and inserts it again. This is useful to update all entries in
-    # cased the storage format has changed.
+    # case the storage format has changed.
     def refresh
       # This iteration might look scary as we iterate over the entries while
       # while we are rearranging them. Re-inserted items may be inserted
@@ -418,20 +413,21 @@ module PEROBS
       # inserted after the current entry and will be re-read again unless they
       # are inserted after the original file end.
       file_size = @f.size
-      PEROBS.log.info "Refreshing the DB..."
-      t = Time.now
-      each_blob_header do |pos, header|
-        if header.is_valid?
-          buf = read_obj_by_address(pos, header.id)
-          delete_obj_by_address(pos, header.id)
-          write_obj_by_id(header.id, buf)
-        end
+      @progressmeter.start('Refreshing objects', @f.size) do |pm|
+        each_blob_header do |pos, header|
+          if header.is_valid?
+            buf = read_obj_by_address(pos, header.id)
+            delete_obj_by_address(pos, header.id)
+            write_obj_by_id(header.id, buf)
+          end
 
-        # Some re-inserted blobs may be inserted after the original file end.
-        # No need to process those blobs again.
-        break if pos >= file_size
+          # Some re-inserted blobs may be inserted after the original file end.
+          # No need to process those blobs again.
+          break if pos >= file_size
+
+          pm.update(pos)
+        end
       end
-      PEROBS.log.info "DB refresh completed in #{Time.now - t} seconds"
 
       # Reclaim the space saved by compressing entries.
       defragmentize

@@ -86,7 +86,7 @@ module PEROBS
       node_address = tree.nodes.free_address
 
       node = SpaceTreeNode.new(tree, node_address, blob_address, size, parent)
-      node.save
+      tree.cache.insert(node)
 
       node
     end
@@ -118,6 +118,8 @@ module PEROBS
 
       node = SpaceTreeNode.new(tree, node_address, blob_address, size,
                                parent, smaller, equal, larger)
+
+      tree.cache.insert(node, false)
 
       node
     end

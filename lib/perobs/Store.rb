@@ -367,10 +367,6 @@ module PEROBS
         return obj
       end
 
-      #if (obj = @db.search_object(id))
-      #  PEROBS.log.fatal "Object was not in index but in DB"
-      #end
-
       # The requested object does not exist. Return nil.
       nil
     end
