@@ -74,18 +74,6 @@ module PEROBS
         @children = children
         @values = []
       end
-
-      ObjectSpace.define_finalizer(
-        self, BTreeNode._finalize(@tree, @node_address, object_id))
-      @tree.node_cache.insert(self, false)
-    end
-
-    # This method generates the destructor for the objects of this class. It
-    # is done this way to prevent the Proc object hanging on to a reference to
-    # self which would prevent the object from being collected. This internal
-    # method is not intended for users to call.
-    def BTreeNode::_finalize(tree, node_address, ruby_object_id)
-      proc { tree.node_cache._collect(node_address, ruby_object_id) }
     end
 
     # Create a new SpaceTreeNode. This method should be used for the creation
@@ -108,8 +96,6 @@ module PEROBS
       node = BTreeNode.new(tree, address, parent, is_leaf, prev_sibling,
                            next_sibling)
 
-      node = BTreeNodeLink.new(tree, node)
-
       # Insert the newly created node into the existing node chain.
       if (node.prev_sibling = prev_sibling)
         node.prev_sibling.next_sibling = BTreeNodeLink.new(tree, node)
@@ -125,7 +111,7 @@ module PEROBS
       # This is a new node. Make sure the data is written to the file.
       tree.node_cache.insert(node)
 
-      node
+      BTreeNodeLink.new(tree, node)
     end
 
     # Restore a node from the backing store at the given address and tree.
