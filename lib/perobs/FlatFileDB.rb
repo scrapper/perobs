@@ -157,7 +157,7 @@ module PEROBS
 
     # Permanently delete all objects that have not been marked. Those are
     # orphaned and are no longer referenced by any actively used object.
-    # @return [Array] List of IDs that have been removed from the DB.
+    # @return [Integer] Number of the removed objects from the DB.
     def delete_unmarked_objects
       @flat_file.delete_unmarked_objects
     end

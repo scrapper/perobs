@@ -546,7 +546,7 @@ module PEROBS
     # Sweep phase of a mark-and-sweep garbage collector. It will remove all
     # unmarked objects from the store.
     def sweep
-      @stats.swept_objects = @db.delete_unmarked_objects.length
+      @stats.swept_objects = @db.delete_unmarked_objects
       @cache.reset
       PEROBS.log.debug "#{@stats.swept_objects} objects collected"
       @stats.swept_objects

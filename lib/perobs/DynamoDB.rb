@@ -157,19 +157,19 @@ module PEROBS
 
     # Permanently delete all objects that have not been marked. Those are
     # orphaned and are no longer referenced by any actively used object.
-    # @return [Array] List of object IDs of the deleted objects.
+    # @return [Integer] Count of the deleted objects.
     def delete_unmarked_objects
-      deleted_ids = []
+      deleted_objects_count = 0
       each_item do |id|
         unless dynamo_is_marked?(id)
           dynamo_delete_item(id)
-          deleted_ids << id
+          deleted_objects_count += 1
           @item_counter -= 1
         end
       end
       dynamo_put_item('item_counter', @item_counter.to_s)
 
-      deleted_ids
+      deleted_objects_count
     end
 
     # Mark an object.

@@ -153,15 +153,12 @@ module PEROBS
 
     # Delete all unmarked objects.
     def delete_unmarked_objects
-      PEROBS.log.info "Deleting unmarked objects..."
-      t = Time.now
-
-      deleted_ids = []
+      deleted_objects_count = 0
       @progressmeter.start('Sweeping unmarked objects', @f.size) do |pm|
         each_blob_header do |pos, header|
           if header.is_valid? && !@marks.include?(header.id)
             delete_obj_by_address(pos, header.id)
-            deleted_ids << header.id
+            deleted_objects_count += 1
           end
 
           pm.update(pos)
@@ -169,9 +166,7 @@ module PEROBS
       end
       defragmentize
 
-      PEROBS.log.info "#{deleted_ids.length} unmarked objects deleted " +
-        "in #{Time.now - t} seconds"
-      deleted_ids
+      deleted_objects_count
     end
 
     # Write the given object into the file. This method never uses in-place
@@ -350,8 +345,7 @@ module PEROBS
       new_file_size = 0
       deleted_blobs = 0
       valid_blobs = 0
-      t = Time.now
-      PEROBS.log.info "Defragmenting FlatFile"
+
       # Iterate over all entries.
       @progressmeter.start('Defragmentizing FlatFile', @f.size) do |pm|
         each_blob_header do |pos, header|
@@ -390,7 +384,7 @@ module PEROBS
           pm.update(pos)
         end
       end
-      PEROBS.log.info "FlatFile defragmented in #{Time.now - t} seconds"
+
       PEROBS.log.info "#{distance / 1000} KiB/#{deleted_blobs} blobs of " +
         "#{@f.size / 1000} KiB/#{valid_blobs} blobs or " +
         "#{'%.1f' % (distance.to_f / @f.size * 100.0)}% reclaimed"
