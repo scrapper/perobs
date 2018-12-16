@@ -101,7 +101,7 @@ module PEROBS
     # Close the flat file. This method must be called to ensure that all data
     # is really written into the filesystem.
     def close
-      @space_list.close
+      @space_list.close if @space_list
       @index.close
       if @marks
         @marks.erase
@@ -126,7 +126,7 @@ module PEROBS
         PEROBS.log.fatal "Cannot sync flat file database: #{e.message}"
       end
       @index.sync
-      @space_list.sync
+      @space_list.sync if @space_list
     end
 
     # Delete the blob for the specified ID.
@@ -172,6 +172,9 @@ module PEROBS
         end
       end
       defragmentize
+      # Create a new, empty spact list.
+      @space_list = SpaceTree.new(@db_dir, @progressmeter)
+      @space_list.open
 
       deleted_objects_count
     end
@@ -399,9 +402,6 @@ module PEROBS
       @f.flush
       @f.truncate(new_file_size)
       @f.flush
-      # Create a new, empty spact list.
-      @space_list = SpaceTree.new(@db_dir, @progressmeter)
-      @space_list.open
 
       sync
     end
@@ -442,6 +442,10 @@ module PEROBS
 
       # Reclaim the space saved by compressing entries.
       defragmentize
+
+      # Create a new, empty spact list.
+      @space_list = SpaceTree.new(@db_dir, @progressmeter)
+      @space_list.open
     end
 
     # Check (and repair) the FlatFile.
