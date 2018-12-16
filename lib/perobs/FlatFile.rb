@@ -148,12 +148,19 @@ module PEROBS
       @index.remove(id)
       header = FlatFileBlobHeader.read(@f, addr, id)
       header.clear_flags
-      @space_list.add_space(addr, header.length)
+      @space_list.add_space(addr, header.length) if @space_list
     end
 
     # Delete all unmarked objects.
     def delete_unmarked_objects
       deleted_objects_count = 0
+      # We don't update the space list during this operation as we
+      # defragmentize the blob file at the end. We'll end the operation with
+      # an empty space list.
+      @space_list.close
+      @space_list.erase
+      @space_list = nil
+
       @progressmeter.start('Sweeping unmarked objects', @f.size) do |pm|
         each_blob_header do |pos, header|
           if header.is_valid? && !@marks.include?(header.id)
@@ -392,7 +399,9 @@ module PEROBS
       @f.flush
       @f.truncate(new_file_size)
       @f.flush
-      @space_list.clear
+      # Create a new, empty spact list.
+      @space_list = SpaceTree.new(@db_dir, @progressmeter)
+      @space_list.open
 
       sync
     end
@@ -407,6 +416,14 @@ module PEROBS
       # inserted after the current entry and will be re-read again unless they
       # are inserted after the original file end.
       file_size = @f.size
+
+      # We don't update the space list during this operation as we
+      # defragmentize the blob file at the end. We'll end the operation with
+      # an empty space list.
+      @space_list.close
+      @space_list.erase
+      @space_list = nil
+
       @progressmeter.start('Refreshing objects', @f.size) do |pm|
         each_blob_header do |pos, header|
           if header.is_valid?
