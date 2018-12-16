@@ -95,6 +95,8 @@ module PEROBS
       address = tree.nodes.free_address
       node = BTreeNode.new(tree, address, parent, is_leaf, prev_sibling,
                            next_sibling)
+      # This is a new node. Make sure the data is written to the file.
+      tree.node_cache.insert(node)
 
       # Insert the newly created node into the existing node chain.
       if (node.prev_sibling = prev_sibling)
@@ -107,9 +109,6 @@ module PEROBS
       elsif is_leaf
         tree.set_last_leaf(BTreeNodeLink.new(tree, node))
       end
-
-      # This is a new node. Make sure the data is written to the file.
-      tree.node_cache.insert(node)
 
       BTreeNodeLink.new(tree, node)
     end
@@ -371,6 +370,8 @@ module PEROBS
 
       # Delete the corresponding value.
       removed_value = @values.delete_at(index)
+      @tree.node_cache.insert(self)
+
       if @keys.length < min_keys
         if @prev_sibling && @prev_sibling.parent == @parent
           borrow_from_previous_sibling(@prev_sibling) ||
@@ -394,6 +395,7 @@ module PEROBS
           "from node #{@node_address}"
       end
 
+      @tree.node_cache.insert(self)
       if index == 0
         # Removing the first child is a bit more complicated as the
         # corresponding branch key is in a parent node.
@@ -433,7 +435,6 @@ module PEROBS
         new_root.parent = nil
         @tree.set_root(new_root)
       end
-      @tree.node_cache.insert(self)
     end
 
     def merge_with_leaf_node(node)
@@ -916,6 +917,9 @@ module PEROBS
       if prev_node.keys.length - 1 > min_keys
         index = @parent.search_node_index(self) - 1
 
+        @tree.node_cache.insert(self)
+        @tree.node_cache.insert(prev_node.get_node)
+        @tree.node_cache.insert(@parent.get_node)
         if @is_leaf
           # Move the last key of the previous node to the front of this node
           @keys.unshift(prev_node.keys.pop)
@@ -933,9 +937,6 @@ module PEROBS
           @children.unshift(node = prev_node.children.pop)
           node.parent = link(self)
         end
-        @tree.node_cache.insert(self)
-        @tree.node_cache.insert(prev_node.get_node)
-        @tree.node_cache.insert(@parent.get_node)
 
         return true
       end
@@ -952,6 +953,9 @@ module PEROBS
         # to be updated in the parent node.
         index = next_node.parent.search_node_index(next_node) - 1
 
+        @tree.node_cache.insert(self)
+        @tree.node_cache.insert(next_node.get_node)
+        @tree.node_cache.insert(next_node.parent.get_node)
         if @is_leaf
           # Move the first key of the next node to the end of the this node
           @keys << next_node.keys.shift
@@ -970,9 +974,6 @@ module PEROBS
           @children << (node = next_node.children.shift)
           node.parent = link(self)
         end
-        @tree.node_cache.insert(self)
-        @tree.node_cache.insert(next_node.get_node)
-        @tree.node_cache.insert(next_node.parent.get_node)
 
         return true
       end
