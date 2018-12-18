@@ -88,6 +88,7 @@ module PEROBS
       mode = :searching_next_header
       addr = file.pos unless addr
       buf = nil
+      corruption_start = nil
 
       loop do
         buf_with_crc = nil
@@ -131,6 +132,11 @@ module PEROBS
 
         if (read_crc = Zlib.crc32(buf, 0)) == crc
           # We have found a valid header.
+          if corruption_start
+            PEROBS.log.error "FlatFile corruption ends at #{addr}. " +
+              "#{addr - corruption_start} bytes skipped. Some data may " +
+              "not be recoverable."
+          end
           break
         else
           if errors_are_fatal
@@ -138,10 +144,13 @@ module PEROBS
               "#{addr}. Header CRC is #{'%08x' % read_crc} but should be " +
               "#{'%08x' % crc}."
           else
-            PEROBS.log.error "FlatFile corruption found. The FlatFile Header " +
-              "CRC mismatch at address #{addr}. Header CRC is " +
-              "#{'%08x' % read_crc} but should be #{'%08x' % crc}. Trying " +
-              "to find the next header."
+            if corruption_start.nil?
+              PEROBS.log.error "FlatFile corruption found. The FlatFile " +
+                "Header CRC mismatch at address #{addr}. Header CRC is " +
+                "#{'%08x' % read_crc} but should be #{'%08x' % crc}. Trying " +
+                "to find the next header."
+              corruption_start = addr
+            end
             # The blob file is corrupted. There is no valid header at the
             # current position in the file. We now try to find the next valid
             # header by iterating over the remainder of the file advanding one
