@@ -162,13 +162,13 @@ module PEROBS
       @space_list = nil
 
       @progressmeter.start('Sweeping unmarked objects', @f.size) do |pm|
-        each_blob_header do |pos, header|
+        each_blob_header do |header|
           if header.is_valid? && !@marks.include?(header.id)
-            delete_obj_by_address(pos, header.id)
+            delete_obj_by_address(header.addr, header.id)
             deleted_objects_count += 1
           end
 
-          pm.update(pos)
+          pm.update(header.addr)
         end
       end
       defragmentize
@@ -358,7 +358,7 @@ module PEROBS
 
       # Iterate over all entries.
       @progressmeter.start('Defragmentizing FlatFile', @f.size) do |pm|
-        each_blob_header do |pos, header|
+        each_blob_header do |header|
           # Total size of the current entry
           entry_bytes = FlatFileBlobHeader::LENGTH + header.length
           if header.is_valid?
@@ -367,13 +367,13 @@ module PEROBS
             if distance > 0
               begin
                 # Read current entry into a buffer
-                @f.seek(pos)
+                @f.seek(header.addr)
                 buf = @f.read(entry_bytes)
                 # Write the buffer right after the end of the previous entry.
-                @f.seek(pos - distance)
+                @f.seek(header.addr - distance)
                 @f.write(buf)
                 # Update the index with the new position
-                @index.insert(header.id, pos - distance)
+                @index.insert(header.id, header.addr - distance)
                 # Mark the space between the relocated current entry and the
                 # next valid entry as deleted space.
                 FlatFileBlobHeader.new(@f, @f.pos, 0,
@@ -385,13 +385,14 @@ module PEROBS
                   "#{header.id}: #{e.message}"
               end
             end
-            new_file_size = pos + FlatFileBlobHeader::LENGTH + header.length
+            new_file_size = header.addr + FlatFileBlobHeader::LENGTH +
+              header.length
           else
             deleted_blobs += 1
             distance += entry_bytes
           end
 
-          pm.update(pos)
+          pm.update(header.addr)
         end
       end
 
@@ -425,18 +426,18 @@ module PEROBS
       @space_list = nil
 
       @progressmeter.start('Refreshing objects', @f.size) do |pm|
-        each_blob_header do |pos, header|
+        each_blob_header do |header|
           if header.is_valid?
-            buf = read_obj_by_address(pos, header.id)
-            delete_obj_by_address(pos, header.id)
+            buf = read_obj_by_address(header.addr, header.id)
+            delete_obj_by_address(header.addr, header.id)
             write_obj_by_id(header.id, buf)
           end
 
           # Some re-inserted blobs may be inserted after the original file end.
           # No need to process those blobs again.
-          break if pos >= file_size
+          break if header.addr >= file_size
 
-          pm.update(pos)
+          pm.update(header.addr)
         end
       end
 
@@ -468,11 +469,11 @@ module PEROBS
       new_index.open
 
       @progressmeter.start('Checking FlatFile blobs', @f.size) do |pm|
-        each_blob_header do |pos, header|
+        each_blob_header do |header|
           if header.is_valid?
             # We have a non-deleted entry.
             begin
-              @f.seek(pos + FlatFileBlobHeader::LENGTH)
+              @f.seek(header.addr + FlatFileBlobHeader::LENGTH)
               buf = @f.read(header.length)
               if buf.bytesize != header.length
                 PEROBS.log.error "Premature end of file in blob with ID " +
@@ -511,7 +512,7 @@ module PEROBS
             # Check if the ID has already been found in the file.
             if (previous_address = new_index.get(header.id))
               PEROBS.log.error "Multiple blobs for ID #{header.id} found. " +
-                "Addresses: #{previous_address}, #{pos}"
+                "Addresses: #{previous_address}, #{header.addr}"
               previous_header = FlatFileBlobHeader.read(@f, previous_address,
                                                         header.id)
               if repair
@@ -531,12 +532,12 @@ module PEROBS
               end
             else
               # ID is unique so far. Add it to the shadow index.
-              new_index.insert(header.id, pos)
+              new_index.insert(header.id, header.addr)
             end
 
           end
 
-          pm.update(pos)
+          pm.update(header.addr)
         end
       end
       # We no longer need the new index.
@@ -578,22 +579,26 @@ module PEROBS
       @space_list.clear
 
       @progressmeter.start('Re-generating FlatFileDB index', @f.size) do |pm|
-        each_blob_header do |pos, header|
+        each_blob_header do |header|
           if header.is_valid?
             if (duplicate_pos = @index.get(header.id))
               PEROBS.log.error "FlatFile contains multiple blobs for ID " +
                 "#{header.id}. First blob is at address #{duplicate_pos}. " +
-                "Other blob found at address #{pos}."
-              @space_list.add_space(pos, header.length) if header.length > 0
+                "Other blob found at address #{header.addr}."
+              if header.length > 0
+                @space_list.add_space(header.addr, header.length)
+              end
               discard_damaged_blob(header)
             else
-              @index.insert(header.id, pos)
+              @index.insert(header.id, header.addr)
             end
           else
-            @space_list.add_space(pos, header.length) if header.length > 0
+            if header.length > 0
+              @space_list.add_space(header.addr, header.length)
+            end
           end
 
-          pm.update(pos)
+          pm.update(header.addr)
         end
       end
 
@@ -612,8 +617,8 @@ module PEROBS
 
     def inspect
       s = '['
-      each_blob_header do |pos, header|
-        s << "{ :pos => #{pos}, :flags => #{header.flags}, " +
+      each_blob_header do |header|
+        s << "{ :pos => #{header.addr}, :flags => #{header.flags}, " +
              ":length => #{header.length}, :id => #{header.id}, " +
              ":crc => #{header.crc}"
         if header.is_valid?
@@ -668,14 +673,12 @@ module PEROBS
     private
 
     def each_blob_header(&block)
-      pos = 0
       begin
         @f.seek(0)
         while (header = FlatFileBlobHeader.read(@f))
-          yield(pos, header)
+          yield(header)
 
-          pos += FlatFileBlobHeader::LENGTH + header.length
-          @f.seek(pos)
+          @f.seek(header.addr + FlatFileBlobHeader::LENGTH + header.length)
         end
       rescue IOError => e
         PEROBS.log.fatal "Cannot read blob in flat file DB: #{e.message}"
@@ -710,25 +713,25 @@ module PEROBS
       errors = 0
 
       @progressmeter.start('Cross checking FlatFileDB', @f.size) do |pm|
-        each_blob_header do |pos, header|
+        each_blob_header do |header|
           if !header.is_valid?
             if header.length > 0
-              unless @space_list.has_space?(pos, header.length)
+              unless @space_list.has_space?(header.addr, header.length)
                 PEROBS.log.error "FlatFile has free space " +
-                  "(addr: #{pos}, len: #{header.length}) that is not in " +
-                "FreeSpaceManager"
+                  "(addr: #{header.addr}, len: #{header.length}) that is " +
+                  "not in FreeSpaceManager"
                 errors += 1
               end
             end
           else
-            unless @index.get(header.id) == pos
-              PEROBS.log.error "FlatFile blob at address #{pos} is listed " +
-                "in index with address #{@index.get(header.id)}"
+            unless @index.get(header.id) == header.addr
+              PEROBS.log.error "FlatFile blob at address #{header.addr} " +
+                "is listed in index with address #{@index.get(header.id)}"
               errors += 1
             end
           end
 
-          pm.update(pos)
+          pm.update(header.addr)
         end
       end
 
