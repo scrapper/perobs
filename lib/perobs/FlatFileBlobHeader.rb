@@ -85,58 +85,70 @@ module PEROBS
       # error message but it is not fatal.
       errors_are_fatal = !addr.nil?
 
-      buf_with_crc = nil
-      begin
-        if addr
+      mode = :searching_next_header
+      addr = file.pos unless addr
+      buf = nil
+
+      loop do
+        buf_with_crc = nil
+        begin
           file.seek(addr)
-        else
-          addr = file.pos
+          buf_with_crc = file.read(LENGTH)
+        rescue IOError => e
+          if errors_are_fatal
+            PEROBS.log.fatal "Cannot read blob header in flat file DB at " +
+              "address #{addr}: #{e.message}"
+          else
+            PEROBS.log.error "Cannot read blob header in flat file DB: " +
+              e.message
+            return nil
+          end
         end
-        buf_with_crc = file.read(LENGTH)
-      rescue IOError => e
-        if errors_are_fatal
-          PEROBS.log.fatal "Cannot read blob header in flat file DB at " +
-            "address #{addr}: #{e.message}"
-        else
-          PEROBS.log.error "Cannot read blob header in flat file DB: " +
-            e.message
+
+        # Did we read anything?
+        if buf_with_crc.nil?
+          if errors_are_fatal
+            PEROBS.log.fatal "Cannot read blob header " +
+              "#{id ? "for ID #{id} " : ''}at address #{addr}"
+          else
+            # We have reached the end of the file.
+            return nil
+          end
+        end
+
+        # Did we get the full header?
+        if buf_with_crc.length != LENGTH
+          PEROBS.log.error "Incomplete FlatFileBlobHeader: Only " +
+            "#{buf_with_crc.length} " +
+            "bytes of #{LENGTH} could be read "
+          "#{id ? "for ID #{id} " : ''}at address #{addr}"
           return nil
         end
-      end
 
-      # If the read wasn't targeting a specific address and fails, this is the
-      # indication of having reached the end of file. We return nil.
-      return nil if !errors_are_fatal && buf_with_crc.nil?
+        # Check the CRC of the header
+        buf = buf_with_crc[0..-5]
+        crc = buf_with_crc[-4..-1].unpack('L')[0]
 
-      # Did we read anything?
-      if buf_with_crc.nil?
-        PEROBS.log.fatal "Cannot read blob header " +
-          "#{id ? "for ID #{id} " : ''}at address #{addr}"
-      end
-
-      # Did we get the full header?
-      if buf_with_crc.length != LENGTH
-        PEROBS.log.error "Incomplete FlatFileBlobHeader: Only " +
-          "#{buf_with_crc.length} " +
-          "bytes of #{LENGTH} could be read "
-          "#{id ? "for ID #{id} " : ''}at address #{addr}"
-        return nil
-      end
-
-      # Check the CRC of the header
-      buf = buf_with_crc[0..-5]
-      crc = buf_with_crc[-4..-1].unpack('L')[0]
-
-      if (read_crc = Zlib.crc32(buf, 0)) != crc
-        if errors_are_fatal
-          PEROBS.log.fatal "FlatFile Header CRC mismatch at address #{addr}. " +
-            "Header CRC is #{'%08x' % read_crc} but should be " +
-            "#{'%08x' % crc}."
+        if (read_crc = Zlib.crc32(buf, 0)) == crc
+          # We have found a valid header.
+          break
         else
-          PEROBS.log.error "FlatFile Header CRC mismatch at address #{addr}. " +
-            "Header CRC is #{'%08x' % read_crc} but should be " +
-            "#{'%08x' % crc}."
-          return nil
+          if errors_are_fatal
+            PEROBS.log.fatal "FlatFile Header CRC mismatch at address " +
+              "#{addr}. Header CRC is #{'%08x' % read_crc} but should be " +
+              "#{'%08x' % crc}."
+          else
+            PEROBS.log.error "FlatFile corruption found. The FlatFile Header " +
+              "CRC mismatch at address #{addr}. Header CRC is " +
+              "#{'%08x' % read_crc} but should be #{'%08x' % crc}. Trying " +
+              "to find the next header."
+            # The blob file is corrupted. There is no valid header at the
+            # current position in the file. We now try to find the next valid
+            # header by iterating over the remainder of the file advanding one
+            # byte with each step until we hit the end of the file or find the
+            # next valid header.
+            addr += 1
+          end
         end
       end
 
