@@ -209,20 +209,33 @@ describe PEROBS::Store do
 
   it 'should garbage collect unlinked objects' do
     @store = PEROBS::Store.new(@db_file)
-    @store['person1'] = obj = @store.new(Person)
-    id1 = obj._id
-    @store['person2'] = obj = @store.new(Person)
-    id2 = obj._id
-    obj.related = obj = @store.new(Person)
-    id3 = obj._id
+    persons = []
+    0.upto(20) do |i|
+      persons[i] = obj = @store.new(Person)
+      obj.name = "person#{i}"
+      if i < 3
+        @store["person#{i}"] = obj
+      else
+        persons[i - 3].related = obj
+      end
+    end
     @store.sync
-    @store['person1'] = nil
+    expect(@store.size).to eq(21)
+
+    @store['person0'] = nil
     capture_io { @store.gc }
+    expect(@store.size).to eq(14)
+    capture_io { expect { @store.check }.to_not raise_error }
     capture_io { @store.exit }
     @store = PEROBS::Store.new(@db_file)
-    expect(@store.object_by_id(id1)).to be_nil
-    expect(@store['person2']._id).to eq(id2)
-    expect(@store['person2'].related._id).to eq(id3)
+    capture_io { expect { @store.check }.to_not raise_error }
+
+    person = @store['person1']
+    i = 0
+    while (person = person.related) do
+      i += 1
+    end
+    expect(i).to eq(6)
   end
 
   it 'should handle cyclicly linked objects' do

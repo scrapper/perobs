@@ -318,6 +318,16 @@ module PEROBS
       @cache.flush
     end
 
+    # Return the number of object stored in the store. CAVEAT: This method
+    # will only return correct values when it is separated from any mutating
+    # call by a call to sync().
+    # @return [Integer] Number of persistently stored objects in the Store.
+    def size
+      # We don't include the Hash that stores the root objects into the object
+      # count.
+      @db.item_counter - 1
+    end
+
     # Discard all objects that are not somehow connected to the root objects
     # from the back-end storage. The garbage collector is not invoked
     # automatically. Depending on your usage pattern, you need to call this
@@ -527,8 +537,7 @@ module PEROBS
     def mark
       classes = Set.new
       marked_objects = 0
-      @progressmeter.start("Marking linked objects",
-                           @db.item_counter) do
+      @progressmeter.start("Marking linked objects", @db.item_counter) do
         each do |obj|
           classes.add(obj.class)
           @progressmeter.update(marked_objects += 1)
