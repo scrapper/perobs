@@ -2,7 +2,7 @@
 #
 # = Store.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015, 2016, 2017, 2018
+# Copyright (c) 2015, 2016, 2017, 2018, 2019
 # by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
@@ -39,6 +39,7 @@ require 'perobs/Hash'
 require 'perobs/Array'
 require 'perobs/BigTree'
 require 'perobs/BigHash'
+require 'perobs/BigArray'
 require 'perobs/ProgressMeter'
 require 'perobs/ConsoleProgressMeter'
 

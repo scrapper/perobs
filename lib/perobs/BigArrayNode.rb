@@ -79,25 +79,28 @@ module PEROBS
         # Create a new leaf node. It stores values and has no children.
         self.values = @store.new(PEROBS::Array)
         self.children = self.offsets = nil
+
+        # Link the neighboring siblings to the newly inserted node.  If the
+        # node has no sibling on a side we also must register it as first or
+        # last leaf with the BigArray object.
+        if (self.prev_sibling = prev_sibling)
+          @prev_sibling.next_sibling = myself
+        else
+          @tree.first_leaf = myself
+        end
+        if (self.next_sibling = next_sibling)
+          @next_sibling.prev_sibling = myself
+        else
+          @tree.last_leaf = myself
+        end
       else
         # Create a new branch node. It stores keys and child node references
         # but no values.
         self.offsets = @store.new(PEROBS::Array)
         self.children = @store.new(PEROBS::Array)
         self.values = nil
-      end
-      # Link the neighboring siblings to the newly inserted node. If the node
-      # is a leaf node and has no sibling on a side we also must register it
-      # as first or last leaf with the BigArray object.
-      if (self.prev_sibling = prev_sibling)
-        @prev_sibling.next_sibling = myself
-      elsif is_leaf?
-        @tree.first_leaf = myself
-      end
-      if (self.next_sibling = next_sibling)
-        @next_sibling.prev_sibling = myself
-      elsif is_leaf?
-        @tree.last_leaf = myself
+        # Branch nodes don't need sibling links.
+        self.prev_sibling = self.next_sibling = nil
       end
     end
 
@@ -252,32 +255,6 @@ module PEROBS
         "looking for index #{index}"
     end
 
-    # Return the node chain from the root to the leaf node storing the
-    # key/value pair.
-    # @param key [Integer] key to search for
-    # @return [Array of BigArrayNode] node list (may be empty)
-    def node_chain(key)
-      node = myself
-      list = [ node ]
-
-      while node do
-        # Find index of the entry that best fits the key.
-        i = node.search_key_index(key)
-        if node.is_leaf?
-          # This is a leaf node. Check if there is an exact match for the
-          # given key and return the corresponding value or nil.
-          return node.keys[i] == key ? list : []
-        end
-
-        # Add current node to chain.
-        list << node
-        # Descend into the right child node to continue the search.
-        node = node.children[i]
-      end
-
-      PEROBS.log.fatal "Could not find node chain for key #{key}"
-    end
-
     # Iterate over all the key/value pairs in this node and all sub-nodes.
     # @yield [key, value]
     def each
@@ -357,6 +334,11 @@ module PEROBS
             if node.values
               node.error "values must be nil for a branch node"
               return false
+            end
+
+            unless @prev_sibling.nil? && @next_sibling.nil?
+              node.error "prev_sibling and next_sibling must be nil for " +
+                "branch nodes"
             end
 
             return false unless node.check_offsets
@@ -477,23 +459,6 @@ module PEROBS
           error "Child #{i} does not have parent pointing " +
             "to this node"
           return false
-        end
-
-        if i > 0
-          unless @children[i - 1].next_sibling == child
-            error "next_sibling of node " +
-              "#{@children[i - 1]._id} " +
-              "must point to node #{child._id}"
-            return false
-          end
-        end
-        if i < @children.length - 1
-          unless child == @children[i + 1].prev_sibling
-            error "prev_sibling of node " +
-              "#{@children[i + 1]._id} " +
-              "must point to node #{child._id}"
-            return false
-          end
         end
       end
 
@@ -983,11 +948,11 @@ module PEROBS
       c1 = @children[child_index]
       c2 = @children[child_index + 1]
 
-      # Update the sibling links
-      c1.next_sibling = c2.next_sibling
-      c1.next_sibling.prev_sibling = c1 if c1.next_sibling
-
       if c1.is_leaf?
+        # Update the sibling links
+        c1.next_sibling = c2.next_sibling
+        c1.next_sibling.prev_sibling = c1 if c1.next_sibling
+
         c1.values += c2.values
         # Adjust the last_leaf reference in the @tree if c1 is now the last
         # sibling.

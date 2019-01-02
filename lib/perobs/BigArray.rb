@@ -46,8 +46,12 @@ module PEROBS
     # Internal constructor. Use Store.new() instead.
     # @param p [Handle]
     # @param node_size [Integer] The size of the tree nodes. This determines
-    #        how many entries must be read/written for each operation.
-    def initialize(p, node_size = 127)
+    #        how many entries must be read/written for each operation. The
+    #        default of 150 was emperically found to be a performance sweet
+    #        spot. Smaller values will improve write operations. Larger
+    #        values will improve read operations. 20 - 500 is a reasonable
+    #        range to try.
+    def initialize(p, node_size = 150)
       super(p)
       unless node_size > 3
         PEROBS.log.fatal "Node size (#{node_size}) must be larger than 3"
@@ -124,14 +128,6 @@ module PEROBS
       return nil if index >= @entry_counter
 
       @root.get(index)
-    end
-
-    # Return the node chain from the root to the leaf node storing the
-    # key/value pair.
-    # @param key [Integer] key to search for
-    # @return [Array of BigArrayNode] node list (may be empty)
-    def node_chain(key)
-      @root.node_chain(key)
     end
 
     # Check if there is an entry for the given key.
