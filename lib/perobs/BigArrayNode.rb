@@ -255,33 +255,23 @@ module PEROBS
         "looking for index #{index}"
     end
 
-    # Iterate over all the key/value pairs in this node and all sub-nodes.
-    # @yield [key, value]
+    # Iterate over all the values of the node.
+    # @yield [value]
     def each
-      traverse do |node, position, stack|
-        if node.is_leaf? && position < node.keys.size
-          yield(node.keys[position], node.values[position])
-        end
+      return unless is_leaf?
+
+      @values.each do |v|
+        yield(v)
       end
     end
 
-    # Iterate over all the key/value pairs of the node.
-    # @yield [key, value]
-    def each_element
+    # Iterate over all the values of the node in reverse order.
+    # @yield [value]
+    def reverse_each
       return unless is_leaf?
 
-      0.upto(@keys.length - 1) do |i|
-        yield(@keys[i], @values[i])
-      end
-    end
-
-    # Iterate over all the key/value pairs of the node in reverse order.
-    # @yield [key, value]
-    def reverse_each_element
-      return unless is_leaf?
-
-      (@keys.length - 1).downto(0) do |i|
-        yield(@keys[i], @values[i])
+      @values.reverse_each do |v|
+        yield(v)
       end
     end
 

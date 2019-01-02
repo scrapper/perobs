@@ -169,4 +169,26 @@ describe PEROBS::BigArray do
     expect(@a.size).to eql(0)
   end
 
+  it 'should iterate over all values' do
+    n = 3 * NODE_ENTRIES
+    0.upto(n) { |i| @a.insert(i, i) }
+
+    i = 0
+    @a.each do |v|
+      expect(v).to eql(i)
+      i += 1
+    end
+  end
+
+  it 'should iterate over all values in reverse order' do
+    n = 3 * NODE_ENTRIES
+    0.upto(n) { |i| @a.insert(i, i) }
+
+    i = 0
+    @a.reverse_each do |v|
+      expect(v).to eql(n - i)
+      i += 1
+    end
+  end
+
 end

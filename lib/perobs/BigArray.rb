@@ -196,7 +196,7 @@ module PEROBS
     def each(&block)
       node = @first_leaf
       while node
-        node.each_element(&block)
+        node.each(&block)
         node = node.next_sibling
       end
     end
@@ -207,7 +207,7 @@ module PEROBS
     def reverse_each(&block)
       node = @last_leaf
       while node
-        node.reverse_each_element(&block)
+        node.reverse_each(&block)
         node = node.prev_sibling
       end
     end
