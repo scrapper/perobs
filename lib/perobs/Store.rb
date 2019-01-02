@@ -313,7 +313,8 @@ module PEROBS
       if @cache.in_transaction?
         @cache.abort_transaction
         @cache.flush
-        PEROBS.log.fatal "You cannot call sync() during a transaction: #{Kernel.caller}"
+        PEROBS.log.fatal "You cannot call sync() during a transaction: \n" +
+          Kernel.caller.join("\n")
       end
       @cache.flush
     end

@@ -60,10 +60,11 @@ module PEROBS
     # These methods do not mutate the Array and only perform read operations.
     # They do not return basic objects types.
     ([
-      :==, :[], :<=>, :at, :bsearch, :count, :cycle, :each, :each_index,
-      :empty?, :eql?, :fetch, :find_index, :first, :frozen?, :include?,
-      :index, :join, :last, :length, :pack, :pretty_print, :pretty_print_cycle,
-      :reverse_each, :rindex, :sample, :size, :to_a, :to_ary, :to_s
+      :==, :[], :<=>, :at, :bsearch, :bsearch_index, :count, :cycle,
+      :each, :each_index, :empty?, :eql?, :fetch, :find_index, :first,
+      :frozen?, :include?, :index, :join, :last, :length, :pack,
+      :pretty_print, :pretty_print_cycle, :reverse_each, :rindex, :sample,
+      :size, :to_a, :to_ary, :to_s
     ] + Enumerable.instance_methods).uniq.each do |method_sym|
       define_method(method_sym) do |*args, &block|
         @store.cache.cache_read(self)
