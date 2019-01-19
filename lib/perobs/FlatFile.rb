@@ -350,15 +350,23 @@ module PEROBS
 
     # Eliminate all the holes in the file. This is an in-place
     # implementation. No additional space will be needed on the file system.
-    def defragmentize
+    def defragmentize(rebuild_index = false)
       distance = 0
       new_file_size = 0
       deleted_blobs = 0
+      corrupted_blobs = 0
       valid_blobs = 0
 
       # Iterate over all entries.
       @progressmeter.start('Defragmentizing FlatFile', @f.size) do |pm|
         each_blob_header do |header|
+          # If we have stumbled over a corrupted blob we treat it similar to a
+          # deleted blob and reuse the space.
+          if header.corruption_start
+            distance += header.addr - header.corruption_start
+            corrupted_blobs += 1
+          end
+
           # Total size of the current entry
           entry_bytes = FlatFileBlobHeader::LENGTH + header.length
           if header.is_valid?
@@ -384,6 +392,8 @@ module PEROBS
                 PEROBS.log.fatal "Error while moving blob for ID " +
                   "#{header.id}: #{e.message}"
               end
+            elsif rebuild_index
+              @index.insert(header.id, header.addr)
             end
             new_file_size = header.addr + FlatFileBlobHeader::LENGTH +
               header.length
@@ -399,6 +409,10 @@ module PEROBS
       PEROBS.log.info "#{distance / 1000} KiB/#{deleted_blobs} blobs of " +
         "#{@f.size / 1000} KiB/#{valid_blobs} blobs or " +
         "#{'%.1f' % (distance.to_f / @f.size * 100.0)}% reclaimed"
+      if corrupted_blobs > 0
+        PEROBS.log.info "#{corrupted_blobs} were found and their space " +
+          "was recycled"
+      end
 
       @f.flush
       @f.truncate(new_file_size)
@@ -468,8 +482,9 @@ module PEROBS
       new_index.erase
       new_index.open
 
+      corrupted_blobs = 0
       @progressmeter.start('Checking FlatFile blobs', @f.size) do |pm|
-        each_blob_header do |header|
+        corrupted_blobs = each_blob_header do |header|
           if header.is_valid?
             # We have a non-deleted entry.
             begin
@@ -539,29 +554,37 @@ module PEROBS
 
           pm.update(header.addr)
         end
+
+        errors += corrupted_blobs
       end
+
       # We no longer need the new index.
       new_index.close
       new_index.erase
 
-      # Now we check the index data. It must be correct and the entries must
-      # match the blob file. All entries in the index must be in the blob file
-      # and vise versa.
-      begin
-        nodes = 0
-        index_ok = false
-        @progressmeter.start('Checking index', @index.entries_count) do |pm|
-          index_ok = @index.check do |id, address|
-            has_id_at?(id, address)
-            pm.update(nodes += 1)
+      if repair && corrupted_blobs > 0
+        clear_index_and_spaces
+        defragmentize(true)
+      else
+        # Now we check the index data. It must be correct and the entries must
+        # match the blob file. All entries in the index must be in the blob file
+        # and vise versa.
+        begin
+          nodes = 0
+          index_ok = false
+          @progressmeter.start('Checking index', @index.entries_count) do |pm|
+            index_ok = @index.check do |id, address|
+              has_id_at?(id, address)
+              pm.update(nodes += 1)
+            end
           end
-        end
-        unless index_ok && @space_list.check(self) && cross_check_entries
+          unless index_ok && @space_list.check(self) && cross_check_entries
+            regenerate_index_and_spaces if repair
+          end
+        rescue PEROBS::FatalError
+          errors += 1
           regenerate_index_and_spaces if repair
         end
-      rescue PEROBS::FatalError
-        errors += 1
-        regenerate_index_and_spaces if repair
       end
 
       sync if repair
@@ -673,9 +696,15 @@ module PEROBS
     private
 
     def each_blob_header(&block)
+      corrupted_blobs = 0
+
       begin
         @f.seek(0)
         while (header = FlatFileBlobHeader.read(@f))
+          if header.corruption_start
+            corrupted_blobs += 1
+          end
+
           yield(header)
 
           @f.seek(header.addr + FlatFileBlobHeader::LENGTH + header.length)
@@ -683,6 +712,8 @@ module PEROBS
       rescue IOError => e
         PEROBS.log.fatal "Cannot read blob in flat file DB: #{e.message}"
       end
+
+      corrupted_blobs
     end
 
     def find_free_blob(bytes)
@@ -742,6 +773,22 @@ module PEROBS
       PEROBS.log.error "Discarding corrupted data blob for ID #{header.id} " +
         "at offset #{header.addr}"
       header.clear_flags
+    end
+
+    def clear_index_and_spaces
+      # Ensure that the index is really closed.
+      @index.close
+      # Erase it completely
+      @index.erase
+      # Then create it again.
+      @index.open
+
+      # Ensure that the spaces list is really closed.
+      @space_list.close
+      # Erase it completely
+      @space_list.erase
+      # Then create it again
+      @space_list.open
     end
 
   end

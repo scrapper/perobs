@@ -412,12 +412,11 @@ module PEROBS
       # Delete all broken root objects.
       if repair
         @root_objects.delete_if do |name, id|
-          unless (res = @db.check(id, repair))
+          unless @db.check(id, repair)
             PEROBS.log.error "Discarding broken root object '#{name}' " +
               "with ID #{id}"
             stats[:errors] += 1
           end
-          !res
         end
       end
 

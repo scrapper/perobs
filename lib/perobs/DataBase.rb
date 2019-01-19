@@ -2,7 +2,7 @@
 #
 # = DataBase.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015, 2018 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2018, 2019 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -44,7 +44,7 @@ module PEROBS
     # deriving classes and then called via their constructor.
     def initialize(options)
       @serializer = options[:serializer] || :json
-      @progressmeter = options[:progressmeter]
+      @progressmeter = options[:progressmeter] || ProgressMeter.new
       @config = {}
     end
 

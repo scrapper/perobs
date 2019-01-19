@@ -54,6 +54,7 @@ module PEROBS
     OUTDATED_FLAG_BIT = 3
 
     attr_reader :addr, :flags, :length, :id, :crc
+    attr_accessor :corruption_start
 
     # Create a new FlatFileBlobHeader with the given flags, length, id and crc.
     # @param file [File] the FlatFile that contains the header
@@ -69,6 +70,8 @@ module PEROBS
       @length = length
       @id = id
       @crc = crc
+      # This is only set if the header is preceded by a corrupted blob.
+      @corruption_start = nil
     end
 
     # Read the header from the given File.
@@ -162,6 +165,9 @@ module PEROBS
       end
 
       header = FlatFileBlobHeader.new(file, addr, *buf.unpack(FORMAT))
+      if corruption_start
+        header.corruption_start = corruption_start
+      end
 
       if id && header.id != id
         PEROBS.log.fatal "Mismatch between FlatFile index and blob file " +

@@ -114,5 +114,42 @@ describe PEROBS::FlatFileDB do
     expect(store['o'].b).to eql(42)
   end
 
+  it 'should repair a corrupted database.blobs file' do
+    @store.exit
+
+    db = PEROBS::FlatFileDB.new(@db_dir)
+    db_file = File.join(@db_dir, 'database.blobs')
+    db.open
+    0.upto(5) do |i|
+      db.put_object("#{i + 1}:#{'X' * (i + 1) * 30}", i + 1)
+    end
+    db.close
+    db.open
+    0.upto(5) do |i|
+      db.put_object("#{i + 10}:#{'Y' * (i + 1) * 25}", i + 10)
+    end
+    pos = db.instance_variable_get('@flat_file').find_obj_addr_by_id(10)
+    db.close
+
+    f = File.open(db_file, 'rb+')
+    f.seek(pos)
+    f.write('ZZZZZ')
+    f.close
+
+    db.open
+    expect(db.check_db).to eql(1)
+    expect(db.check_db(true)).to eql(1)
+    expect(db.check_db).to eql(0)
+
+    0.upto(5) do |i|
+      expect(db.get_object(i + 1)).to eql("#{i + 1}:#{'X' * (i + 1) * 30}")
+    end
+    expect(db.get_object(10)).to be_nil
+    1.upto(5) do |i|
+      expect(db.get_object(i + 10)).to eql("#{i + 10}:#{'Y' * (i + 1) * 25}")
+    end
+    db.close
+  end
+
 end
 
