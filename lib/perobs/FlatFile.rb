@@ -410,8 +410,8 @@ module PEROBS
         "#{@f.size / 1000} KiB/#{valid_blobs} blobs or " +
         "#{'%.1f' % (distance.to_f / @f.size * 100.0)}% reclaimed"
       if corrupted_blobs > 0
-        PEROBS.log.info "#{corrupted_blobs} were found and their space " +
-          "was recycled"
+        PEROBS.log.info "#{corrupted_blobs} corrupted blob(s) found. Space " +
+          "was recycled."
       end
 
       @f.flush
