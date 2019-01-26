@@ -38,6 +38,8 @@ module PEROBS
   # is used to represent an undefined address or nil. The file has a 4 * 8
   # bytes long header that stores the total entry count, the total space
   # count, the offset of the first entry and the offset of the first space.
+  # The header is followed by a custom entry section. Each entry is also 8
+  # bytes long. After the custom entry section the data blobs start.
   class EquiBlobsFile
 
     TOTAL_ENTRIES_OFFSET = 0
@@ -342,7 +344,7 @@ module PEROBS
 
       @first_space = offset
       @total_spaces += 1
-      @total_entries -= 1
+      @total_entries -= 1 unless marker == 1
       write_header
 
       if offset == @f.size - 1 - @entry_bytes
@@ -355,6 +357,8 @@ module PEROBS
     # Check the file for logical errors.
     # @return [Boolean] true of file has no errors, false otherwise.
     def check
+      sync
+
       return false unless check_spaces
       return false unless check_entries
 

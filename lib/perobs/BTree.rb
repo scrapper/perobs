@@ -147,6 +147,9 @@ module PEROBS
     # Check if the tree file contains any errors.
     # @return [Boolean] true if no erros were found, false otherwise
     def check(&block)
+      sync
+      return false unless @nodes.check
+
       i = 0
       res = @root.check do |k, v|
         yield(k, v) if block_given?

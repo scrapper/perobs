@@ -77,7 +77,7 @@ module PEROBS
 
     # Flush all pending writes to the file system.
     def sync
-      @cache.flush
+      @cache.flush(true)
       @nodes.sync
     end
 
@@ -158,7 +158,8 @@ module PEROBS
     # @param flat_file [FlatFile] Flat file to compare with
     # @return True if space list matches, flase otherwise
     def check(flat_file = nil)
-      @nodes.check
+      sync
+      return false unless @nodes.check
       root.check(flat_file)
     end
 

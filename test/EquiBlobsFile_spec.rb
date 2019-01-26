@@ -32,6 +32,8 @@ require 'perobs/ProgressMeter'
 describe PEROBS::EquiBlobsFile do
 
   before(:all) do
+    PEROBS.log.level = Logger::ERROR
+    PEROBS.log.open($stderr)
     @db_dir = generate_db_name('EquiBlobsFile')
     FileUtils.mkdir_p(@db_dir)
     @bf = PEROBS::EquiBlobsFile.new(@db_dir, 'EquiBlobsFile',
@@ -46,7 +48,7 @@ describe PEROBS::EquiBlobsFile do
     @bf.open
     expect(@bf.total_entries).to eql(0)
     expect(@bf.total_spaces).to eql(0)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
   end
 
   it 'should return free addresses' do
@@ -56,22 +58,22 @@ describe PEROBS::EquiBlobsFile do
   it 'should store and retrieve a blob' do
     @bf.store_blob(1,'00000000')
     expect(@bf.total_entries).to eql(1)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
     expect(@bf.retrieve_blob(1)).to eql('00000000')
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
   end
 
   it 'should store and retrieve multiple blobs' do
     @bf.store_blob(1,'XXXXXXXX')
     expect(@bf.total_entries).to eql(1)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
     @bf.store_blob(2,'11111111')
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
     @bf.store_blob(3,'22222222')
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
     @bf.store_blob(4,'33333333')
     expect(@bf.total_entries).to eql(4)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
     expect(@bf.retrieve_blob(1)).to eql('XXXXXXXX')
     expect(@bf.retrieve_blob(2)).to eql('11111111')
     expect(@bf.retrieve_blob(3)).to eql('22222222')
@@ -88,15 +90,15 @@ describe PEROBS::EquiBlobsFile do
     @bf.delete_blob(3)
     expect(@bf.total_entries).to eql(3)
     expect(@bf.total_spaces).to eql(1)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
     @bf.delete_blob(2)
     expect(@bf.total_entries).to eql(2)
     expect(@bf.total_spaces).to eql(2)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
     @bf.delete_blob(1)
     expect(@bf.total_entries).to eql(1)
     expect(@bf.total_spaces).to eql(3)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
   end
 
   it 'should raise error when inserting into a non-reserved cell' do
@@ -104,13 +106,13 @@ describe PEROBS::EquiBlobsFile do
     expect { @bf.store_blob(1,'XXXXXXXX') }.to raise_error(PEROBS::FatalError)
     PEROBS.log.open($stderr)
     expect(@bf.total_entries).to eql(1)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
   end
 
   it 'shoud support inserting into deleted cells' do
     expect(@bf.free_address).to eql(1)
     @bf.store_blob(1, '44444444')
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
   end
 
   it 'should persist all values over and close/open' do
@@ -118,7 +120,7 @@ describe PEROBS::EquiBlobsFile do
     @bf.open
     expect(@bf.total_entries).to eql(2)
     expect(@bf.total_spaces).to eql(2)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
 
     expect(@bf.retrieve_blob(1)).to eql('44444444')
     expect(@bf.retrieve_blob(4)).to eql('33333333')
@@ -127,26 +129,32 @@ describe PEROBS::EquiBlobsFile do
   it 'should support inserting into deleted cells (2)' do
     expect(@bf.free_address).to eql(2)
     @bf.store_blob(2,'55555555')
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
 
     expect(@bf.free_address).to eql(3)
     @bf.store_blob(3,'66666666')
     expect(@bf.total_entries).to eql(4)
 
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
+  end
+
+  it 'should support deleting reserved blobs' do
+    adr = @bf.free_address
+    @bf.delete_blob(adr)
+    expect(@bf.check).to be true
   end
 
   it 'should support clearing the file' do
     @bf.clear
     expect(@bf.total_entries).to eql(0)
     expect(@bf.total_spaces).to eql(0)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
     expect(@bf.free_address).to eql(1)
     @bf.store_blob(1,'00000000')
     expect(@bf.total_entries).to eql(1)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
     expect(@bf.retrieve_blob(1)).to eql('00000000')
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
   end
 
   it 'should support trimming the file' do
@@ -163,22 +171,22 @@ describe PEROBS::EquiBlobsFile do
     @bf.delete_blob(7)
     expect(@bf.total_entries).to eql(3)
     expect(@bf.total_spaces).to eql(5)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
 
     @bf.delete_blob(8)
     expect(@bf.total_entries).to eql(2)
     expect(@bf.total_spaces).to eql(4)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
 
     @bf.delete_blob(6)
     expect(@bf.total_entries).to eql(1)
     expect(@bf.total_spaces).to eql(2)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
 
     @bf.delete_blob(3)
     expect(@bf.total_entries).to eql(0)
     expect(@bf.total_spaces).to eql(0)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
   end
 
   it 'should support erasing the file' do
@@ -187,10 +195,10 @@ describe PEROBS::EquiBlobsFile do
     @bf.open
     expect(@bf.total_entries).to eql(0)
     expect(@bf.total_spaces).to eql(0)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
     @bf.store_blob(1,'XXXXXXXX')
     expect(@bf.total_entries).to eql(1)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
   end
 
   it 'should support custom offsets' do
@@ -202,25 +210,89 @@ describe PEROBS::EquiBlobsFile do
     @bf.open
     expect(@bf.total_entries).to eql(0)
     expect(@bf.total_spaces).to eql(0)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
     expect(@bf.free_address).to eql(1)
     @bf.store_blob(1,'11111111')
     expect(@bf.free_address).to eql(2)
     @bf.store_blob(2,'22222222')
     expect(@bf.free_address).to eql(3)
     @bf.store_blob(3,'33333333')
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
     expect(@bf.total_entries).to eql(3)
     expect(@bf.total_spaces).to eql(0)
     @bf.delete_blob(2)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
     expect(@bf.total_entries).to eql(2)
     expect(@bf.total_spaces).to eql(1)
     expect(@bf.free_address).to eql(2)
     @bf.store_blob(2,'44444444')
     expect(@bf.total_entries).to eql(3)
     expect(@bf.total_spaces).to eql(0)
-    capture_io { expect(@bf.check).to be true }
+    expect(@bf.check).to be true
+  end
+
+  it 'should support a mix of adds and deletes' do
+    @bf.close
+    @bf.erase
+    @bf.clear_custom_data
+    @bf.register_custom_data('foo', 42)
+    @bf.register_custom_data('bar', 43)
+    @bf.open
+
+    entries = {}
+    1000.times do |i|
+      rand(30).times do
+        adr = @bf.free_address
+        expect(entries[adr]).to be nil
+        val = rand(2 ** 64)
+        @bf.store_blob(adr, [ val ].pack('Q'))
+        entries[adr] = val
+        #expect(@bf.check).to be true
+      end
+
+      rand(15).times do
+        unless entries.empty?
+          addresses = entries.keys
+          adr = addresses[rand(addresses.length)]
+          expect(@bf.retrieve_blob(adr).unpack('Q').first).to eql(entries[adr])
+          @bf.delete_blob(adr)
+          entries.delete(adr)
+          #expect(@bf.check).to be true
+        end
+      end
+
+      rand(5).times do
+        unless entries.empty?
+          addresses = entries.keys
+          adr = addresses[rand(addresses.length)]
+          val = rand(2 ** 64)
+          @bf.store_blob(adr, [ val ].pack('Q'))
+          entries[adr] = val
+          #expect(@bf.check).to be true
+        end
+      end
+
+      if rand(100) == 0
+        expect(@bf.check).to be true
+      end
+
+      if rand(100) == 0
+        @bf.first_entry = i
+        @bf.set_custom_data('foo', i)
+      end
+
+      if rand(50) == 0
+        @bf.close
+        @bf.open
+      end
+
+      if rand(500) == 0
+        @bf.clear
+        entries = {}
+      end
+    end
+
+    expect(@bf.check).to be true
   end
 
 end

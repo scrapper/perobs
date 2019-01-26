@@ -35,6 +35,8 @@ describe PEROBS::BTree do
     @db_dir = generate_db_name('BTree')
     FileUtils.mkdir_p(@db_dir)
     @m = PEROBS::BTree.new(@db_dir, 'btree', 11, PEROBS::ProgressMeter.new)
+    PEROBS.log.level = Logger::ERROR
+    PEROBS.log.open($stderr)
   end
 
   after(:all) do
