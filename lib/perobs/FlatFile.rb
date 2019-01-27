@@ -358,7 +358,7 @@ module PEROBS
       valid_blobs = 0
 
       # Iterate over all entries.
-      @progressmeter.start('Defragmentizing FlatFile', @f.size) do |pm|
+      @progressmeter.start('Defragmentizing blobs file', @f.size) do |pm|
         each_blob_header do |header|
           # If we have stumbled over a corrupted blob we treat it similar to a
           # deleted blob and reuse the space.
@@ -439,7 +439,8 @@ module PEROBS
       @space_list.erase
       @space_list = nil
 
-      @progressmeter.start('Refreshing objects', @f.size) do |pm|
+      @progressmeter.start('Converting objects to new storage format',
+                           @f.size) do |pm|
         each_blob_header do |header|
           if header.is_valid?
             buf = read_obj_by_address(header.addr, header.id)
@@ -483,7 +484,7 @@ module PEROBS
       new_index.open
 
       corrupted_blobs = 0
-      @progressmeter.start('Checking FlatFile blobs', @f.size) do |pm|
+      @progressmeter.start('Checking blobs file', @f.size) do |pm|
         corrupted_blobs = each_blob_header do |header|
           if header.is_valid?
             # We have a non-deleted entry.
@@ -572,13 +573,8 @@ module PEROBS
         # match the blob file. All entries in the index must be in the blob file
         # and vise versa.
         begin
-          nodes = 0
-          index_ok = false
-          @progressmeter.start('Checking index', @index.entries_count) do |pm|
-            index_ok = @index.check do |id, address|
-              has_id_at?(id, address)
-              pm.update(nodes += 1)
-            end
+          index_ok = @index.check do |id, address|
+            has_id_at?(id, address)
           end
           x_check_errs = 0
           space_check_ok = true
@@ -608,7 +604,7 @@ module PEROBS
       @index.clear
       @space_list.clear
 
-      @progressmeter.start('Re-generating FlatFileDB index', @f.size) do |pm|
+      @progressmeter.start('Re-generating database index', @f.size) do |pm|
         each_blob_header do |header|
           if header.is_valid?
             if (duplicate_pos = @index.get(header.id))
@@ -750,7 +746,7 @@ module PEROBS
     def cross_check_entries
       errors = 0
 
-      @progressmeter.start('Cross checking FlatFileDB', @f.size) do |pm|
+      @progressmeter.start('Cross checking blobs and index', @f.size) do |pm|
         each_blob_header do |header|
           if !header.is_valid?
             if header.length > 0

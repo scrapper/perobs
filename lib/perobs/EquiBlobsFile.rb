@@ -2,7 +2,8 @@
 #
 # = EquiBlobsFile.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2016, 2017, 2018 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2016, 2017, 2018, 2019
+# by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -59,6 +60,7 @@ module PEROBS
     # @param first_entry_default [Integer] Default address of the first blob
     def initialize(dir, name, progressmeter, entry_bytes,
                    first_entry_default = 0)
+      @name = name
       @file_name = File.join(dir, name + '.blobs')
       @progressmeter = progressmeter
       if entry_bytes < 8
@@ -446,7 +448,7 @@ module PEROBS
       return true if next_offset == 0
 
       total_spaces = 0
-      @progressmeter.start('Checking EquiBlobsFile spaces list',
+      @progressmeter.start("Checking #{@name} spaces list",
                            @total_spaces) do |pm|
         begin
           while next_offset != 0
@@ -499,7 +501,7 @@ module PEROBS
       next_offset = address_to_offset(1)
       total_entries = 0
       total_spaces = 0
-      @progressmeter.start('Checking EquiBlobsFile entries',
+      @progressmeter.start("Checking #{@name} entries",
                            @total_spaces + @total_entries) do |pm|
         begin
           @f.seek(next_offset)

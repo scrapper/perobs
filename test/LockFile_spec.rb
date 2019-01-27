@@ -30,7 +30,9 @@ require 'perobs/LockFile'
 describe PEROBS::LockFile do
 
   before(:each) do
-    @dir = Dir.mktmpdir('LockFile')
+    @dir = File.join(Dir.tmpdir,
+                        "#{File.basename('LockFile_spec')}.#{rand(2**32)}")
+    FileUtils.mkdir_p(@dir)
     @file = File.join(@dir, 'LockFile.lock')
   end
 

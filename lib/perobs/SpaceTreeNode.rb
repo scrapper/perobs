@@ -518,62 +518,65 @@ module PEROBS
     # errors.
     # @param flat_file [FlatFile] If given, check that the space is also
     #        present in the given flat file.
+    # @param count [Integer] The total number of entries in the tree
     # @return [false,true] True if OK, false otherwise
-    def check(flat_file)
+    def check(flat_file, count)
       node_counter = 0
       max_depth = 0
 
-      each do |node, mode, stack|
-        max_depth = stack.size if stack.size > max_depth
+      @tree.progressmeter.start('Checking space list entries', count) do |pm|
+        each do |node, mode, stack|
+          max_depth = stack.size if stack.size > max_depth
 
-        case mode
-        when :smaller
-          if node.smaller
-            return false unless node.check_node_link('smaller', stack)
-            smaller_node = node.smaller
-            if smaller_node.size >= node.size
-              PEROBS.log.error "Smaller SpaceTreeNode size " +
-                "(#{smaller_node}) is not smaller than #{node}"
+          case mode
+          when :smaller
+            if node.smaller
+              return false unless node.check_node_link('smaller', stack)
+              smaller_node = node.smaller
+              if smaller_node.size >= node.size
+                PEROBS.log.error "Smaller SpaceTreeNode size " +
+                  "(#{smaller_node}) is not smaller than #{node}"
+                return false
+              end
+            end
+          when :equal
+            if node.equal
+              return false unless node.check_node_link('equal', stack)
+              equal_node = node.equal
+
+              if equal_node.smaller || equal_node.larger
+                PEROBS.log.error "Equal node #{equal_node} must not have " +
+                  "smaller/larger childs"
+                return false
+              end
+
+              if node.size != equal_node.size
+                PEROBS.log.error "Equal SpaceTreeNode size (#{equal_node}) " +
+                  "is not equal parent node #{node}"
+                  return false
+              end
+            end
+          when :larger
+            if node.larger
+              return false unless node.check_node_link('larger', stack)
+              larger_node = node.larger
+              if larger_node.size <= node.size
+                PEROBS.log.error "Larger SpaceTreeNode size " +
+                  "(#{larger_node}) is not larger than #{node}"
+                return false
+              end
+            end
+          when :on_exit
+            if flat_file &&
+              !flat_file.has_space?(node.blob_address, node.size)
+              PEROBS.log.error "SpaceTreeNode has space at offset " +
+                "#{node.blob_address} of size #{node.size} that isn't " +
+                "available in the FlatFile."
               return false
             end
-          end
-        when :equal
-          if node.equal
-            return false unless node.check_node_link('equal', stack)
-            equal_node = node.equal
 
-            if equal_node.smaller || equal_node.larger
-              PEROBS.log.error "Equal node #{equal_node} must not have " +
-                "smaller/larger childs"
-              return false
-            end
-
-            if node.size != equal_node.size
-              PEROBS.log.error "Equal SpaceTreeNode size (#{equal_node}) is " +
-                "not equal parent node #{node}"
-              return false
-            end
+            pm.update(node_counter += 1)
           end
-        when :larger
-          if node.larger
-            return false unless node.check_node_link('larger', stack)
-            larger_node = node.larger
-            if larger_node.size <= node.size
-              PEROBS.log.error "Larger SpaceTreeNode size " +
-                "(#{larger_node}) is not larger than #{node}"
-              return false
-            end
-          end
-        when :on_exit
-          if flat_file &&
-             !flat_file.has_space?(node.blob_address, node.size)
-            PEROBS.log.error "SpaceTreeNode has space at offset " +
-              "#{node.blob_address} of size #{node.size} that isn't " +
-              "available in the FlatFile."
-            return false
-          end
-
-          node_counter += 1
         end
       end
       PEROBS.log.debug "#{node_counter} SpaceTree nodes checked"

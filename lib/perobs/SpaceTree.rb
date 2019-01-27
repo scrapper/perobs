@@ -40,7 +40,7 @@ module PEROBS
   # size which drastically simplifies the backing store operation.
   class SpaceTree
 
-    attr_reader :nodes, :cache
+    attr_reader :nodes, :cache, :progressmeter
 
     # Manage the free spaces tree in the specified directory
     # @param dir [String] directory path of an existing directory
@@ -160,7 +160,7 @@ module PEROBS
     def check(flat_file = nil)
       sync
       return false unless @nodes.check
-      root.check(flat_file)
+      root.check(flat_file, @nodes.total_entries)
     end
 
     # Iterate over all entries and yield address and size.

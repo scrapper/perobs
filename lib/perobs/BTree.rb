@@ -158,15 +158,18 @@ module PEROBS
       sync
       return false unless @nodes.check
 
-      i = 0
-      res = @root.check do |k, v|
-        yield(k, v) if block_given?
-        i += 1
+      entries = 0
+      res = true
+      @progressmeter.start('Checking index structure', @size) do |pm|
+        res = @root.check do |k, v|
+          pm.update(entries += 1)
+          block_given? ? yield(k, v) : true
+        end
       end
 
-      unless i == @size
+      unless entries == @size
         PEROBS.log.error "The BTree size (#{@size}) and the number of " +
-          "found entries (#{i}) don't match"
+          "found entries (#{entries}) don't match"
         return false
       end
 
