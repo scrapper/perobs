@@ -191,4 +191,24 @@ describe PEROBS::BigArray do
     end
   end
 
+  it 'should persist the data' do
+    db_name = generate_db_name(__FILE__ + "_persist")
+    store = PEROBS::Store.new(db_name)
+    store['array'] = a = store.new(PEROBS::BigArray, NODE_ENTRIES)
+
+    (3 * NODE_ENTRIES).times do |i|
+      a.insert(i, i)
+    end
+    expect(a.length).to eq(3 * NODE_ENTRIES)
+    store.exit
+
+    store = PEROBS::Store.new(db_name)
+    a = store['array']
+    (3 * NODE_ENTRIES).times do |i|
+      expect(a[i]).to eql(i)
+    end
+    expect(a.length).to eq(3 * NODE_ENTRIES)
+    store.delete_store
+  end
+
 end

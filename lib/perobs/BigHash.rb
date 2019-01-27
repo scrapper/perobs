@@ -68,8 +68,12 @@ module PEROBS
     # @param p [Handle] Store handle
     def initialize(p)
       super(p)
-      self.btree = @store.new(PEROBS::BigTree)
-      self.entry_counter = 0
+      restore
+    end
+
+    def restore
+      attr_init(:btree, @store.new(PEROBS::BigTree))
+      attr_init(:entry_counter, 0)
     end
 
     # Insert a value that is associated with the given key. If a value for
@@ -96,7 +100,7 @@ module PEROBS
               end
               index_to_insert += 1
             end
-            @entry_counter += 1 unless overwrite
+            self.entry_counter += 1 unless overwrite
             existing_entry[index_to_insert] = entry
           elsif existing_entry.key == key
             # The existing value is for the identical key. We can safely
@@ -109,12 +113,12 @@ module PEROBS
             array_entry << existing_entry
             array_entry << entry
             @btree.insert(hashed_key, array_entry)
-            @entry_counter += 1
+            self.entry_counter += 1
           end
         else
           # No existing entry. Insert the new entry.
           @btree.insert(hashed_key, entry)
-          @entry_counter += 1
+          self.entry_counter += 1
         end
       end
     end
@@ -173,7 +177,7 @@ module PEROBS
       if entry.is_a?(PEROBS::Array)
         entry.each_with_index do |ae, i|
           if ae.key == key
-            @entry_counter -= 1
+            self.entry_counter -= 1
             return entry.delete_at(i).value
           end
         end

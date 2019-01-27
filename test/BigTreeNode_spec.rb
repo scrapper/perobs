@@ -34,7 +34,7 @@ describe PEROBS::BigTreeNode do
   before(:all) do
     @db_name = generate_db_name(__FILE__)
     @store = PEROBS::Store.new(@db_name)
-    @t = @store.new(PEROBS::BigTree, 4)
+    @store['bigtree'] = @t = @store.new(PEROBS::BigTree, 4)
   end
 
   before(:each) do

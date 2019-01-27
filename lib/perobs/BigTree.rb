@@ -51,8 +51,8 @@ module PEROBS
       unless node_size > 2
         PEROBS.log.fatal "Node size (#{node_size}) must be larger than 2"
       end
-      self.node_size = node_size
-      clear
+      attr_init(:node_size, node_size)
+      clear unless instance_variable_defined?('@root')
     end
 
     # Remove all entries from the BigTree.

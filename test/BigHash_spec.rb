@@ -1,6 +1,6 @@
 # encoding: UTF-8
 #
-# Copyright (c) 2017 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2017, 2019 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # This file contains tests for Hash that are similar to the tests for the
 # Hash implementation in MRI. The ideas of these tests were replicated in
@@ -60,7 +60,7 @@ describe PEROBS::Hash do
     @store.delete_store
   end
 
-  it 'should support storing and retriebing an object' do
+  it 'should support storing and retrieving an object' do
     expect(@h.length).to eql(0)
     expect(@h.empty?).to be true
     @h['foo'] = 'bar'
@@ -107,6 +107,25 @@ describe PEROBS::Hash do
     (1..ENTRIES).to_a.shuffle.each do |i|
       expect(@h.delete("key#{i}")).to eql(2 * i)
     end
+  end
+
+  it 'should persist all objects' do
+    db_name = generate_db_name(__FILE__ + "_persist")
+    store = PEROBS::Store.new(db_name)
+    h = store['hash'] = store.new(PEROBS::BigHash)
+    ENTRIES.times do |i|
+      h["key#{i}"] = 2 * i
+    end
+    expect(h.length).to eql(ENTRIES)
+    store.exit
+
+    store = PEROBS::Store.new(db_name)
+    h = store['hash']
+    ENTRIES.times do |i|
+      expect(h["key#{i}"]).to eql(2 * i)
+    end
+    expect(h.length).to eql(ENTRIES)
+    store.delete_store
   end
 
 end

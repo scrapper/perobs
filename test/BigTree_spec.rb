@@ -167,6 +167,26 @@ describe PEROBS::BigTree do
     expect(@t.length).to eql(0)
   end
 
+  it 'should persist the data' do
+    db_name = generate_db_name(__FILE__ + '_persist')
+    store = PEROBS::Store.new(db_name)
+    store['bigtree'] = t = store.new(PEROBS::BigTree, 4)
+    10.times do |i|
+      t.insert(i, i)
+    end
+    10.times do |i|
+      expect(t.get(i)).to eql(i)
+    end
+    store.exit
+
+    store = PEROBS::Store.new(db_name)
+    t = store['bigtree']
+    10.times do |i|
+      expect(t.get(i)).to eql(i)
+    end
+    store.delete_store
+  end
+
   it 'should delete all entries matching a condition' do
     @t.clear
     (1..50).to_a.shuffle.each do |i|
