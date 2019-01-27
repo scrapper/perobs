@@ -101,13 +101,9 @@ module PEROBS
       # Insert the newly created node into the existing node chain.
       if (node.prev_sibling = prev_sibling)
         node.prev_sibling.next_sibling = BTreeNodeLink.new(tree, node)
-      elsif is_leaf
-        tree.set_first_leaf(BTreeNodeLink.new(tree, node))
       end
       if (node.next_sibling = next_sibling)
         node.next_sibling.prev_sibling = BTreeNodeLink.new(tree, node)
-      elsif is_leaf
-        tree.set_last_leaf(BTreeNodeLink.new(tree, node))
       end
 
       BTreeNodeLink.new(tree, node)
@@ -167,7 +163,7 @@ module PEROBS
                            children)
       tree.node_cache.insert(node, false)
 
-      node
+      BTreeNodeLink.new(tree, node)
     end
 
     # @return [String] The format used for String.pack.
@@ -314,8 +310,6 @@ module PEROBS
       upper_sibling.copy_elements(0, self, @keys.size, upper_sibling.keys.size)
       if (@next_sibling = link(upper_sibling.next_sibling))
         @next_sibling.prev_sibling = link(self)
-      elsif @is_leaf
-        @tree.set_last_leaf(link(self))
       end
       @tree.delete_node(upper_sibling.node_address)
 
@@ -408,10 +402,6 @@ module PEROBS
 
       # Remove the child node link.
       child = @children.delete_at(index)
-      # If we remove the first or last leaf node we must update the reference
-      # in the BigTree object.
-      @tree.set_first_leaf(child.next_sibling) if @tree.first_leaf == child
-      @tree.set_last_leaf(child.prev_sibling) if @tree.last_leaf == child
       # Unlink the neighbouring siblings from the child
       child.prev_sibling.next_sibling = child.next_sibling if child.prev_sibling
       child.next_sibling.prev_sibling = child.prev_sibling if child.next_sibling
@@ -509,8 +499,13 @@ module PEROBS
     end
 
     def prev_sibling=(node)
-      raise "Foo #{node.class}" if node.is_a?(BTreeNode)
       @prev_sibling = node
+      if node.nil? && @is_leaf
+        # If this node is a leaf node without a previous sibling we need to
+        # register it as the first leaf node.
+        @tree.set_first_leaf(BTreeNodeLink.new(@tree, self))
+      end
+
       @tree.node_cache.insert(self)
 
       node
@@ -519,6 +514,11 @@ module PEROBS
     def next_sibling=(node)
       @next_sibling = node
       @tree.node_cache.insert(self)
+      if node.nil? && @is_leaf
+        # If this node is a leaf node without a next sibling we need to
+        # register it as the last leaf node.
+        @tree.set_last_leaf(BTreeNodeLink.new(@tree, self))
+      end
 
       node
     end
@@ -679,6 +679,7 @@ module PEROBS
             if node.next_sibling.nil? && @tree.last_leaf != node
               node.error "Leaf node #{node.node_address} has no next sibling " +
                 "but is not the last leaf of the tree"
+              return false
             end
             unless node.keys.size == node.values.size
               node.error "Key count (#{node.keys.size}) and value " +

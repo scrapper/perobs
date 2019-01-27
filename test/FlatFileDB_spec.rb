@@ -48,7 +48,12 @@ describe PEROBS::FlatFileDB do
   before(:each) do
     @db_dir = generate_db_name(__FILE__)
     FileUtils.mkdir_p(@db_dir)
-    @store = PEROBS::Store.new(@db_dir, :engine => PEROBS::FlatFileDB)
+    @store_options = {
+      :engine => PEROBS::FlatFileDB,
+      :log => $stderr,
+      :log_level => Logger::ERROR
+    }
+    @store = PEROBS::Store.new(@db_dir, @store_options)
   end
 
   after(:each) do
@@ -86,7 +91,7 @@ describe PEROBS::FlatFileDB do
     File.write(version_file, '1000000')
 
     # Open the store again
-    expect { PEROBS::Store.new(@db_dir, :engine => PEROBS::FlatFileDB) }.to raise_error(PEROBS::FatalError)
+    expect { PEROBS::Store.new(@db_dir) }.to raise_error(PEROBS::FatalError)
   end
 
   it 'should recover from a lost index file' do
@@ -96,7 +101,7 @@ describe PEROBS::FlatFileDB do
     File.delete(File.join(@db_dir, 'index.blobs'))
     store = nil
     capture_io do
-      store = PEROBS::Store.new(@db_dir, :engine => PEROBS::FlatFileDB)
+      store = PEROBS::Store.new(@db_dir)
     end
     expect(store['o'].b).to eql(42)
   end
@@ -108,7 +113,7 @@ describe PEROBS::FlatFileDB do
     File.write(File.join(@db_dir, 'index.blobs'), '*' * 500)
     store = nil
     capture_io do
-      store = PEROBS::Store.new(@db_dir, :engine => PEROBS::FlatFileDB)
+      store = PEROBS::Store.new(@db_dir)
     end
     capture_io { store.check(true) }
     expect(store['o'].b).to eql(42)
@@ -137,8 +142,12 @@ describe PEROBS::FlatFileDB do
     f.close
 
     db.open
-    expect(db.check_db).to eql(1)
+    expect(db.check_db).to eql(2)
     expect(db.check_db(true)).to eql(1)
+    db.close
+    db = PEROBS::FlatFileDB.new(@db_dir, { :log => $stderr,
+                                           :log_level => Logger::ERROR })
+    db.open
     expect(db.check_db).to eql(0)
 
     0.upto(5) do |i|

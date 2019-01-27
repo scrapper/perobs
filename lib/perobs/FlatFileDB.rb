@@ -52,13 +52,16 @@ module PEROBS
     #        the following options are supported:
     #        :serializer    : Can be :marshal, :json, :yaml
     #        :progressmeter : Reference to a ProgressMeter object
+    #        :log           : IO that should be used for logging
+    #        :log_level     : Minimum Logger level to log
     def initialize(db_name, options = {})
       super(options)
 
       @db_dir = db_name
       # Create the database directory if it doesn't exist yet.
       ensure_dir_exists(@db_dir)
-      PEROBS.log.open(File.join(@db_dir, 'log'))
+      PEROBS.log.level = options[:log_level] if options[:log_level]
+      PEROBS.log.open(options[:log] || File.join(@db_dir, 'log'))
       check_version_and_upgrade
 
       # Read the existing DB config.

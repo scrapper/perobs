@@ -395,8 +395,8 @@ module PEROBS
             elsif rebuild_index
               @index.insert(header.id, header.addr)
             end
-            new_file_size = header.addr + FlatFileBlobHeader::LENGTH +
-              header.length
+            new_file_size = header.addr - distance +
+              FlatFileBlobHeader::LENGTH + header.length
           else
             deleted_blobs += 1
             distance += entry_bytes
@@ -528,6 +528,7 @@ module PEROBS
             if (previous_address = new_index.get(header.id))
               PEROBS.log.error "Multiple blobs for ID #{header.id} found. " +
                 "Addresses: #{previous_address}, #{header.addr}"
+              errors += 1
               previous_header = FlatFileBlobHeader.read(@f, previous_address,
                                                         header.id)
               if repair
@@ -540,6 +541,7 @@ module PEROBS
                 else
                   PEROBS.log.error "None of the blobs with same ID have " +
                     "the outdated flag set. Deleting the smaller one."
+                  errors += 1
                   discard_damaged_blob(header.length < previous_header.length ?
                                        header : previous_header)
                 end
@@ -578,7 +580,12 @@ module PEROBS
               pm.update(nodes += 1)
             end
           end
-          unless index_ok && @space_list.check(self) && cross_check_entries
+          x_check_errs = 0
+          space_check_ok = true
+          unless index_ok && (space_check_ok = @space_list.check(self)) &&
+            (x_check_errs = cross_check_entries) == 0
+            errors += 1 unless index_ok && space_check_ok
+            errors += x_check_errs
             regenerate_index_and_spaces if repair
           end
         rescue PEROBS::FatalError
@@ -766,7 +773,7 @@ module PEROBS
         end
       end
 
-      errors == 0
+      errors
     end
 
     def discard_damaged_blob(header)

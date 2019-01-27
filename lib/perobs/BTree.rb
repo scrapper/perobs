@@ -97,9 +97,17 @@ module PEROBS
 
       @node_cache.clear
       @nodes.open
-      node = @nodes.total_entries == 0 ?
-        BTreeNode::create(self) :
-        BTreeNode::load(self, @nodes.first_entry)
+
+      if @nodes.total_entries == 0
+        # We've created a new nodes file
+        node = BTreeNode::create(self)
+      else
+        # We are loading an existing tree.
+        node = BTreeNode::load(self, @nodes.first_entry)
+        @first_leaf = BTreeNode::load(self,
+                                      @nodes.get_custom_data('first_leaf'))
+        @last_leaf = BTreeNode::load(self, @nodes.get_custom_data('last_leaf'))
+      end
       set_root(node)
 
       # Get the total number of entries that are stored in the tree.
