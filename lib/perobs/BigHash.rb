@@ -205,7 +205,18 @@ module PEROBS
     # Calls the given block for each key/value pair.
     # @yield(key, value)
     def each(&block)
-      @btree.each(&block)
+      @btree.each do |index, entry|
+        yield(entry.key, entry.value)
+      end
+    end
+
+    # This is mostly intended for debugging as the result can be very big.
+    # It returns an Array of keys stored in the hash.
+    # @return [Array] A list of all keys
+    def keys
+      ks = []
+      each { |k, v| ks << k }
+      ks
     end
 
     private

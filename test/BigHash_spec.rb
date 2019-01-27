@@ -63,9 +63,11 @@ describe PEROBS::Hash do
   it 'should support storing and retrieving an object' do
     expect(@h.length).to eql(0)
     expect(@h.empty?).to be true
+    expect(@h.keys).to eql([])
     @h['foo'] = 'bar'
     expect(@h['foo']).to eql('bar')
     expect(@h.length).to eql(1)
+    expect(@h.keys).to eql([ 'foo' ])
   end
 
   it 'should return nil for unknown objects' do
@@ -120,6 +122,7 @@ describe PEROBS::Hash do
     store.exit
 
     store = PEROBS::Store.new(db_name)
+    expect(store.check).to eql(0)
     h = store['hash']
     ENTRIES.times do |i|
       expect(h["key#{i}"]).to eql(2 * i)
