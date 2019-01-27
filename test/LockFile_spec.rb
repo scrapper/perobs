@@ -30,6 +30,8 @@ require 'perobs/LockFile'
 describe PEROBS::LockFile do
 
   before(:each) do
+    PEROBS.log.open($stderr)
+    PEROBS.log.level = Logger::INFO
     @dir = File.join(Dir.tmpdir,
                         "#{File.basename('LockFile_spec')}.#{rand(2**32)}")
     FileUtils.mkdir_p(@dir)
@@ -44,7 +46,6 @@ describe PEROBS::LockFile do
     capture_io do
       expect(PEROBS::LockFile.new('/foo/bar/foobar').lock).to be false
     end
-    PEROBS.log.open($stderr)
   end
 
   it 'should support taking and releasing the lock' do
