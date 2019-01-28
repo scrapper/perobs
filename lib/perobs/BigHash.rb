@@ -69,13 +69,13 @@ module PEROBS
     # @param p [Handle] Store handle
     def initialize(p)
       super(p)
-      @xxhash = XXHash64.new(816114511)
       restore
+      self.btree = @store.new(PEROBS::BigTree)
+      self.entry_counter = 0
     end
 
     def restore
-      attr_init(:btree, @store.new(PEROBS::BigTree))
-      attr_init(:entry_counter, 0)
+      @xxhash = XXHash64.new(816114511)
     end
 
     # Insert a value that is associated with the given key. If a value for
