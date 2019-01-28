@@ -115,19 +115,20 @@ describe PEROBS::Hash do
     db_name = generate_db_name(__FILE__ + "_persist")
     store = PEROBS::Store.new(db_name)
     h = store['hash'] = store.new(PEROBS::BigHash)
-    ENTRIES.times do |i|
+    n = ENTRIES
+    n.times do |i|
       h["key#{i}"] = 2 * i
     end
-    expect(h.length).to eql(ENTRIES)
+    expect(h.length).to eql(n)
     store.exit
 
     store = PEROBS::Store.new(db_name)
     expect(store.check).to eql(0)
     h = store['hash']
-    ENTRIES.times do |i|
+    n.times do |i|
       expect(h["key#{i}"]).to eql(2 * i)
     end
-    expect(h.length).to eql(ENTRIES)
+    expect(h.length).to eql(n)
     store.delete_store
   end
 

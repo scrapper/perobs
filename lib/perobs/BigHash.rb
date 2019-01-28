@@ -28,6 +28,7 @@
 require 'perobs/Object'
 require 'perobs/BigTree'
 require 'perobs/Array'
+require 'perobs/XXHash64'
 
 module PEROBS
 
@@ -68,6 +69,7 @@ module PEROBS
     # @param p [Handle] Store handle
     def initialize(p)
       super(p)
+      @xxhash = XXHash64.new(816114511)
       restore
     end
 
@@ -222,7 +224,7 @@ module PEROBS
     private
 
     def hash_key(key)
-      key.hash
+      @xxhash.digest(key.to_s)
     end
 
   end
