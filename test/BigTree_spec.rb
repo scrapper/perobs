@@ -247,6 +247,13 @@ describe PEROBS::BigTree do
         end
       end
     end
+
+    i = 0
+    @t.each do |k, v|
+      expect(ref[k]).to eql(v)
+      i += 1
+    end
+    expect(i).to eql(ref.length)
   end
 
 end

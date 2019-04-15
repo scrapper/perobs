@@ -61,10 +61,12 @@ describe PEROBS::Hash do
   end
 
   it 'should support storing and retrieving an object' do
+    expect(@h.check).to be true
     expect(@h.length).to eql(0)
     expect(@h.empty?).to be true
     expect(@h.keys).to eql([])
     @h['foo'] = 'bar'
+    expect(@h.check).to be true
     expect(@h['foo']).to eql('bar')
     expect(@h.length).to eql(1)
     expect(@h.keys).to eql([ 'foo' ])
@@ -78,6 +80,7 @@ describe PEROBS::Hash do
     ENTRIES.times do |i|
       @h["key#{i}"] = i
     end
+    expect(@h.check).to be true
     expect(@h.length).to eql(ENTRIES)
 
     ENTRIES.times do |i|
@@ -89,6 +92,7 @@ describe PEROBS::Hash do
     ENTRIES.times do |i|
       @h["key#{i}"] = 2 * i
     end
+    expect(@h.check).to be true
     expect(@h.length).to eql(ENTRIES)
 
     ENTRIES.times do |i|
@@ -99,12 +103,14 @@ describe PEROBS::Hash do
 
   it 'should fail to delete a non-existing entry' do
     expect(@h.delete('foo')).to be_nil
+    expect(@h.check).to be true
   end
 
   it 'should delete existing entries' do
     (1..ENTRIES).to_a.shuffle.each do |i|
       @h["key#{i}"] = 2 * i
     end
+    expect(@h.check).to be true
     expect(@h.length).to eql(ENTRIES)
     (1..ENTRIES).to_a.shuffle.each do |i|
       expect(@h.delete("key#{i}")).to eql(2 * i)
@@ -119,6 +125,7 @@ describe PEROBS::Hash do
     n.times do |i|
       h["key#{i}"] = 2 * i
     end
+    expect(h.check).to be true
     expect(h.length).to eql(n)
     store.exit
 
@@ -128,6 +135,7 @@ describe PEROBS::Hash do
     n.times do |i|
       expect(h["key#{i}"]).to eql(2 * i)
     end
+    expect(h.check).to be true
     expect(h.length).to eql(n)
     store.delete_store
   end

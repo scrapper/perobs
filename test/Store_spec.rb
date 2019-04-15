@@ -494,7 +494,7 @@ describe PEROBS::Store do
     # We have the root hash and the Person object.
     expect(store.statistics[:in_memory_objects]).to eq(2)
     store.sync
-    GC.start(true, true)
+    GC.start
     # Now the Person should be gone from memory.
     # Ruby 2.3 and later has changed the GC so that this does not work
     # reliably anymore. The GC seems to operate lazyly.

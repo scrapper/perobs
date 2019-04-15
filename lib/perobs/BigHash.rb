@@ -49,7 +49,7 @@ module PEROBS
     #
     # In case we have a collision we need to store multiple values for the
     # same hashed key. In that case we store the Entry objects for the same
-    # hashed key in a PEROBS::Array object instead of storing the Entry
+    # hashed key in a Collisions object instead of storing the Entry
     # directly in the BigTree.
     class Entry < PEROBS::Object
 
@@ -61,6 +61,11 @@ module PEROBS
         self.value = value
       end
 
+    end
+
+    # Since the BigHash can also store PEROBS::Array values we need to
+    # introduce a new class so we can tell apart collisions from Arrays.
+    class Collisions < PEROBS::Array
     end
 
     attr_persist :btree, :entry_counter
@@ -90,7 +95,7 @@ module PEROBS
 
         if (existing_entry = @btree.get(hashed_key))
           # There is already an existing entry for this hashed key.
-          if existing_entry.is_a?(PEROBS::Array)
+          if existing_entry.is_a?(Collisions)
             # Find the right index to insert the new entry. If there is
             # already an entry with the same key overwrite that entry.
             index_to_insert = 0
@@ -111,7 +116,7 @@ module PEROBS
           else
             # There is a single existing entry, but for a different key. Create
             # a new PEROBS::Array and store both entries.
-            array_entry = @store.new(PEROBS::Array)
+            array_entry = @store.new(Collisions)
             array_entry << existing_entry
             array_entry << entry
             @btree.insert(hashed_key, array_entry)
@@ -208,7 +213,13 @@ module PEROBS
     # @yield(key, value)
     def each(&block)
       @btree.each do |index, entry|
-        yield(entry.key, entry.value)
+        if entry.is_a?(Collisions)
+          entry.each do |c_entry|
+            yield(c_entry.key, c_entry.value)
+          end
+        else
+          yield(entry.key, entry.value)
+        end
       end
     end
 
@@ -219,6 +230,27 @@ module PEROBS
       ks = []
       each { |k, v| ks << k }
       ks
+    end
+
+    # Check if the data structure contains any errors.
+    # @return [Boolean] true if no erros were found, false otherwise
+    def check
+      return false unless @btree.check
+
+      i = 0
+      each do |k, v|
+        i += 1
+      end
+
+      unless @entry_counter == i
+        $stderr.puts "BigHash contains #{i} values but entry counter " +
+          "is #{@entry_counter}"
+        PEROBS.log.error "BigHash contains #{i} values but entry counter " +
+          "is #{@entry_counter}"
+        return false
+      end
+
+      true
     end
 
     private
