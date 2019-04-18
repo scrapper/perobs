@@ -28,7 +28,7 @@
 require 'perobs/Object'
 require 'perobs/BigTree'
 require 'perobs/Array'
-require 'perobs/XXHash64'
+require 'perobs/FNV_Hash_1a_64'
 
 module PEROBS
 
@@ -80,7 +80,6 @@ module PEROBS
     end
 
     def restore
-      @xxhash = XXHash64.new(816114511)
     end
 
     # Insert a value that is associated with the given key. If a value for
@@ -243,8 +242,6 @@ module PEROBS
       end
 
       unless @entry_counter == i
-        $stderr.puts "BigHash contains #{i} values but entry counter " +
-          "is #{@entry_counter}"
         PEROBS.log.error "BigHash contains #{i} values but entry counter " +
           "is #{@entry_counter}"
         return false
@@ -256,7 +253,7 @@ module PEROBS
     private
 
     def hash_key(key)
-      @xxhash.digest(key.to_s)
+      FNV_Hash_1a_64::digest(key)
     end
 
   end

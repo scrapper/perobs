@@ -31,22 +31,19 @@ require 'spec_helper'
 
 require 'perobs'
 
-describe PEROBS::XXHash64 do
-
-  before(:all) do
-    @xxhash = PEROBS::XXHash64.new(816114511)
-  end
+describe PEROBS::FNV_Hash_1a_64 do
 
   it 'should generate stable hashes for Strings' do
-    refs = {
-      'foo' => 13888580354979149425,
-      'bar' => 11318486070144266075,
-      'foobar' => 1136563820614582702,
-      'PEROBS rocks your application!' => 4099397047094398144
-    }
+    refs = [
+      [ 'foo', 15902901984413996407 ],
+      [ 'foo', 15902901984413996407 ],
+      [ 'bar', 16101355973854746 ],
+      [ 'foobar', 9625390261332436968 ],
+      [ 'PEROBS rocks your application!', 4089220442501866848 ]
+    ]
 
-    refs.each do |s, h|
-      expect(@xxhash.digest(s)).to eql(h)
+    refs.each do |v|
+      expect(PEROBS::FNV_Hash_1a_64::digest(v[0])).to eql(v[1])
     end
   end
 

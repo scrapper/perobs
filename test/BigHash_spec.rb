@@ -36,9 +36,9 @@ class PEROBS::BigHash
 
   # Redefine the hash method to make collisions very likely. This will help to
   # test the collision handling with small amounts of data.
-  def hash_key(key)
-    key.hash & 0xF
-  end
+  #def hash_key(key)
+  #  key.hash & 0xF
+  #end
 
 end
 
