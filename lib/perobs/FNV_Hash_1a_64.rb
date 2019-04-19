@@ -34,10 +34,11 @@ module PEROBS
 
     @@OFFSET = 14695981039346656037
     @@PRIME = 1099511628211
-    @@MASK = 18446744073709551615
+    @@MASK = 2**64 - 1
 
     def self.digest(item)
       hash = @@OFFSET
+
       item.to_s.each_byte do |byte|
         hash ^= byte
         hash *= @@PRIME

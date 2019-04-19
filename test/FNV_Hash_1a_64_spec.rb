@@ -39,7 +39,15 @@ describe PEROBS::FNV_Hash_1a_64 do
       [ 'foo', 15902901984413996407 ],
       [ 'bar', 16101355973854746 ],
       [ 'foobar', 9625390261332436968 ],
-      [ 'PEROBS rocks your application!', 4089220442501866848 ]
+      [ 'PEROBS rocks your application!', 4089220442501866848 ],
+      [ 'Permission is hereby granted, free of charge, to any person ' +
+        'obtaining a copy of this software and associated documentation ' +
+        'files (the "Software"), to deal in the Software without ' +
+        'restriction, including without limitation the rights to use, ' +
+        'copy, modify, merge, publish, distribute, sublicense, and/or ' +
+        'sell copies of the Software, and to permit persons to whom the ' +
+        'Software is furnished to do so, subject to the following conditions:',
+        17637146001033534275 ]
     ]
 
     refs.each do |v|
