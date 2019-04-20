@@ -163,8 +163,18 @@ module PEROBS
                            children)
       tree.node_cache.insert(node, false)
 
-      BTreeNodeLink.new(tree, node)
+      node
     end
+
+    # This is a wrapper around BTreeNode::load() that returns a BTreeNodeLink
+    # instead of the actual node.
+    # @param tree [BTree] The tree the node belongs to
+    # @param address [Integer] The address in the blob file.
+    # @return [BTreeNodeLink] Link to loaded noded
+    def BTreeNode::load_and_link(tree, address)
+      BTreeNodeLink.new(tree, BTreeNode::load(tree, address))
+    end
+
 
     # @return [String] The format used for String.pack.
     def BTreeNode::node_bytes_format(tree)

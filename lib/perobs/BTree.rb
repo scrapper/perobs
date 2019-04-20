@@ -103,10 +103,11 @@ module PEROBS
         node = BTreeNode::create(self)
       else
         # We are loading an existing tree.
-        node = BTreeNode::load(self, @nodes.first_entry)
-        @first_leaf = BTreeNode::load(self,
-                                      @nodes.get_custom_data('first_leaf'))
-        @last_leaf = BTreeNode::load(self, @nodes.get_custom_data('last_leaf'))
+        node = BTreeNode::load_and_link(self, @nodes.first_entry)
+        @first_leaf = BTreeNode::load_and_link(
+          self, @nodes.get_custom_data('first_leaf'))
+        @last_leaf = BTreeNode::load_and_link(
+          self, @nodes.get_custom_data('last_leaf'))
       end
       set_root(node)
 
