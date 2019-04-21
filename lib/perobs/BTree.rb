@@ -127,6 +127,11 @@ module PEROBS
       @root = nil
     end
 
+    # @return true if file is currently open
+    def is_open?
+      !@root.nil?
+    end
+
     # Clear all pools and forget any registered spaces.
     def clear
       @node_cache.clear

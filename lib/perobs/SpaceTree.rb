@@ -75,6 +75,11 @@ module PEROBS
       @cache.clear
     end
 
+    # @return true if file is currently open.
+    def is_open?
+      !@root_address.nil?
+    end
+
     # Flush all pending writes to the file system.
     def sync
       @cache.flush(true)

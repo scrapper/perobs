@@ -49,8 +49,8 @@ module PEROBS
       @db_dir = dir
       @progressmeter = progressmeter
       @f = nil
-      @index = BTree.new(@db_dir, 'index', INDEX_BTREE_ORDER, @progressmeter)
       @marks = nil
+      @index = BTree.new(@db_dir, 'index', INDEX_BTREE_ORDER, @progressmeter)
       @space_list = SpaceTree.new(@db_dir, @progressmeter)
     end
 
@@ -76,33 +76,15 @@ module PEROBS
       end
       @f.sync = true
 
-      begin
-        @index.open(!new_db_created)
-        @space_list.open
-      rescue FatalError
-        # Ensure that the index is really closed.
-        @index.close
-        # Erase it completely
-        @index.erase
-        # Then create it again.
-        @index.open
-
-        # Ensure that the spaces list is really closed.
-        @space_list.close
-        # Erase it completely
-        @space_list.erase
-        # Then create it again
-        @space_list.open
-
-        regenerate_index_and_spaces
-      end
+      open_index_files(!new_db_created)
     end
 
     # Close the flat file. This method must be called to ensure that all data
     # is really written into the filesystem.
     def close
-      @space_list.close if @space_list
-      @index.close
+      @space_list.close if @space_list.is_open?
+      @index.close if @index.is_open?
+
       if @marks
         @marks.erase
         @marks = nil
@@ -126,7 +108,7 @@ module PEROBS
         PEROBS.log.fatal "Cannot sync flat file database: #{e.message}"
       end
       @index.sync
-      @space_list.sync if @space_list
+      @space_list.sync
     end
 
     # Delete the blob for the specified ID.
@@ -145,22 +127,20 @@ module PEROBS
     # @param addr [Integer] Address of the blob to delete
     # @param id [Integer] ID of the blob to delete
     def delete_obj_by_address(addr, id)
-      @index.remove(id)
+      @index.remove(id) if @index.is_open?
       header = FlatFileBlobHeader.read(@f, addr, id)
       header.clear_flags
-      @space_list.add_space(addr, header.length) if @space_list
+      @space_list.add_space(addr, header.length) if @space_list.is_open?
     end
 
     # Delete all unmarked objects.
     def delete_unmarked_objects
-      deleted_objects_count = 0
-      # We don't update the space list during this operation as we
-      # defragmentize the blob file at the end. We'll end the operation with
-      # an empty space list.
-      @space_list.close
-      @space_list.erase
-      @space_list = nil
+      # We don't update the index and the space list during this operation as
+      # we defragmentize the blob file at the end. We'll end the operation
+      # with an empty space list.
+      clear_index_files
 
+      deleted_objects_count = 0
       @progressmeter.start('Sweeping unmarked objects', @f.size) do |pm|
         each_blob_header do |header|
           if header.is_valid? && !@marks.include?(header.id)
@@ -172,9 +152,9 @@ module PEROBS
         end
       end
       defragmentize
-      # Create a new, empty spact list.
-      @space_list = SpaceTree.new(@db_dir, @progressmeter)
-      @space_list.open
+
+      # Update the index file and create a new, empty space list.
+      regenerate_index_and_spaces
 
       deleted_objects_count
     end
@@ -244,11 +224,13 @@ module PEROBS
           FlatFileBlobHeader.new(@f, space_address, 0, space_length,
                                  0, 0).write
           # Register the new space with the space list.
-          @space_list.add_space(space_address, space_length) if space_length > 0
+          if @space_list.is_open? && space_length > 0
+            @space_list.add_space(space_address, space_length)
+          end
         end
 
         # Once the blob has been written we can update the index as well.
-        @index.insert(id, addr)
+        @index.insert(id, addr) if @index.is_open?
 
         if old_addr
           # If we had an existing object stored for the ID we have to mark
@@ -350,7 +332,7 @@ module PEROBS
 
     # Eliminate all the holes in the file. This is an in-place
     # implementation. No additional space will be needed on the file system.
-    def defragmentize(rebuild_index = false)
+    def defragmentize
       distance = 0
       new_file_size = 0
       deleted_blobs = 0
@@ -380,8 +362,6 @@ module PEROBS
                 # Write the buffer right after the end of the previous entry.
                 @f.seek(header.addr - distance)
                 @f.write(buf)
-                # Update the index with the new position
-                @index.insert(header.id, header.addr - distance)
                 # Mark the space between the relocated current entry and the
                 # next valid entry as deleted space.
                 FlatFileBlobHeader.new(@f, @f.pos, 0,
@@ -392,8 +372,6 @@ module PEROBS
                 PEROBS.log.fatal "Error while moving blob for ID " +
                   "#{header.id}: #{e.message}"
               end
-            elsif rebuild_index
-              @index.insert(header.id, header.addr)
             end
             new_file_size = header.addr - distance +
               FlatFileBlobHeader::LENGTH + header.length
@@ -432,12 +410,10 @@ module PEROBS
       # are inserted after the original file end.
       file_size = @f.size
 
-      # We don't update the space list during this operation as we
-      # defragmentize the blob file at the end. We'll end the operation with
-      # an empty space list.
-      @space_list.close
-      @space_list.erase
-      @space_list = nil
+      # We don't update the index and the space list during this operation as
+      # we defragmentize the blob file at the end. We'll end the operation
+      # with an empty space list.
+      clear_index_files
 
       @progressmeter.start('Converting objects to new storage format',
                            @f.size) do |pm|
@@ -459,9 +435,8 @@ module PEROBS
       # Reclaim the space saved by compressing entries.
       defragmentize
 
-      # Create a new, empty spact list.
-      @space_list = SpaceTree.new(@db_dir, @progressmeter)
-      @space_list.open
+      # Recreate the index file and create an empty space list.
+      regenerate_index_and_spaces
     end
 
     # Check (and repair) the FlatFile.
@@ -566,8 +541,9 @@ module PEROBS
       new_index.erase
 
       if repair && corrupted_blobs > 0
-        clear_index_and_spaces
-        defragmentize(true)
+        erase_index_files
+        defragmentize
+        regenerate_index_and_spaces
       else
         # Now we check the index data. It must be correct and the entries must
         # match the blob file. All entries in the index must be in the blob file
@@ -601,7 +577,9 @@ module PEROBS
     # regenerates them from the FlatFile.
     def regenerate_index_and_spaces
       PEROBS.log.warn "Re-generating FlatFileDB index and space files"
+      @index.open unless @index.is_open?
       @index.clear
+      @space_list.open unless @space_list.is_open?
       @space_list.clear
 
       @progressmeter.start('Re-generating database index', @f.size) do |pm|
@@ -758,10 +736,14 @@ module PEROBS
               end
             end
           else
-            unless @index.get(header.id) == header.addr
+            if (index_address = @index.get(header.id)).nil?
               PEROBS.log.error "FlatFile blob at address #{header.addr} " +
-                "is listed in index with address #{@index.get(header.id)}"
-              errors += 1
+                "is not listed in the index"
+              errors +=1
+            elsif index_address != header.addr
+                PEROBS.log.error "FlatFile blob at address #{header.addr} " +
+                  "is listed in index with address #{index_address}"
+                errors += 1
             end
           end
 
@@ -778,7 +760,42 @@ module PEROBS
       header.clear_flags
     end
 
-    def clear_index_and_spaces
+    def open_index_files(abort_on_missing_files = false)
+      begin
+        @index.open(abort_on_missing_files)
+        @space_list.open
+      rescue FatalError
+        # Ensure that the index is really closed.
+        @index.close
+        # Erase it completely
+        @index.erase
+        # Then create it again.
+        @index.open
+
+        # Ensure that the spaces list is really closed.
+        @space_list.close
+        # Erase it completely
+        @space_list.erase
+        # Then create it again
+        @space_list.open
+
+        regenerate_index_and_spaces
+      end
+    end
+
+    def erase_index_files
+      # Ensure that the index is really closed.
+      @index.close
+      # Erase it completely
+      @index.erase
+
+      # Ensure that the spaces list is really closed.
+      @space_list.close
+      # Erase it completely
+      @space_list.erase
+    end
+
+    def clear_index_files
       # Ensure that the index is really closed.
       @index.close
       # Erase it completely
