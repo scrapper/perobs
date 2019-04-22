@@ -258,7 +258,7 @@ module PEROBS
     # Iterate over all the values of the node.
     # @yield [value]
     def each
-      return unless is_leaf?
+      return nil unless is_leaf?
 
       @values.each do |v|
         yield(v)
@@ -268,7 +268,7 @@ module PEROBS
     # Iterate over all the values of the node in reverse order.
     # @yield [value]
     def reverse_each
-      return unless is_leaf?
+      return nil unless is_leaf?
 
       @values.reverse_each do |v|
         yield(v)

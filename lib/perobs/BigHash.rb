@@ -213,7 +213,7 @@ module PEROBS
     def each(&block)
       @btree.each do |index, entry|
         if entry.is_a?(Collisions)
-          entry.each do |c_entry|
+          break unless entry.each do |c_entry|
             yield(c_entry.key, c_entry.value)
           end
         else
