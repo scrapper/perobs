@@ -237,7 +237,9 @@ module PEROBS
           # this entry as deleted now.
           old_header.clear_flags
           # And register the newly freed space with the space list.
-          @space_list.add_space(old_addr, old_header.length)
+          if @space_list.is_open?
+            @space_list.add_space(old_addr, old_header.length)
+          end
         else
           @f.flush
         end
