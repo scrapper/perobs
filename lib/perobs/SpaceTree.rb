@@ -111,10 +111,12 @@ module PEROBS
       if size <= 0
         PEROBS.log.fatal "Size (#{size}) must be larger than 0."
       end
-      if has_space?(address, size)
-        PEROBS.log.fatal "The space with address #{address} and size #{size} " +
-          "can't be added twice."
-      end
+      # The following check is fairly costly and should never trigger unless
+      # there is a bug in the PEROBS code. Only use this for debugging.
+      #if has_space?(address, size)
+      #  PEROBS.log.fatal "The space with address #{address} and size " +
+      #    "#{size} can't be added twice."
+      #end
       root.add_space(address, size)
     end
 
