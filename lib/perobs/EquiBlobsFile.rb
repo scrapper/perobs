@@ -501,6 +501,7 @@ module PEROBS
       next_offset = address_to_offset(1)
       total_entries = 0
       total_spaces = 0
+      last_entry_is_space = false
       @progressmeter.start("Checking #{@name} entries",
                            @total_spaces + @total_entries) do |pm|
         begin
@@ -511,6 +512,7 @@ module PEROBS
             case marker
             when 0
               total_spaces += 1
+              last_entry_is_space = true
             when 1
               PEROBS.log.error "Entry at address " +
                 "#{offset_to_address(next_offset)} in EquiBlobsFile " +
@@ -518,6 +520,7 @@ module PEROBS
               return false
             when 2
               total_entries += 1
+              last_entry_is_space = false
             else
               PEROBS.log.error "Entry at address " +
                 "#{offset_to_address(next_offset)} in EquiBlobsFile " +
@@ -533,6 +536,11 @@ module PEROBS
             "#{@file_name}: #{e.message}"
           return false
         end
+      end
+
+      if last_entry_is_space
+        PEROBS.log.error "EquiBlobsFile #{@file_name} is not properly trimmed"
+        return false
       end
 
       unless total_spaces == @total_spaces
