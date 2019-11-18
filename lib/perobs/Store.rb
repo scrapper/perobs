@@ -46,8 +46,9 @@ require 'perobs/ConsoleProgressMeter'
 # PErsistent Ruby OBject Store
 module PEROBS
 
-  Statistics = Struct.new(:in_memory_objects, :root_objects,
-                          :marked_objects, :swept_objects)
+  Statistics = Struct.new(:in_memory_objects, :root_objects, :zombie_objects,
+                          :marked_objects, :swept_objects,
+                          :created_objects, :collected_objects)
 
   # PEROBS::Store is a persistent storage system for Ruby objects. Regular
   # Ruby objects are transparently stored in a back-end storage and retrieved
@@ -109,6 +110,7 @@ module PEROBS
   class Store
 
     attr_reader :db, :cache, :class_map
+    attr_writer :root_objects
 
     # Create a new Store.
     # @param data_base [String] the name of the database
@@ -143,6 +145,9 @@ module PEROBS
     #                      It defaults to ProgressMeter which only logs into
     #                      the log. Use ConsoleProgressMeter or a derived
     #                      class for more fancy progress reporting.
+    #   :no_root_objects : Create a new store without root objects. This only
+    #                      makes sense if you want to copy the objects of
+    #                      another store into this store.
     def initialize(data_base, options = {})
       # Create a backing store handler
       @progressmeter = (options[:progressmeter] ||= ProgressMeter.new)
@@ -155,25 +160,32 @@ module PEROBS
       # List of PEROBS objects that are currently available as Ruby objects
       # hashed by their ID.
       @in_memory_objects = {}
+      # List of objects that were destroyed already but were still found in
+      # the in_memory_objects list. _collect has not yet been called for them.
+      @zombie_objects = {}
 
       # This objects keeps some counters of interest.
       @stats = Statistics.new
+      @stats[:created_objects] = 0
+      @stats[:collected_objects] = 0
 
       # The Cache reduces read and write latencies by keeping a subset of the
       # objects in memory.
       @cache = Cache.new(options[:cache_bits] || 16)
 
       # The named (global) objects IDs hashed by their name
-      unless (@root_objects = object_by_id(0))
-        PEROBS.log.debug "Initializing the PEROBS store"
-        # The root object hash always has the object ID 0.
-        @root_objects = _construct_po(Hash, 0)
-        # Mark the root_objects object as modified.
-        @cache.cache_write(@root_objects)
-      end
-      unless @root_objects.is_a?(Hash)
-        PEROBS.log.fatal "Database corrupted: Root objects must be a Hash " +
-          "but is a #{@root_objects.class}"
+      unless options[:no_root_objects]
+        unless (@root_objects = object_by_id(0))
+          PEROBS.log.debug "Initializing the PEROBS store"
+          # The root object hash always has the object ID 0.
+          @root_objects = _construct_po(Hash, 0)
+          # Mark the root_objects object as modified.
+          @cache.cache_write(@root_objects)
+        end
+        unless @root_objects.is_a?(Hash)
+          PEROBS.log.fatal "Database corrupted: Root objects must be a Hash " +
+            "but is a #{@root_objects.class}"
+        end
       end
     end
 
@@ -185,7 +197,9 @@ module PEROBS
       sync
 
       # Create a new store with the specified directory and options.
-      new_db = Store.new(dir, options)
+      new_options = options.clone
+      new_options[:no_root_objects] = true
+      new_db = Store.new(dir, new_options)
       # Clear the cache.
       new_db.sync
       # Copy all objects of the existing store to the new store.
@@ -196,13 +210,13 @@ module PEROBS
         obj._sync
         i += 1
       end
+      new_db.root_objects = new_db.object_by_id(0)
       PEROBS.log.debug "Copied #{i} objects into new database at #{dir}"
       # Flush the new store and close it.
       new_db.exit
 
       true
     end
-
 
     # Close the store and ensure that all in-memory objects are written out to
     # the storage backend. The Store object is no longer usable after this
@@ -216,10 +230,23 @@ module PEROBS
       end
       @cache.flush if @cache
       @db.close if @db
-      @db = @class_map = @in_memory_objects = @stats = @cache = @root_objects =
-        nil
-    end
 
+      GC.start
+      unless @stats[:created_objects] == @stats[:collected_objects] +
+          @in_memory_objects.length
+        PEROGS.log.fatal "Created objects count (#{@stats[:created_objects]})" +
+          " is not equal to the collected count " +
+          "(#{@stats[:collected_objects]}) + in_memory_objects count " +
+          "(#{@in_memory_objects.length})"
+      end
+      unless @zombie_objects.length == 0
+        PEROBS.log.fatal "Zombie objects count (#{@zombie_objects.length})" +
+          " is not 0"
+      end
+
+      @db = @class_map = @in_memory_objects = @zombie_objects =
+        @stats = @cache = @root_objects = nil
+    end
 
     # You need to call this method to create new PEROBS objects that belong to
     # this Store.
@@ -255,8 +282,8 @@ module PEROBS
     # deletes the entire database.
     def delete_store
       @db.delete_database
-      @db = @class_map = @in_memory_objects = @stats = @cache = @root_objects =
-        nil
+      @db = @class_map = @in_memory_objects = @zombie_objects =
+        @stats = @cache = @root_objects = nil
     end
 
     # Store the provided object under the given name. Use this to make the
@@ -358,10 +385,10 @@ module PEROBS
         rescue RangeError => e
           # Due to a race condition the object can still be in the
           # @in_memory_objects list but has been collected already by the Ruby
-          # GC. In that case we need to load it again. In this case the
-          # _collect() call will happen much later, potentially after we have
-          # registered a new object with the same ID.
-          @in_memory_objects.delete(id)
+          # GC. In that case we need to load it again. The _collect() call
+          # will happen much later, potentially after we have registered a new
+          # object with the same ID.
+          @zombie_objects[id] = @in_memory_objects.delete(id)
         end
       end
 
@@ -510,7 +537,16 @@ module PEROBS
     # @param obj [BasicObject] Object to register
     # @param id [Integer] object ID
     def _register_in_memory(obj, id)
+      unless obj.is_a?(ObjectBase)
+        PEROBS.log.fatal "You can only register ObjectBase objects"
+      end
+      if @in_memory_objects.include?(id)
+        PEROBS.log.fatal "The Store::_in_memory_objects list already " +
+          "contains an object for ID #{id}"
+      end
+
       @in_memory_objects[id] = obj.object_id
+      @stats[:created_objects] += 1
     end
 
     # Remove the object from the in-memory list. This is an internal method
@@ -520,6 +556,10 @@ module PEROBS
     def _collect(id, ruby_object_id)
       if @in_memory_objects[id] == ruby_object_id
         @in_memory_objects.delete(id)
+        @stats[:collected_objects] += 1
+      elsif @zombie_objects[id] == ruby_object_id
+        @zombie_objects.delete(id)
+        @stats[:collected_objects] += 1
       end
     end
 
@@ -527,6 +567,7 @@ module PEROBS
     def statistics
       @stats.in_memory_objects = @in_memory_objects.length
       @stats.root_objects = @root_objects.length
+      @stats.zombie_objects = @zombie_objects.length
 
       @stats
     end

@@ -271,7 +271,6 @@ describe PEROBS::Store do
     capture_io { expect(store.gc).to eq(0) }
     p0 = p1 = p2 = nil
     capture_io { store.exit }
-    GC.start
     store = PEROBS::Store.new(@db_file)
     expect(store['person0']._id).to eq(id0)
     expect(store['person0'].related._id).to eq(id1)
@@ -279,9 +278,8 @@ describe PEROBS::Store do
 
     store['person0'].related = nil
     capture_io { expect(store.gc).to eq(2) }
-    GC.start
-    expect(store.object_by_id(id1)).to be_nil
-    expect(store.object_by_id(id2)).to be_nil
+    stats = store.statistics
+    expect(stats.swept_objects).to eql(2)
     capture_io { store.exit }
 
     store = PEROBS::Store.new(@db_file)
@@ -494,7 +492,6 @@ describe PEROBS::Store do
     # We have the root hash and the Person object.
     expect(store.statistics[:in_memory_objects]).to eq(2)
     store.sync
-    GC.start
     # Now the Person should be gone from memory.
     # Ruby 2.3 and later has changed the GC so that this does not work
     # reliably anymore. The GC seems to operate lazyly.
