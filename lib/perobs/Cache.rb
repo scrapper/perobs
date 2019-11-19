@@ -2,7 +2,7 @@
 #
 # = Cache.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016, 2019 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -91,6 +91,31 @@ module PEROBS
           @transaction_objects[obj._id] = obj
         end
       end
+    end
+
+    # Evict the object with the given ID from the cache.
+    # @param id [Integer] ID of the cached PEROBS::ObjectBase
+    # @return [True/False] True if object was stored in the cache. False
+    #         otherwise.
+    def evict(id)
+      unless @transaction_stack.empty?
+        PEROBS.log.fatal "You cannot evict entries during a transaction."
+      end
+
+      idx = id & @mask
+      # The index is just a hash. We still need to check if the object IDs are
+      # actually the same before we can return the object.
+      if (obj = @writes[idx]) && obj._id == id
+        # The object is in the write cache.
+        @writes[idx] = nil
+        return true
+      elsif (obj = @reads[idx]) && obj._id == id
+        # The object is in the read cache.
+        @reads[idx] = nil
+        return true
+      end
+
+      false
     end
 
     # Return the PEROBS::Object with the specified ID or nil if not found.

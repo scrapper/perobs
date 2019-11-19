@@ -2,7 +2,7 @@
 #
 # = BTreeBlob.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016, 2019 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -144,11 +144,12 @@ module PEROBS
 
     # Remove all entries from the index that have not been marked.
     # @return [Array] List of deleted object IDs.
-    def delete_unmarked_entries
+    def delete_unmarked_entries(&block)
       deleted_ids = []
       # First remove the entry from the hash table.
       @entries_by_id.delete_if do |id, e|
         if e[MARKED] == 0
+          yield(id) if block_given?
           deleted_ids << id
           true
         else

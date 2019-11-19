@@ -2,7 +2,7 @@
 #
 # = FlatFile.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2016, 2018 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2016, 2018, 2019 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -134,7 +134,7 @@ module PEROBS
     end
 
     # Delete all unmarked objects.
-    def delete_unmarked_objects
+    def delete_unmarked_objects(&block)
       # We don't update the index and the space list during this operation as
       # we defragmentize the blob file at the end. We'll end the operation
       # with an empty space list.
@@ -145,6 +145,7 @@ module PEROBS
         each_blob_header do |header|
           if header.is_valid? && !@marks.include?(header.id)
             delete_obj_by_address(header.addr, header.id)
+            yield(header.id) if block_given?
             deleted_objects_count += 1
           end
 

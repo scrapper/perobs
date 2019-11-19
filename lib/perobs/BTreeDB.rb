@@ -2,7 +2,8 @@
 #
 # = BTreeDB.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015, 2016, 2018 by Chris Schlaeger <chris@taskjuggler.org>
+# Copyright (c) 2015, 2016, 2018, 2019
+# by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
 #
@@ -159,9 +160,9 @@ module PEROBS
     # Permanently delete all objects that have not been marked. Those are
     # orphaned and are no longer referenced by any actively used object.
     # @return [Array] List of IDs that have been removed from the DB.
-    def delete_unmarked_objects
+    def delete_unmarked_objects(&block)
       deleted_ids = []
-      each_blob { |blob| deleted_ids += blob.delete_unmarked_entries }
+      each_blob { |blob| deleted_ids += blob.delete_unmarked_entries(&block) }
       deleted_ids
     end
 

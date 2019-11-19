@@ -2,7 +2,7 @@
 #
 # = FlatFileDB.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015, 2016, 2017, 2018
+# Copyright (c) 2015, 2016, 2017, 2018, 2019
 # by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
@@ -161,8 +161,8 @@ module PEROBS
     # Permanently delete all objects that have not been marked. Those are
     # orphaned and are no longer referenced by any actively used object.
     # @return [Integer] Number of the removed objects from the DB.
-    def delete_unmarked_objects
-      @flat_file.delete_unmarked_objects
+    def delete_unmarked_objects(&block)
+      @flat_file.delete_unmarked_objects(&block)
     end
 
     # Mark an object.

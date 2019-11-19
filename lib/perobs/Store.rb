@@ -239,10 +239,6 @@ module PEROBS
           "(#{@stats[:collected_objects]}) + in_memory_objects count " +
           "(#{@in_memory_objects.length})"
       end
-      unless @zombie_objects.length == 0
-        PEROBS.log.fatal "Zombie objects count (#{@zombie_objects.length})" +
-          " is not 0"
-      end
 
       @db = @class_map = @in_memory_objects = @zombie_objects =
         @stats = @cache = @root_objects = nil
@@ -597,8 +593,10 @@ module PEROBS
     # Sweep phase of a mark-and-sweep garbage collector. It will remove all
     # unmarked objects from the store.
     def sweep
-      @stats.swept_objects = @db.delete_unmarked_objects
-      @cache.reset
+      @stats.swept_objects = @db.delete_unmarked_objects do |id|
+        @cache.evict(id)
+      end
+      GC.start
       PEROBS.log.debug "#{@stats.swept_objects} objects collected"
       @stats.swept_objects
     end
