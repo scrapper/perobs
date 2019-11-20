@@ -232,12 +232,15 @@ module PEROBS
       @db.close if @db
 
       GC.start
-      unless @stats[:created_objects] == @stats[:collected_objects] +
-          @in_memory_objects.length
-        PEROGS.log.fatal "Created objects count (#{@stats[:created_objects]})" +
-          " is not equal to the collected count " +
-          "(#{@stats[:collected_objects]}) + in_memory_objects count " +
-          "(#{@in_memory_objects.length})"
+      if @stats
+        unless @stats[:created_objects] == @stats[:collected_objects] +
+            @in_memory_objects.length
+          PEROGS.log.fatal "Created objects count " +
+            "(#{@stats[:created_objects]})" +
+            " is not equal to the collected count " +
+            "(#{@stats[:collected_objects]}) + in_memory_objects count " +
+            "(#{@in_memory_objects.length})"
+        end
       end
 
       @db = @class_map = @in_memory_objects = @zombie_objects =
