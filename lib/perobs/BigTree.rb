@@ -140,7 +140,7 @@ module PEROBS
     def each(&block)
       node = @first_leaf
       while node
-        node.each_element(&block)
+        break if node.each_element(&block).nil?
         node = node.next_sibling
       end
     end

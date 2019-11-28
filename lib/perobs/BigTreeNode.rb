@@ -227,7 +227,7 @@ module PEROBS
     # Iterate over all the key/value pairs of the node.
     # @yield [key, value]
     def each_element
-      return unless is_leaf?
+      return self unless is_leaf?
 
       0.upto(@keys.length - 1) do |i|
         yield(@keys[i], @values[i])
@@ -237,7 +237,7 @@ module PEROBS
     # Iterate over all the key/value pairs of the node in reverse order.
     # @yield [key, value]
     def reverse_each_element
-      return unless is_leaf?
+      return self unless is_leaf?
 
       (@keys.length - 1).downto(0) do |i|
         yield(@keys[i], @values[i])
