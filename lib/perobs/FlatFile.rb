@@ -462,6 +462,7 @@ module PEROBS
       new_index.open
 
       corrupted_blobs = 0
+      end_of_last_valid_blob = nil
       @progressmeter.start('Checking blobs file', @f.size) do |pm|
         corrupted_blobs = each_blob_header do |header|
           if header.is_valid?
@@ -531,9 +532,23 @@ module PEROBS
               new_index.insert(header.id, header.addr)
             end
 
+            end_of_last_valid_blob = @f.pos
           end
 
           pm.update(header.addr)
+        end
+
+        if end_of_last_valid_blob && end_of_last_valid_blob != @f.size
+          # The blob file ends with a corrupted blob header.
+          PEROBS.log.error "#{@f.size - end_of_last_valid_blob} corrupted " +
+            'bytes found at the end of FlatFile.'
+          corrupted_blobs += 1
+          if repair
+            PEROBS.log.error "Truncating FlatFile to " +
+              "#{end_of_last_valid_blob} bytes by discarding " +
+              "#{@f.size - end_of_last_valid_blob} bytes"
+            @f.truncate(end_of_last_valid_blob)
+          end
         end
 
         errors += corrupted_blobs
@@ -547,7 +562,7 @@ module PEROBS
         erase_index_files
         defragmentize
         regenerate_index_and_spaces
-      else
+      elsif corrupted_blobs == 0
         # Now we check the index data. It must be correct and the entries must
         # match the blob file. All entries in the index must be in the blob file
         # and vise versa.
@@ -618,7 +633,11 @@ module PEROBS
     end
 
     def has_id_at?(id, address)
-      header = FlatFileBlobHeader.read(@f, address)
+      begin
+        header = FlatFileBlobHeader.read(@f, address)
+      rescue PEROBS::FatalError
+        return false
+      end
       header.is_valid? && header.id == id
     end
 

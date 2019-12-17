@@ -119,7 +119,7 @@ describe PEROBS::FlatFileDB do
     expect(store['o'].b).to eql(42)
   end
 
-  it 'should repair a corrupted database.blobs file' do
+  it 'should discard a corrupted blob inside the database.blobs file' do
     @store.exit
 
     db = PEROBS::FlatFileDB.new(@db_dir)
@@ -142,7 +142,7 @@ describe PEROBS::FlatFileDB do
     f.close
 
     db.open
-    expect(db.check_db).to eql(2)
+    expect(db.check_db).to eql(1)
     expect(db.check_db(true)).to eql(1)
     db.close
     db = PEROBS::FlatFileDB.new(@db_dir, { :log => $stderr,
@@ -157,6 +157,94 @@ describe PEROBS::FlatFileDB do
     1.upto(5) do |i|
       expect(db.get_object(i + 10)).to eql("#{i + 10}:#{'Y' * (i + 1) * 25}")
     end
+    db.close
+  end
+
+  it 'should discard a corrupted blob at the end of the database.blobs file' do
+    @store.exit
+
+    db = PEROBS::FlatFileDB.new(@db_dir)
+    db_file = File.join(@db_dir, 'database.blobs')
+    db.open
+    0.upto(5) do |i|
+      db.put_object("#{i + 1}:#{'X' * (i + 1) * 30}$", i + 1)
+    end
+    db.close
+
+    f = File.truncate(db_file, File.size(db_file) - 20)
+
+    db.open
+    expect(db.check_db).to eql(2)
+    expect(db.check_db(true)).to eql(2)
+    db.close
+    db = PEROBS::FlatFileDB.new(@db_dir, { :log => $stderr,
+                                           :log_level => Logger::ERROR })
+    db.open
+    expect(db.check_db).to eql(0)
+
+    0.upto(4) do |i|
+      expect(db.get_object(i + 1)).to eql("#{i + 1}:#{'X' * (i + 1) * 30}$")
+    end
+    expect(db.get_object(6)).to be_nil
+    db.close
+  end
+
+  it 'should discard a corrupted header at the end of the database.blobs file' do
+    @store.exit
+
+    db = PEROBS::FlatFileDB.new(@db_dir)
+    db_file = File.join(@db_dir, 'database.blobs')
+    db.open
+    0.upto(5) do |i|
+      db.put_object("#{i + 1}:#{'X' * (i + 1) * 30}$", i + 1)
+    end
+    db.close
+
+    f = File.truncate(db_file, File.size(db_file) - 200)
+
+    db.open
+    expect(db.check_db).to eql(1)
+    expect(db.check_db(true)).to eql(1)
+    db.close
+    db = PEROBS::FlatFileDB.new(@db_dir, { :log => $stderr,
+                                           :log_level => Logger::ERROR })
+    db.open
+    expect(db.check_db).to eql(0)
+
+    0.upto(4) do |i|
+      expect(db.get_object(i + 1)).to eql("#{i + 1}:#{'X' * (i + 1) * 30}$")
+    end
+    expect(db.get_object(6)).to be_nil
+    db.close
+  end
+
+  it 'should handle a lost blob at the end of the database.blobs file' do
+    @store.exit
+
+    db = PEROBS::FlatFileDB.new(@db_dir)
+    db_file = File.join(@db_dir, 'database.blobs')
+    db.open
+    0.upto(5) do |i|
+      db.put_object("#{i + 1}:#{'X' * (i + 1) * 30}$", i + 1)
+    end
+    db.close
+
+    # This exactly removes the last blob (#6)
+    f = File.truncate(db_file, File.size(db_file) - 210)
+
+    db.open
+    expect(db.check_db).to eql(1)
+    expect(db.check_db(true)).to eql(1)
+    db.close
+    db = PEROBS::FlatFileDB.new(@db_dir, { :log => $stderr,
+                                           :log_level => Logger::ERROR })
+    db.open
+    expect(db.check_db).to eql(0)
+
+    0.upto(4) do |i|
+      expect(db.get_object(i + 1)).to eql("#{i + 1}:#{'X' * (i + 1) * 30}$")
+    end
+    expect(db.get_object(6)).to be_nil
     db.close
   end
 
