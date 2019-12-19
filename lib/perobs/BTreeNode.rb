@@ -561,36 +561,8 @@ module PEROBS
     # @param key [Integer] key to search for
     # @return [Integer] Index of the matching key or the insert position.
     def search_key_index(key)
-      # Handle special case for empty keys list.
-      return 0 if @keys.empty?
-
-      # Keys are unique and always sorted. Use a binary search to find the
-      # index that fits the given key.
-      li = pi = 0
-      ui = @keys.size - 1
-      while li <= ui
-        # The pivot element is always in the middle between the lower and upper
-        # index.
-        pi = li + (ui - li) / 2
-
-        if key < @keys[pi]
-          # The pivot element is smaller than the key. Set the upper index to
-          # the pivot index.
-          ui = pi - 1
-        elsif key > @keys[pi]
-          # The pivot element is larger than the key. Set the lower index to
-          # the pivot index.
-          li = pi + 1
-        else
-          # We've found an exact match. For leaf nodes return the found index.
-          # For branch nodes we have to add one to the index since the larger
-          # child is the right one.
-          return @is_leaf ? pi : pi + 1
-        end
-      end
-      # No exact match was found. For the insert operaton we need to return
-      # the index of the first key that is larger than the given key.
-      @keys[pi] < key ? pi + 1 : pi
+      (@is_leaf ? @keys.bsearch_index { |x| x >= key } :
+                  @keys.bsearch_index { |x| x > key }) || @keys.length
     end
 
     # Iterate over all the key/value pairs in this node and all sub-nodes.

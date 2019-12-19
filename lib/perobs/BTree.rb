@@ -117,11 +117,6 @@ module PEROBS
 
     # Close the tree file.
     def close
-
-      def val_perc(value, total)
-        "#{value} (#{(value.to_f / total*100.0).to_i}%)"
-      end
-
       sync
       @nodes.close
       @root = nil
