@@ -71,8 +71,7 @@ module PEROBS
       if modified
         @modified_entries[object.uid] = object
       else
-        index = object.uid % @size
-        @unmodified_entries[index] = object
+        @unmodified_entries[object.uid % @size] = object
       end
 
       nil

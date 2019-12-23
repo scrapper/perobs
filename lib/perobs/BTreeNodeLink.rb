@@ -67,6 +67,8 @@ module PEROBS
       get_node.respond_to?(method)
     end
 
+    # Directly define some commonly used methods to avoid the method_missing
+    # overhead.
     def is_leaf
       get_node.is_leaf
     end
@@ -91,8 +93,16 @@ module PEROBS
       get_node.search_key_index(key)
     end
 
+    def insert(key, value)
+      get_node.insert(key, value)
+    end
+
     def insert_element(key, voc)
       get_node.insert_element(key, voc)
+    end
+
+    def split_node
+      get_node.split_node
     end
 
     # Compare this node to another node.

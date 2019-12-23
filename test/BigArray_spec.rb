@@ -59,12 +59,16 @@ describe PEROBS::BigArray do
     expect(@a.length).to eq(0)
     expect(@a.check).to be true
     expect(@a[0]).to be nil
+    expect(@a.first).to be nil
+    expect(@a.last).to be nil
   end
 
   it 'should append the first element' do
     @a << 0
     expect(@a.empty?).to be false
     expect(@a[0]).to eq(0)
+    expect(@a.first).to eq(0)
+    expect(@a.last).to eq(0)
     expect(@a.length).to eq(1)
     expect(@a.check).to be true
   end
@@ -75,6 +79,8 @@ describe PEROBS::BigArray do
       expect(@a.check).to be true
       expect(@a.length).to eq(i + 1)
     end
+    expect(@a.first).to eq(0)
+    expect(@a.last).to eq(10 * NODE_ENTRIES - 1)
   end
 
   it 'should insert at 0' do

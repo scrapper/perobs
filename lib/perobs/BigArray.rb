@@ -190,6 +190,20 @@ module PEROBS
       @entry_counter == 0
     end
 
+    # Return the first entry of the Array.
+    def first
+      return nil unless @first_leaf
+
+      @first_leaf.values.first
+    end
+
+    # Return the last entry of the Array.
+    def last
+      return nil unless @last_leaf
+
+      @last_leaf.values.last
+    end
+
     # Iterate over all entries in the tree. Entries are always sorted by the
     # key.
     # @yield [key, value]
