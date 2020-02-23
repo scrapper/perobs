@@ -184,7 +184,11 @@ module PEROBS
     #        repaired.
     # @return number of errors found
     def check_db(repair = false)
-      @flat_file.check(repair)
+      if repair
+        @flat_file.repair
+      else
+        @flat_file.check
+      end
     end
 
     # Check if the stored object is syntactically correct.

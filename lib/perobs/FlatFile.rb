@@ -591,6 +591,142 @@ module PEROBS
       errors
     end
 
+    # Repair the FlatFile. In contrast to the repair functionality in the
+    # check() method this method is much faster. It simply re-creates the
+    # index and space list from the blob file.
+    # @param repair [Boolean] True if errors should be fixed.
+    # @return [Integer] Number of errors found
+    def repair
+      errors = 0
+      return errors unless @f
+
+      t = Time.now
+      PEROBS.log.info "Repairing FlatFile database"
+
+      # Erase and re-open the index and space list files.
+      @index.erase
+      @index.open
+      @space_list.erase
+      @space_list.open
+
+      # Now we scan the blob file and re-index all blobs and spaces. Corrupted
+      # blobs will be skipped.
+      corrupted_blobs = 0
+      end_of_last_valid_blob = nil
+      @progressmeter.start('Re-indexing blobs file', @f.size) do |pm|
+        corrupted_blobs = each_blob_header do |header|
+          if header.corruption_start
+            # The blob is preceeded by a corrupted area. We create a new
+            # header of a deleted blob for this area and write the new blob
+            # over it.
+            if (data_length = header.addr - header.corruption_start -
+                FlatFileBlobHeader::LENGTH) <= 0
+              PEROBS.log.error "Found a corrupted blob that is too small to " +
+                "fit a header (#{data_length}). File must be defragmented."
+            else
+              new_header = FlatFileBlobHeader.new(@f, header.corruption_start,
+                                                  0, data_length, 0, 0)
+              new_header.write
+              @space_list.add_space(header.corruption_start, data_length)
+            end
+          end
+
+          if header.is_valid?
+            # We have a non-deleted entry.
+            begin
+              @f.seek(header.addr + FlatFileBlobHeader::LENGTH)
+              buf = @f.read(header.length)
+              if buf.bytesize != header.length
+                PEROBS.log.error "Premature end of file in blob with ID " +
+                  "#{header.id}."
+                discard_damaged_blob(header)
+                errors += 1
+                next
+              end
+
+              # Uncompress the data if the compression bit is set in the mark
+              # byte.
+              if header.is_compressed?
+                begin
+                  buf = Zlib.inflate(buf)
+                rescue Zlib::BufError, Zlib::DataError
+                  PEROBS.log.error "Corrupted compressed block with ID " +
+                    "#{header.id} found."
+                  discard_damaged_blob(header)
+                  errors += 1
+                  next
+                end
+              end
+
+              if header.crc && checksum(buf) != header.crc
+                PEROBS.log.error "Checksum failure while checking blob " +
+                  "with ID #{header.id}"
+                discard_damaged_blob(header)
+                errors += 1
+                next
+              end
+            rescue IOError => e
+              PEROBS.log.fatal "Check of blob with ID #{header.id} failed: " +
+                e.message
+            end
+
+            # Check if the ID has already been found in the file.
+            if (previous_address = @index.get(header.id))
+              PEROBS.log.error "Multiple blobs for ID #{header.id} found. " +
+                "Addresses: #{previous_address}, #{header.addr}"
+              errors += 1
+              previous_header = FlatFileBlobHeader.read(@f, previous_address,
+                                                        header.id)
+              # We have two blobs with the same ID and we must discard one of
+              # them.
+              if header.is_outdated?
+                discard_damaged_blob(header)
+              elsif previous_header.is_outdated?
+                discard_damaged_blob(previous_header)
+              else
+                PEROBS.log.error "None of the blobs with same ID have " +
+                  "the outdated flag set. Deleting the smaller one."
+                errors += 1
+                discard_damaged_blob(header.length < previous_header.length ?
+                                     header : previous_header)
+              end
+            else
+              # ID is unique so far. Add it to the shadow index.
+              @index.insert(header.id, header.addr)
+            end
+
+            end_of_last_valid_blob = @f.pos
+          else
+            if header.length > 0
+              @space_list.add_space(header.addr, header.length)
+            end
+          end
+
+          pm.update(header.addr)
+        end
+
+        if end_of_last_valid_blob && end_of_last_valid_blob != @f.size
+          # The blob file ends with a corrupted blob header.
+          PEROBS.log.error "#{@f.size - end_of_last_valid_blob} corrupted " +
+            'bytes found at the end of FlatFile.'
+          corrupted_blobs += 1
+
+          PEROBS.log.error "Truncating FlatFile to " +
+            "#{end_of_last_valid_blob} bytes by discarding " +
+            "#{@f.size - end_of_last_valid_blob} bytes"
+          @f.truncate(end_of_last_valid_blob)
+        end
+
+        errors += corrupted_blobs
+      end
+
+      sync
+      PEROBS.log.info "FlatFile repair completed in #{Time.now - t} seconds. " +
+        "#{errors} errors found."
+
+      errors
+    end
+
     # This method clears the index tree and the free space list and
     # regenerates them from the FlatFile.
     def regenerate_index_and_spaces

@@ -234,7 +234,9 @@ describe PEROBS::FlatFileDB do
 
     db.open
     expect(db.check_db).to eql(1)
-    expect(db.check_db(true)).to eql(1)
+    # The repair won't find the missing blob since the blob file is without
+    # errors.
+    expect(db.check_db(true)).to eql(0)
     db.close
     db = PEROBS::FlatFileDB.new(@db_dir, { :log => $stderr,
                                            :log_level => Logger::ERROR })
