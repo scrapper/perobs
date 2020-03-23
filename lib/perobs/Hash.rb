@@ -125,7 +125,7 @@ module PEROBS
     # Proxy for assignment method.
     def []=(key, value)
       unless key.is_a?(String)
-        raise ArgumentError, "PEROBS::Hash[] key most be a String but is a " +
+        raise ArgumentError, "PEROBS::Hash[] key must be a String but is a " +
           "#{key.class}"
       end
       _check_assignment_value(value)

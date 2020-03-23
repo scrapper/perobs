@@ -51,7 +51,7 @@ module PEROBS
     end
 
     it 'should learn a word' do
-      @fsm.learn('kindergarten', nil)
+      @fsm.learn('kindergarten')
       expect(stats = @fsm.stats).not_to be_nil
       expect(stats['dictionary_size']).to eql(11)
       expect(stats['max_list_size']).to eql(1)

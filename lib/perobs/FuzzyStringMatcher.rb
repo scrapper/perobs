@@ -65,7 +65,9 @@ module PEROBS
     # Add a string with its reference to the dictionary.
     # @param string [String] The string to store
     # @param reference [Object] Any object that is associated with the string
-    def learn(string, reference)
+    def learn(string, reference = string)
+      reference = string if reference.nil?
+
       unless @case_sensitive
         string = string.downcase
       end
@@ -74,11 +76,13 @@ module PEROBS
 
       each_n_gramm(string) do |n_gramm|
         unless (ng_list = @dict[n_gramm])
-          @dict[n_gramm] = ng_list = @store.new(Array)
+          @dict[n_gramm] = ng_list = @store.new(Hash)
         end
 
-        unless ng_list.include?(reference)
-          ng_list << reference
+        if ng_list.include?(reference)
+          ng_list[reference] += 1
+        else
+          ng_list[reference] = 0
         end
       end
 
@@ -110,7 +114,7 @@ module PEROBS
       each_n_gramm(string) do |n_gramm|
         best_possible_score += 1
         if (ng_list = @dict[n_gramm])
-          ng_list.each do |reference|
+          ng_list.each do |reference, count|
             if matches.include?(reference)
               matches[reference] += 1
             else

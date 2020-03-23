@@ -170,6 +170,8 @@ module PEROBS
       false
     end
 
+    alias include? has_key?
+
     # Delete and return the entry for the given key. Return nil if no matching
     # entry exists.
     # @param key [Integer or String]
