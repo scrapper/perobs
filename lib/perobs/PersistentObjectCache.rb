@@ -44,7 +44,8 @@ module PEROBS
     # cache objects.
     # @param size [Integer] Minimum number of objects to be cached at a time
     # @param flush_delay [Integer] Determines how often non-forced flushes are
-    #        ignored in a row before the flush is really done.
+    #        ignored in a row before the flush is really done. If flush_delay
+    #        is smaller than 0 non-forced flushed will always be ignored.
     # @param klass [Class] The class of the objects to be cached. Objects must
     #        provide a uid() method that returns a unique ID for every object.
     # @param collection [] The object collection the objects belong to. It
@@ -110,7 +111,7 @@ module PEROBS
     # all modified objects will be written.
     # @param now [Boolean]
     def flush(now = false)
-      if now || (@flush_counter -= 1) <= 0
+      if now || (@flush_delay >= 0 && (@flush_counter -= 1) <= 0)
         @modified_entries.each do |id, object|
           object.save
         end

@@ -54,8 +54,7 @@ module PEROBS
       @file_name = File.join(dir, name + '.cache')
       @page_size = page_size
       open
-      @pages = PersistentObjectCache.new(max_in_memory, max_in_memory / 2,
-                                         IDListPage, self)
+      @pages = PersistentObjectCache.new(max_in_memory, -1, IDListPage, self)
       @page_counter = 0
     end
 

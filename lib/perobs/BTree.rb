@@ -70,7 +70,7 @@ module PEROBS
       @nodes.register_custom_data('first_leaf')
       @nodes.register_custom_data('last_leaf')
       @nodes.register_custom_data('btree_size')
-      @node_cache = PersistentObjectCache.new(16384, 5000, BTreeNode, self)
+      @node_cache = PersistentObjectCache.new(2**16, -1, BTreeNode, self)
       @root = @first_leaf = @last_leaf = nil
       @size = 0
 
