@@ -166,6 +166,19 @@ module PEROBS
     # @return [Boolean] true if no erros were found, false otherwise
     def check(&block)
       @root.check(&block)
+
+      i = 0
+      each do |k, v|
+        i += 1
+      end
+
+      unless @entry_counter == i
+        PEROBS.log.error "BigTree contains #{i} values but entry counter " +
+          "is #{@entry_counter}"
+        return false
+      end
+
+      true
     end
 
     # Gather some statistics regarding the tree structure.

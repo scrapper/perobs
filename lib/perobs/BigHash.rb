@@ -68,7 +68,7 @@ module PEROBS
     class Collisions < PEROBS::Array
     end
 
-    attr_persist :btree, :entry_counter
+    attr_persist :btree
 
     # Create a new BigHash object.
     # @param p [Handle] Store handle
@@ -76,7 +76,6 @@ module PEROBS
       super(p)
       restore
       self.btree = @store.new(PEROBS::BigTree)
-      self.entry_counter = 0
     end
 
     def restore
@@ -106,7 +105,6 @@ module PEROBS
               end
               index_to_insert += 1
             end
-            self.entry_counter += 1 unless overwrite
             existing_entry[index_to_insert] = entry
           elsif existing_entry.key == key
             # The existing value is for the identical key. We can safely
@@ -119,12 +117,10 @@ module PEROBS
             array_entry << existing_entry
             array_entry << entry
             @btree.insert(hashed_key, array_entry)
-            self.entry_counter += 1
           end
         else
           # No existing entry. Insert the new entry.
           @btree.insert(hashed_key, entry)
-          self.entry_counter += 1
         end
       end
     end
@@ -185,7 +181,6 @@ module PEROBS
       if entry.is_a?(PEROBS::Array)
         entry.each_with_index do |ae, i|
           if ae.key == key
-            self.entry_counter -= 1
             return entry.delete_at(i).value
           end
         end
@@ -199,7 +194,7 @@ module PEROBS
     # Return the number of entries stored in the hash.
     # @return [Integer]
     def length
-      @entry_counter
+      @btree.entry_counter
     end
 
     alias size length
@@ -207,7 +202,7 @@ module PEROBS
     # Return true if hash is empty. False otherweise.
     # @return [TrueClass, FalseClass]
     def empty?
-      @entry_counter == 0
+      @btree.entry_counter == 0
     end
 
     # Calls the given block for each key/value pair.
@@ -236,20 +231,7 @@ module PEROBS
     # Check if the data structure contains any errors.
     # @return [Boolean] true if no erros were found, false otherwise
     def check
-      return false unless @btree.check
-
-      i = 0
-      each do |k, v|
-        i += 1
-      end
-
-      unless @entry_counter == i
-        PEROBS.log.error "BigHash contains #{i} values but entry counter " +
-          "is #{@entry_counter}"
-        return false
-      end
-
-      true
+      return @btree.check
     end
 
     private
