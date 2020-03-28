@@ -114,6 +114,9 @@ module PEROBS
       if now || (@flush_delay >= 0 && (@flush_counter -= 1) <= 0)
         @modified_entries.each do |id, object|
           object.save
+          # Add the object to the unmodified object cache. We might still need
+          # it again soon.
+          @unmodified_entries[object.uid % @size] = object
         end
         @modified_entries = ::Hash.new
         @flush_counter = @flush_delay

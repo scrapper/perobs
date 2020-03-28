@@ -72,6 +72,13 @@ describe PEROBS::Hash do
     expect(@h.keys).to eql([ 'foo' ])
   end
 
+  it 'should store a few objects' do
+    20.times do |i|
+      @h["bar#{i}"] = "foo#{i}"
+    end
+    expect(@h.size).to eql(20)
+  end
+
   it 'should return nil for unknown objects' do
     expect(@h['bar']).to be_nil
   end
