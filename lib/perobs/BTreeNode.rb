@@ -646,12 +646,12 @@ module PEROBS
 
           if node.is_leaf
             if branch_depth
-              unless branch_depth == stack.size
+              unless branch_depth == node.tree_level
                 node.error "All leaf nodes must have same distance from root "
                 return false
               end
             else
-              branch_depth = stack.size
+              branch_depth = node.tree_level
             end
             if node.prev_sibling.nil? && @tree.first_leaf != node
               node.error "Leaf node #{node.node_address} has no previous " +
@@ -842,6 +842,17 @@ module PEROBS
 
       s
     end
+
+    def tree_level
+      level = 1
+      node = self
+      while (node = node.parent)
+        level += 1
+      end
+
+      level
+    end
+
 
     def error(msg)
       PEROBS.log.error "Error in BTreeNode @#{@node_address}: #{msg}"

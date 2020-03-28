@@ -203,8 +203,10 @@ module PEROBS
     # @param key [Integer] Unique key
     # @param value [Integer] value
     def insert(key, value)
-      @size += 1 if @root.insert(key, value)
-      @node_cache.flush
+      if @root.insert(key, value)
+        @size += 1
+        @node_cache.flush
+      end
     end
 
     # Retrieve the value associated with the given key. If no entry was found,
