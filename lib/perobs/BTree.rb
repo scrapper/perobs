@@ -217,6 +217,13 @@ module PEROBS
       @root.get(key)
     end
 
+    # Either return the key/value pair that exactly matches the key or a
+    # key/value pair that has a key that is at least min_miss_increment larger
+    # than the key.
+    def get_best_match(key, min_miss_increment)
+      @root.get_best_match(key, min_miss_increment)
+    end
+
     # Find and remove the value associated with the given key. If no entry was
     # found, return nil, otherwise the found value.
     def remove(key)

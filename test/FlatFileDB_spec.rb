@@ -71,7 +71,7 @@ describe PEROBS::FlatFileDB do
     expect { db2.open }.to raise_error(PEROBS::FatalError)
   end
 
-  it 'should do a version upgrade' do
+  it 'should do a version upgrade from version 3' do
     # Close the store
     @store.exit
     src_dir = File.join(File.dirname(__FILE__), 'LegacyDBs', 'version_3')
@@ -79,6 +79,21 @@ describe PEROBS::FlatFileDB do
 
     db = LegacyDB.new(@db_dir)
     capture_io { db.open }
+    capture_io { expect(db.check).to be true }
+  end
+
+  it 'should do a version upgrade from version 4.1' do
+    # Close the store
+    @store.exit
+    src_dir = File.join(File.dirname(__FILE__), 'LegacyDBs', 'version_4.1')
+    FileUtils.cp_r(Dir.glob(src_dir + '/*'), @db_dir)
+
+    db = LegacyDB.new(@db_dir)
+    capture_io { db.open }
+    capture_io { expect(db.repair).to eql(0) }
+    expect(File.exist?(File.join(@db_dir, 'space_index.blobs'))).to be true
+    expect(File.exist?(File.join(@db_dir, 'space_list.blobs'))).to be true
+    expect(File.exist?(File.join(@db_dir, 'database_spaces.blobs'))).to be false
     capture_io { expect(db.check).to be true }
   end
 

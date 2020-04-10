@@ -255,6 +255,53 @@ module PEROBS
         "looking for key #{key}"
     end
 
+    # Return the key/value pair that matches the given key or the next larger
+    # key/value pair with a key that is at least as large as key +
+    # min_miss_increment.
+    # @param key [Integer] key to search for
+    # @param min_miss_increment [Integer] minimum required key increment in
+    #        case an exact key match could not be found
+    # @return [Integer or nil] value that matches the key
+    def get_best_match(key, min_miss_increment)
+      node = self
+
+      while node do
+        # Find index of the entry that best fits the key.
+        i = node.search_key_index(key)
+        if node.is_leaf
+          # This is a leaf node. Check if there is an exact match for the
+          # given key.
+          if node.keys[i] == key
+            # Return the corresponding value/value pair.
+            return [ key, node.values[i] ]
+          else
+            # No exact key match. Now search the larger keys for the first
+            # that is at least key + min_miss_increment large.
+            while node
+              if (i += 1) >= node.keys.length
+                # We've reached the end of a node. Continue search in next
+                # sibling.
+                node = node.next_sibling
+                i = -1
+              elsif node.keys[i] >= key + min_miss_increment
+                # We've found a key that fits the critera. Return the
+                # corresponding key/value pair.
+                return [ node.keys[i], node.values[i] ]
+              end
+            end
+
+            return nil
+          end
+        end
+
+        # Descend into the right child node to continue the search.
+        node = node.children[i]
+      end
+
+      PEROBS.log.fatal "Could not find proper node to get from while " +
+        "looking for key #{key}"
+    end
+
     # Return the value that matches the given key and remove the value from
     # the tree. Return nil if the key is unknown.
     # @param key [Integer] key to search for

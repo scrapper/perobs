@@ -115,6 +115,10 @@ module PEROBS
             PEROBS.log.fatal "Cannot read blob header " +
               "#{id ? "for ID #{id} " : ''}at address #{addr}"
           else
+            if corruption_start
+              PEROBS.log.error "Corruption found at end of blob file at " +
+                "address #{addr}"
+            end
             # We have reached the end of the file.
             return nil
           end
@@ -122,10 +126,15 @@ module PEROBS
 
         # Did we get the full header?
         if buf_with_crc.length != LENGTH
-          PEROBS.log.error "Incomplete FlatFileBlobHeader: Only " +
+          msg = "Incomplete FlatFileBlobHeader: Only " +
             "#{buf_with_crc.length} " +
             "bytes of #{LENGTH} could be read "
           "#{id ? "for ID #{id} " : ''}at address #{addr}"
+          if errors_are_fatal
+            PEROBS.log.fatal msg
+          else
+            PEROBS.log.error msg
+          end
           return nil
         end
 
@@ -148,10 +157,16 @@ module PEROBS
               "#{'%08x' % crc}."
           else
             if corruption_start.nil?
-              PEROBS.log.error "FlatFile corruption found. The FlatFile " +
-                "Header CRC mismatch at address #{addr}. Header CRC is " +
-                "#{'%08x' % read_crc} but should be #{'%08x' % crc}. Trying " +
-                "to find the next header."
+              if errors_are_fatal
+                PEROBS.log.fatal "FlatFile corruption found. The FlatFile " +
+                  "Header CRC mismatch at address #{addr}. Header CRC is " +
+                  "#{'%08x' % read_crc} but should be #{'%08x' % crc}."
+              else
+                PEROBS.log.error "FlatFile corruption found. The FlatFile " +
+                  "Header CRC mismatch at address #{addr}. Header CRC is " +
+                  "#{'%08x' % read_crc} but should be #{'%08x' % crc}. " +
+                  "Trying to find the next header."
+              end
               corruption_start = addr
             end
             # The blob file is corrupted. There is no valid header at the

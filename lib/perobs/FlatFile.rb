@@ -31,6 +31,7 @@ require 'perobs/Log'
 require 'perobs/FlatFileBlobHeader'
 require 'perobs/BTree'
 require 'perobs/SpaceTree'
+require 'perobs/SpaceManager'
 require 'perobs/IDList'
 
 module PEROBS
@@ -51,7 +52,14 @@ module PEROBS
       @f = nil
       @marks = nil
       @index = BTree.new(@db_dir, 'index', INDEX_BTREE_ORDER, @progressmeter)
-      @space_list = SpaceTree.new(@db_dir, @progressmeter)
+      old_spaces_file = File.join(@db_dir, 'database_spaces.blobs')
+      if File.exist?(old_spaces_file)
+        # PEROBS version 4.1.0 and earlier used this space list format. It is
+        # deprecated now. Newly created DBs use the SpaceManager format.
+        @space_list = SpaceTree.new(@db_dir, @progressmeter)
+      else
+        @space_list = SpaceManager.new(@db_dir, @progressmeter)
+      end
     end
 
     # Open the flat file for reading and writing.
@@ -462,7 +470,7 @@ module PEROBS
       new_index.open
 
       corrupted_blobs = 0
-      end_of_last_valid_blob = nil
+      end_of_last_healthy_blob = nil
       @progressmeter.start('Checking blobs file', @f.size) do |pm|
         corrupted_blobs = each_blob_header do |header|
           if header.is_valid?
@@ -531,23 +539,23 @@ module PEROBS
               # ID is unique so far. Add it to the shadow index.
               new_index.insert(header.id, header.addr)
             end
-
-            end_of_last_valid_blob = @f.pos
           end
+          end_of_last_healthy_blob = header.addr +
+            FlatFileBlobHeader::LENGTH + header.length
 
           pm.update(header.addr)
         end
 
-        if end_of_last_valid_blob && end_of_last_valid_blob != @f.size
+        if end_of_last_healthy_blob && end_of_last_healthy_blob != @f.size
           # The blob file ends with a corrupted blob header.
-          PEROBS.log.error "#{@f.size - end_of_last_valid_blob} corrupted " +
+          PEROBS.log.error "#{@f.size - end_of_last_healthy_blob} corrupted " +
             'bytes found at the end of FlatFile.'
           corrupted_blobs += 1
           if repair
             PEROBS.log.error "Truncating FlatFile to " +
-              "#{end_of_last_valid_blob} bytes by discarding " +
-              "#{@f.size - end_of_last_valid_blob} bytes"
-            @f.truncate(end_of_last_valid_blob)
+              "#{end_of_last_healthy_blob} bytes by discarding " +
+              "#{@f.size - end_of_last_healthy_blob} bytes"
+            @f.truncate(end_of_last_healthy_blob)
           end
         end
 
@@ -603,16 +611,14 @@ module PEROBS
       t = Time.now
       PEROBS.log.info "Repairing FlatFile database"
 
-      # Erase and re-open the index and space list files.
-      @index.erase
-      @index.open
-      @space_list.erase
-      @space_list.open
+      # Erase and re-open the index and space list files. We purposely don't
+      # close the files at it would trigger needless flushing.
+      clear_index_files(true)
 
       # Now we scan the blob file and re-index all blobs and spaces. Corrupted
       # blobs will be skipped.
       corrupted_blobs = 0
-      end_of_last_valid_blob = nil
+      end_of_last_healthy_blob = nil
       @progressmeter.start('Re-indexing blobs file', @f.size) do |pm|
         corrupted_blobs = each_blob_header do |header|
           if header.corruption_start
@@ -695,26 +701,27 @@ module PEROBS
               @index.insert(header.id, header.addr)
             end
 
-            end_of_last_valid_blob = @f.pos
           else
             if header.length > 0
               @space_list.add_space(header.addr, header.length)
             end
           end
+          end_of_last_healthy_blob = header.addr +
+            FlatFileBlobHeader::LENGTH + header.length
 
           pm.update(header.addr)
         end
 
-        if end_of_last_valid_blob && end_of_last_valid_blob != @f.size
+        if end_of_last_healthy_blob && end_of_last_healthy_blob != @f.size
           # The blob file ends with a corrupted blob header.
-          PEROBS.log.error "#{@f.size - end_of_last_valid_blob} corrupted " +
+          PEROBS.log.error "#{@f.size - end_of_last_healthy_blob} corrupted " +
             'bytes found at the end of FlatFile.'
           corrupted_blobs += 1
 
           PEROBS.log.error "Truncating FlatFile to " +
-            "#{end_of_last_valid_blob} bytes by discarding " +
-            "#{@f.size - end_of_last_valid_blob} bytes"
-          @f.truncate(end_of_last_valid_blob)
+            "#{end_of_last_healthy_blob} bytes by discarding " +
+            "#{@f.size - end_of_last_healthy_blob} bytes"
+          @f.truncate(end_of_last_healthy_blob)
         end
 
         errors += corrupted_blobs
@@ -889,7 +896,7 @@ module PEROBS
               unless @space_list.has_space?(header.addr, header.length)
                 PEROBS.log.error "FlatFile has free space " +
                   "(addr: #{header.addr}, len: #{header.length}) that is " +
-                  "not in FreeSpaceManager"
+                  "not in SpaceManager"
                 errors += 1
               end
             end
@@ -923,49 +930,36 @@ module PEROBS
         @index.open(abort_on_missing_files)
         @space_list.open
       rescue FatalError
-        # Ensure that the index is really closed.
-        @index.close
-        # Erase it completely
-        @index.erase
-        # Then create it again.
-        @index.open
-
-        # Ensure that the spaces list is really closed.
-        @space_list.close
-        # Erase it completely
-        @space_list.erase
-        # Then create it again
-        @space_list.open
-
+        clear_index_files
         regenerate_index_and_spaces
       end
     end
 
-    def erase_index_files
+    def erase_index_files(dont_close_files = false)
       # Ensure that the index is really closed.
-      @index.close
+      @index.close unless dont_close_files
       # Erase it completely
       @index.erase
 
       # Ensure that the spaces list is really closed.
-      @space_list.close
+      @space_list.close unless dont_close_files
       # Erase it completely
       @space_list.erase
+
+      if @space_list.is_a?(SpaceTree)
+        # If we still use the old SpaceTree format, this is the moment to
+        # convert it to the new SpaceManager format.
+        @space_list = SpaceManager.new(@db_dir, @progressmeter)
+        PEROBS.log.warn "Converting space list from SpaceTree format " +
+          "to SpaceManager format"
+      end
     end
 
-    def clear_index_files
-      # Ensure that the index is really closed.
-      @index.close
-      # Erase it completely
-      @index.erase
-      # Then create it again.
-      @index.open
+    def clear_index_files(dont_close_files = false)
+      erase_index_files(dont_close_files)
 
-      # Ensure that the spaces list is really closed.
-      @space_list.close
-      # Erase it completely
-      @space_list.erase
-      # Then create it again
+      # Then create them again.
+      @index.open
       @space_list.open
     end
 

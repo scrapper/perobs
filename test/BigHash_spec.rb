@@ -134,6 +134,7 @@ describe PEROBS::Hash do
     end
     expect(h.check).to be true
     expect(h.length).to eql(n)
+    expect(store.check).to eql(0)
     store.exit
 
     store = PEROBS::Store.new(db_name)

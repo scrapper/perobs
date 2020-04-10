@@ -131,6 +131,10 @@ class LegacyDB
     true
   end
 
+  def repair
+    @store.check(true)
+  end
+
   private
 
   def find_separator(str)
