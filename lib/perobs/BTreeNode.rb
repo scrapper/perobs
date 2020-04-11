@@ -366,22 +366,6 @@ module PEROBS
       @parent
     end
 
-    def merge_node(upper_sibling, parent_index)
-      if upper_sibling == self
-        PEROBS.log.fatal "Cannot merge node @#{@node_address} with self"
-      end
-      unless upper_sibling.is_leaf
-        insert_element(@parent.keys[parent_index], upper_sibling.children[0])
-      end
-      upper_sibling.copy_elements(0, self, @keys.size, upper_sibling.keys.size)
-      if (@next_sibling = link(upper_sibling.next_sibling))
-        @next_sibling.prev_sibling = link(self)
-      end
-      @tree.delete_node(upper_sibling.node_address)
-
-      @parent.remove_element(parent_index)
-    end
-
     # Insert the given value or child into the current node using the key as
     # index.
     # @param key [Integer] key to address the value or child
@@ -484,13 +468,8 @@ module PEROBS
         end
       end
 
-      if @parent.nil? && @children.length == 1
-        # If the node just below the root only has one child it will become
-        # the new root node.
-        new_root = @children.first
-        new_root.parent = nil
-        @tree.set_root(new_root)
-      end
+      # Delete the node from the cache and backing store.
+      @tree.delete_node(node.node_address)
     end
 
     def merge_with_leaf_node(node)
@@ -669,19 +648,21 @@ module PEROBS
     # Check consistency of the node and all subsequent nodes. In case an error
     # is found, a message is logged and false is returned.
     # @yield [key, value]
-    # @return [Boolean] true if tree has no errors
+    # @return [nil or Integer] nil in case of errors or the number of nodes
     def check
       branch_depth = nil
+      nodes_count = 0
 
       traverse do |node, position, stack|
         if position == 0
+          nodes_count += 1
           if node.parent
             # After a split the nodes will only have half the maximum keys.
             # For branch nodes one of the split nodes will have even 1 key
             # less as this will become the branch key in a parent node.
             if node.keys.size < min_keys - (node.is_leaf ? 0 : 1)
               node.error "BTreeNode #{node.node_address} has too few keys"
-              return false
+              return nil
             end
           end
 
@@ -695,7 +676,7 @@ module PEROBS
             if last_key && key < last_key
               node.error "Keys are not increasing monotoneously: " +
                 "#{node.keys.inspect}"
-              return false
+              return nil
             end
             last_key = key
           end
@@ -704,7 +685,7 @@ module PEROBS
             if branch_depth
               unless branch_depth == node.tree_level
                 node.error "All leaf nodes must have same distance from root "
-                return false
+                return nil
               end
             else
               branch_depth = node.tree_level
@@ -712,62 +693,62 @@ module PEROBS
             if node.prev_sibling.nil? && @tree.first_leaf != node
               node.error "Leaf node #{node.node_address} has no previous " +
                 "sibling but is not the first leaf of the tree"
-              return false
+              return nil
             end
             if node.next_sibling.nil? && @tree.last_leaf != node
               node.error "Leaf node #{node.node_address} has no next sibling " +
                 "but is not the last leaf of the tree"
-              return false
+              return nil
             end
             unless node.keys.size == node.values.size
               node.error "Key count (#{node.keys.size}) and value " +
                 "count (#{node.values.size}) don't match"
-                return false
+                return nil
             end
             unless node.children.empty?
               node.error "@children must be nil for a leaf node"
-              return false
+              return nil
             end
           else
             unless node.values.empty?
               node.error "@values must be nil for a branch node"
-              return false
+              return nil
             end
             unless node.children.size == node.keys.size + 1
               node.error "Key count (#{node.keys.size}) must be one " +
                 "less than children count (#{node.children.size})"
-                return false
+                return nil
             end
             node.children.each_with_index do |child, i|
               unless child.is_a?(BTreeNodeLink)
                 node.error "Child #{i} is of class #{child.class} " +
                   "instead of BTreeNodeLink"
-                return false
+                return nil
               end
               unless child.parent.is_a?(BTreeNodeLink)
                 node.error "Parent reference of child #{i} is of class " +
                   "#{child.parent.class} instead of BTreeNodeLink"
-                return false
+                return nil
               end
               if child == node
                 node.error "Child #{i} points to self"
-                return false
+                return nil
               end
               if stack.include?(child)
                 node.error "Child #{i} points to ancester node"
-                return false
+                return nil
               end
               unless child.parent == node
                 node.error "Child #{i} does not have parent pointing " +
                   "to this node"
-                return false
+                return nil
               end
               if i > 0
                 unless node.children[i - 1].next_sibling == child
                   node.error "next_sibling of node " +
                     "#{node.children[i - 1].node_address} " +
                     "must point to node #{child.node_address}"
-                  return false
+                  return nil
                 end
               end
               if i < node.children.length - 1
@@ -775,7 +756,7 @@ module PEROBS
                   node.error "prev_sibling of node " +
                     "#{node.children[i + 1].node_address} " +
                     "must point to node #{child.node_address}"
-                  return false
+                  return nil
                 end
               end
             end
@@ -789,24 +770,24 @@ module PEROBS
               node.error "Child #{node.children[index].node_address} " +
                 "has too large key #{node.children[index].keys.last}. " +
                 "Must be smaller than #{node.keys[index]}."
-              return false
+              return nil
             end
             unless node.children[position].keys.first >= node.keys[index]
               node.error "Child #{node.children[position].node_address} " +
                 "has too small key #{node.children[position].keys.first}. " +
                 "Must be larger than or equal to #{node.keys[index]}."
-              return false
+              return nil
             end
           else
             if block_given?
               # If a block was given, call this block with the key and value.
-              return false unless yield(node.keys[index], node.values[index])
+              return nil unless yield(node.keys[index], node.values[index])
             end
           end
         end
       end
 
-      true
+      nodes_count
     end
 
     def is_top?

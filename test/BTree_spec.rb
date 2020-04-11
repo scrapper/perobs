@@ -51,6 +51,7 @@ describe PEROBS::BTree do
     @m.open
     expect(@m.to_s).to eql("o--- @1\n")
     #expect(@m.to_a).to eql([])
+    expect(@m.check).to be true
   end
 
   it 'should support adding sequential key/value pairs' do

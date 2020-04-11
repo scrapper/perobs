@@ -160,9 +160,9 @@ module PEROBS
       return false unless @nodes.check
 
       entries = 0
-      res = true
+      nodes_count = nil
       @progressmeter.start('Checking index structure', @size) do |pm|
-        res = @root.check do |k, v|
+        nodes_count = @root.check do |k, v|
           pm.update(entries += 1)
           block_given? ? yield(k, v) : true
         end
@@ -173,8 +173,14 @@ module PEROBS
           "found entries (#{entries}) don't match"
         return false
       end
+      unless nodes_count == @nodes.total_entries
+        PEROBS.log.error "The BTree nodes count (#{nodes_count}) and the " +
+          "number of entries in the nodes file (#{@nodes.total_entries}) " +
+          "don't match"
+          return false
+      end
 
-      res
+      !nodes_count.nil?
     end
 
     # Register a new node as root node of the tree.

@@ -40,7 +40,10 @@ module PEROBS
   # bytes long header that stores the total entry count, the total space
   # count, the offset of the first entry and the offset of the first space.
   # The header is followed by a custom entry section. Each entry is also 8
-  # bytes long. After the custom entry section the data blobs start.
+  # bytes long. After the custom entry section the data blobs start. Each data
+  # blob starts with a mark byte that indicates if the blob is valid data (2),
+  # a free space (0) or reseved space (1). Then it is followed by @entry_bytes
+  # number of bytes for the data blob.
   class EquiBlobsFile
 
     TOTAL_ENTRIES_OFFSET = 0
