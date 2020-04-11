@@ -66,10 +66,10 @@ module PEROBS
     def cache_write(obj)
       # This is just a safety check. It can probably be disabled in the future
       # to increase performance.
-      if obj.respond_to?(:is_poxreference?)
-        # If this condition triggers, we have a bug in the library.
-        PEROBS.log.fatal "POXReference objects should never be cached"
-      end
+      #if obj.respond_to?(:is_poxreference?)
+      #  # If this condition triggers, we have a bug in the library.
+      #  PEROBS.log.fatal "POXReference objects should never be cached"
+      #end
 
       if @transaction_stack.empty?
         # We are not in transaction mode.
@@ -185,7 +185,7 @@ module PEROBS
         transactions = @transaction_stack.pop
         # Merge the two lists
         @transaction_stack.push(@transaction_stack.pop + transactions)
-        # Ensure that each object is only included once in the list.
+        # Ensure that each object ID is only included once in the list.
         @transaction_stack.last.uniq!
       end
     end

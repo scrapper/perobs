@@ -250,7 +250,7 @@ module PEROBS
     def _restore(level)
       # Find the most recently stored state of this object. This could be on
       # any previous stash level or in the regular object DB. If the object
-      # was created during the transaction, there is not previous state to
+      # was created during the transaction, there is no previous state to
       # restore to.
       data = nil
       if @_stash_map

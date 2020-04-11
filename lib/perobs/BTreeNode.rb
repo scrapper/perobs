@@ -225,6 +225,7 @@ module PEROBS
         else
           # Descend into the right child node to add the value to.
           node = node.children[node.search_key_index(key)]
+          node = node.get_node if node
         end
       end
 
@@ -249,6 +250,7 @@ module PEROBS
 
         # Descend into the right child node to continue the search.
         node = node.children[i]
+        node = node.get_node if node
       end
 
       PEROBS.log.fatal "Could not find proper node to get from while " +
@@ -277,16 +279,21 @@ module PEROBS
           else
             # No exact key match. Now search the larger keys for the first
             # that is at least key + min_miss_increment large.
+            keys = node.keys
+            keys_length = keys.length
             while node
-              if (i += 1) >= node.keys.length
+              if (i += 1) >= keys_length
                 # We've reached the end of a node. Continue search in next
                 # sibling.
-                node = node.next_sibling
+                return nil unless (node = node.next_sibling)
+                node = node.get_node
+                keys = node.keys
+                keys_length = keys.length
                 i = -1
-              elsif node.keys[i] >= key + min_miss_increment
+              elsif keys[i] >= key + min_miss_increment
                 # We've found a key that fits the critera. Return the
                 # corresponding key/value pair.
-                return [ node.keys[i], node.values[i] ]
+                return [ keys[i], node.values[i] ]
               end
             end
 
@@ -296,6 +303,7 @@ module PEROBS
 
         # Descend into the right child node to continue the search.
         node = node.children[i]
+        node = node.get_node if node
       end
 
       PEROBS.log.fatal "Could not find proper node to get from while " +
@@ -324,6 +332,7 @@ module PEROBS
 
         # Descend into the right child node to continue the search.
         node = node.children[i]
+        node = node.get_node if node
       end
 
       PEROBS.log.fatal 'Could not find proper node to remove from'
@@ -853,6 +862,7 @@ module PEROBS
 
         str = (is_last_child ? '   ' : '  |') + str
         node = node.parent
+        node = node.get_node if node
       end
 
       str
