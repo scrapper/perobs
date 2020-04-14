@@ -34,7 +34,7 @@ describe PEROBS::SpaceManager do
   before(:all) do
     @db_dir = generate_db_name('SpaceManager')
     FileUtils.mkdir_p(@db_dir)
-    @m = PEROBS::SpaceManager.new(@db_dir, PEROBS::ProgressMeter.new)
+    @m = PEROBS::SpaceManager.new(@db_dir, PEROBS::ProgressMeter.new, 5)
     PEROBS.log.level = Logger::ERROR
     PEROBS.log.open($stderr)
   end
@@ -43,7 +43,7 @@ describe PEROBS::SpaceManager do
     FileUtils.rm_rf(@db_dir)
   end
 
-  it 'should open the space tree' do
+  it 'should open the space manager' do
     @m.open
     expect(@m.to_a).to eql([])
   end
@@ -83,7 +83,7 @@ describe PEROBS::SpaceManager do
     expect(@m.to_a).to eql([[1, 15], [20, 2], [40, 4], [80, 8], [81, 8], [100, 10], [160, 16], [320, 32]])
   end
 
-  it 'should support clearing the data' do
+  it 'should support clearing all spaces' do
     @m.clear
     expect(@m.to_a).to eql([])
     @m.add_space(1, 1)
@@ -92,109 +92,47 @@ describe PEROBS::SpaceManager do
     expect(@m.to_a).to eql([])
   end
 
-  it 'should delete an equal node' do
+  it 'should return exactly matching spaces' do
     @m.clear
     add_sizes([ 10, 5, 15, 10 ])
     expect(@m.to_a).to eql([[0, 10], [1, 5], [2, 15], [3, 10]])
     expect(@m.get_space(10)).to eql([3, 10])
-    expect(@m.to_a).to eql([[0, 10], [1, 5], [2, 15]])
+    expect(@m.get_space(10)).to eql([0, 10])
+    expect(@m.to_a).to eql([[1, 5], [2, 15]])
+    expect(@m.added_spaces).to eql(4)
+    expect(@m.recycled_spaces).to eql(2)
+    expect(@m.failed_requests).to eql(0)
 
     @m.clear
     add_sizes([ 10, 5, 15, 10, 10 ])
     expect(@m.to_a).to eql([[0, 10], [1, 5], [2, 15], [3, 10], [4, 10]])
     expect(@m.get_space(10)).to eql([4, 10])
     expect(@m.get_space(10)).to eql([3, 10])
-    expect(@m.to_a).to eql([[0, 10], [1, 5], [2, 15]])
+    expect(@m.get_space(10)).to eql([0, 10])
+    expect(@m.to_a).to eql([[1, 5], [2, 15]])
+    expect(@m.added_spaces).to eql(5)
+    expect(@m.recycled_spaces).to eql(3)
+    expect(@m.failed_requests).to eql(0)
   end
 
-  it 'should delete a smaller node' do
-    @m.clear
-    add_sizes([ 10, 5, 3, 7 ])
-    expect(@m.to_a).to eql([[0, 10], [1, 5], [2, 3], [3, 7]])
-    expect(@m.get_space(10)).to eql([0, 10])
-    expect(@m.to_a).to eql([[1, 5], [2, 3], [3, 7]])
-
-    @m.clear
-    add_sizes([ 10, 5, 3 ])
-    expect(@m.to_a).to eql([[0, 10], [1, 5], [2, 3]])
-    expect(@m.get_space(5)).to eql([1, 5])
-    expect(@m.to_a).to eql([[0, 10], [2, 3]])
-
-    @m.clear
-    add_sizes([ 10, 5 ])
-    expect(@m.to_a).to eql([[0, 10], [1, 5]])
-    expect(@m.get_space(5)).to eql([1, 5])
-    expect(@m.to_a).to eql([[0, 10]])
-
-    @m.clear
-    add_sizes([ 10, 5, 3, 7, 5 ])
-    expect(@m.to_a).to eql([[0, 10], [1, 5], [2, 3], [3, 7], [4, 5]])
-    expect(@m.get_space(3)).to eql([2, 3])
-    expect(@m.to_a).to eql([[0, 10], [1, 5], [3, 7], [4, 5]])
-  end
-
-  it 'should delete an larger node' do
-    @m.clear
-    add_sizes([ 10, 15, 13, 17 ])
-    expect(@m.to_a).to eql([[0, 10], [1, 15], [2, 13], [3, 17]])
-    expect(@m.get_space(10)).to eql([0, 10])
-    expect(@m.to_a).to eql([[1, 15], [2, 13], [3, 17]])
-
-    @m.clear
-    add_sizes([ 10, 15, 13 ])
-    expect(@m.to_a).to eql([[0, 10], [1, 15], [2, 13]])
-    expect(@m.get_space(15)).to eql([1, 15])
-    expect(@m.to_a).to eql([[0, 10], [2, 13]])
-
-    @m.clear
-    add_sizes([ 10, 15 ])
-    expect(@m.to_a).to eql([[0, 10], [1, 15]])
-    expect(@m.get_space(15)).to eql([1, 15])
-    expect(@m.to_a).to eql([[0, 10]])
-
-    @m.clear
-    add_sizes([ 10, 5, 15, 20, 17, 22 ])
-    expect(@m.to_a).to eql([[0, 10], [1, 5], [2, 15], [3, 20], [4, 17], [5, 22]])
-    expect(@m.get_space(15)).to eql([2, 15])
-    expect(@m.to_a).to eql([[0, 10], [1, 5], [3, 20], [4, 17], [5, 22]])
-  end
-
-  it 'should move largest of small tree' do
-    @m.clear
-    add_sizes([ 5, 3, 7 ])
-    expect(@m.get_space(5)).to eql([0, 5])
-    expect(@m.check).to be true
-    expect(@m.to_a).to eql([[1, 3], [2, 7]])
-
-    @m.clear
-    add_sizes([ 10, 5, 3, 7, 15, 7 ])
-    expect(@m.to_a).to eql([[0, 10], [1, 5], [2, 3], [3, 7], [4, 15], [5, 7]])
-    expect(@m.get_space(10)).to eql([0, 10])
-    expect(@m.check).to be true
-    expect(@m.to_a).to eql([[1, 5], [2, 3], [3, 7], [4, 15], [5, 7]])
-
-    @m.clear
-    add_sizes([ 10, 5, 3, 7, 15, 7, 6 ])
-    expect(@m.to_a).to eql([[0, 10], [1, 5], [2, 3], [3, 7], [4, 15], [5, 7], [6, 6]])
-    expect(@m.get_space(10)).to eql([0, 10])
-    expect(@m.to_a).to eql([[1, 5], [2, 3], [3, 7], [4, 15], [5, 7], [6, 6]])
-
-    @m.clear
-    add_sizes([ 10, 5, 3, 15, 13, 17 ])
-    expect(@m.get_space(10)).to eql([0, 10])
-    expect(@m.to_a).to eql([[1, 5], [2, 3], [3, 15], [4, 13], [5, 17]])
+  it "should return nil if no space can be found" do
+    expect(@m.get_space(42)).to be nil
+    expect(@m.get_space(9)).to be nil
+    expect(@m.get_space(11)).to be nil
+    expect(@m.recycled_spaces).to eql(3)
+    expect(@m.failed_requests).to eql(3)
   end
 
   it 'should support a real-world traffic pattern' do
     address = 0
     spaces = []
     @m.clear
-    0.upto(1000) do
+    0.upto(1500) do
       case rand(4)
       when 0
         # Insert new values
         rand(9).times do
-          size = 20 + rand(5000)
+          size = 20 + rand(80)
           @m.add_space(address, size)
           spaces << [ address, size ]
           address += size
@@ -202,7 +140,7 @@ describe PEROBS::SpaceManager do
       when 1
         # Remove some values
         rand(7).times do
-          size = 20 + rand(6000)
+          size = rand(110)
           if (space = @m.get_space(size))
             expect(spaces.include?(space)).to be true
             spaces.delete(space)
@@ -219,7 +157,7 @@ describe PEROBS::SpaceManager do
           end
         end
       when 3
-        if rand(100) == 0
+        if rand(200) == 0
           expect(@m.check).to be true
           @m.close
           @m.open

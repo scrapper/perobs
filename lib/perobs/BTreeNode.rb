@@ -39,6 +39,8 @@ module PEROBS
   # mark a node as leaf or branch node.
   class BTreeNode
 
+    Stats = Struct.new(:branch_depth, :nodes_count, :leave_nodes, :leaves)
+
     attr_reader :node_address, :parent, :is_leaf, :next_sibling, :prev_sibling,
       :keys, :values, :children
 
@@ -282,7 +284,7 @@ module PEROBS
             keys = node.keys
             keys_length = keys.length
             while node
-              if (i += 1) >= keys_length
+              if i >= keys_length
                 # We've reached the end of a node. Continue search in next
                 # sibling.
                 return nil unless (node = node.next_sibling)
@@ -295,6 +297,8 @@ module PEROBS
                 # corresponding key/value pair.
                 return [ keys[i], node.values[i] ]
               end
+
+              i += 1
             end
 
             return nil
@@ -648,14 +652,14 @@ module PEROBS
     # Check consistency of the node and all subsequent nodes. In case an error
     # is found, a message is logged and false is returned.
     # @yield [key, value]
-    # @return [nil or Integer] nil in case of errors or the number of nodes
+    # @return [nil or Hash] nil in case of errors or a hash with some
+    #         statistical information about the tree
     def check
-      branch_depth = nil
-      nodes_count = 0
+      stats = Stats.new(nil, 0, 0, 0)
 
       traverse do |node, position, stack|
         if position == 0
-          nodes_count += 1
+          stats.nodes_count += 1
           if node.parent
             # After a split the nodes will only have half the maximum keys.
             # For branch nodes one of the split nodes will have even 1 key
@@ -669,6 +673,7 @@ module PEROBS
           if node.keys.size > @tree.order
             node.error "BTreeNode must not have more then #{@tree.order} " +
               "keys, but has #{node.keys.size} keys"
+            return nil
           end
 
           last_key = nil
@@ -682,13 +687,13 @@ module PEROBS
           end
 
           if node.is_leaf
-            if branch_depth
-              unless branch_depth == node.tree_level
+            if stats.branch_depth
+              unless stats.branch_depth == node.tree_level
                 node.error "All leaf nodes must have same distance from root "
                 return nil
               end
             else
-              branch_depth = node.tree_level
+              stats.branch_depth = node.tree_level
             end
             if node.prev_sibling.nil? && @tree.first_leaf != node
               node.error "Leaf node #{node.node_address} has no previous " +
@@ -709,6 +714,9 @@ module PEROBS
               node.error "@children must be nil for a leaf node"
               return nil
             end
+
+            stats.leave_nodes += 1
+            stats.leaves += node.keys.length
           else
             unless node.values.empty?
               node.error "@values must be nil for a branch node"
@@ -787,7 +795,7 @@ module PEROBS
         end
       end
 
-      nodes_count
+      stats
     end
 
     def is_top?

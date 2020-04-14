@@ -53,8 +53,8 @@ module PEROBS
       @name = name
       @progressmeter = progressmeter
 
-      unless order > 2
-        PEROBS.log.fatal "BTree order must be larger than 2, not #{order}"
+      unless order > 4
+        PEROBS.log.fatal "BTree order must be larger than 4, not #{order}"
       end
       unless order % 2 == 1
         PEROBS.log.fatal "BTree order must be an uneven number, not #{order}"
@@ -118,6 +118,9 @@ module PEROBS
     # Close the tree file.
     def close
       sync
+      PEROBS.log.info "BTree file #{@name} has currently " +
+        "#{@nodes.total_entries} used entries and #{@nodes.total_spaces} " +
+        "unused entries"
       @nodes.close
       @root = nil
     end
@@ -160,27 +163,34 @@ module PEROBS
       return false unless @nodes.check
 
       entries = 0
-      nodes_count = nil
+      stats = nil
       @progressmeter.start('Checking index structure', @size) do |pm|
-        nodes_count = @root.check do |k, v|
+        stats = @root.check do |k, v|
           pm.update(entries += 1)
           block_given? ? yield(k, v) : true
         end
       end
+
+      return false unless stats
 
       unless entries == @size
         PEROBS.log.error "The BTree size (#{@size}) and the number of " +
           "found entries (#{entries}) don't match"
         return false
       end
-      unless nodes_count == @nodes.total_entries
-        PEROBS.log.error "The BTree nodes count (#{nodes_count}) and the " +
-          "number of entries in the nodes file (#{@nodes.total_entries}) " +
+      unless stats.nodes_count == @nodes.total_entries
+        PEROBS.log.error "The BTree nodes count (#{stats.nodes_count}) and " +
+          "the number of entries in the nodes file (#{@nodes.total_entries}) " +
           "don't match"
           return false
       end
+      PEROBS.log.info "Statistics for the BTree #{@name}: " +
+        "Number of nodes: #{stats.nodes_count}; " +
+        "Branch depth: #{stats.branch_depth}; " +
+        "Number of leave nodes: #{stats.leave_nodes}; " +
+        "Number of leaves: #{stats.leaves}"
 
-      !nodes_count.nil?
+      !stats.nil?
     end
 
     # Register a new node as root node of the tree.
