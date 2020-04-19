@@ -175,6 +175,26 @@ describe PEROBS::BigArray do
     expect(@a.size).to eql(0)
   end
 
+  it 'should insert after a whole' do
+    ref = []
+    10.times do |i|
+      idx = 10 + i * 3
+      @a[idx] = idx
+      ref[idx] = idx
+      expect(@a[idx]).to eql(idx)
+      expect(@a.check).to be true
+    end
+    10.times do |i|
+      idx = i * 5
+      @a[idx] = idx
+      ref[idx] = idx
+      expect(@a[idx]).to eql(idx)
+      expect(@a.check).to be true
+    end
+    expect(@a.check).to be true
+    expect(@a.to_a).to eql(ref)
+  end
+
   it 'should iterate over all values' do
     n = 3 * NODE_ENTRIES
     0.upto(n) { |i| @a.insert(i, i) }

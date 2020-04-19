@@ -147,7 +147,9 @@ module PEROBS
         else
           # Descend into the right child node to add the value to.
           cidx = node.search_child_index(index)
-          index -= node.offsets[cidx]
+          if (index -= node.offsets[cidx]) < 0
+            node.fatal "Index (#{index}) became negative"
+          end
           node = node.children[cidx]
         end
       end
@@ -471,11 +473,12 @@ module PEROBS
         else
           begin
             if node.is_leaf?
-              if node.values[position - 1]
+              if position <= node.size
                 str += "#{node.tree_prefix}  " +
                   "#{position == node.size ? '-' : '|'} " +
                   "[ #{node.value_index(position - 1)}: " +
-                  "#{node.values[position - 1]} ]\n"
+                  "#{node.values[position - 1].nil? ?
+                  'nil' : node.values[position - 1]} ]\n"
               end
             end
           rescue => e
@@ -613,7 +616,7 @@ module PEROBS
       # Handle special case for empty offsets list.
       return 0 if @offsets.empty? || offset <= @offsets.first
 
-      (@offsets.bsearch_index { |o| o >= offset } || @offsets.length) - 1
+      (@offsets.bsearch_index { |o| o > offset } || @offsets.length) - 1
     end
 
     # @return The index of the current node in the children list of the parent
