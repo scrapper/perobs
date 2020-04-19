@@ -32,7 +32,7 @@ require 'spec_helper'
 require 'perobs'
 require 'perobs/BigArray'
 
-NODE_ENTRIES = 4
+NODE_ENTRIES = 6
 
 describe PEROBS::BigArray do
 
@@ -148,7 +148,7 @@ describe PEROBS::BigArray do
     expect(@a.length).to eq(0)
     expect(@a.check).to be true
 
-    n = 3 * NODE_ENTRIES
+    n = 5 * NODE_ENTRIES
     0.upto(n) { |i| @a.insert(i, i) }
     0.upto(n) do |i|
       expect(@a.delete_at(0)).to eql(i)
@@ -161,21 +161,33 @@ describe PEROBS::BigArray do
       expect(@a.check).to be true
     end
 
-    n = 11 * NODE_ENTRIES
+    n = 15 * NODE_ENTRIES
     0.upto(n - 1) { |i| @a.insert(i, i) }
     expect(@a.delete_at(n + 2)).to be nil
     expect(@a.delete_at(-(n + 2))).to be nil
     expect(@a.size).to eql(n)
 
     n.times do |i|
-      @a.delete_at(rand(@a.size))
+      idx = rand(@a.size)
+      @a.delete_at(idx)
       expect(@a.size).to be (n - 1 - i)
       expect(@a.check).to be true
     end
     expect(@a.size).to eql(0)
   end
 
-  it 'should insert after a whole' do
+  it 'should fill the gaps' do
+    1.upto(4) do |i|
+      idx = i * NODE_ENTRIES * NODE_ENTRIES
+      @a[idx] = idx
+      expect(@a[idx - 1]).to be nil
+      expect(@a[idx + 1]).to be nil
+      expect(@a.check).to be true
+    end
+    expect(@a[0]).to be nil
+  end
+
+  it 'should insert after a gap' do
     ref = []
     10.times do |i|
       idx = 10 + i * 3

@@ -394,7 +394,7 @@ module PEROBS
       @offsets.each_with_index do |offset, i|
         if i > 0
           if offset < last_offset
-            error "Offset are not strictly monotoneously " +
+            error "Offsets are not strictly monotoneously " +
               "increasing: #{@offsets.inspect}"
             return false
           end
@@ -659,7 +659,7 @@ module PEROBS
 
     # This method takes care of adjusting the offsets in tree in case elements
     # were inserted or removed. All nodes that hold children after the
-    # insert/remove operation needs to be adjusted. Since child nodes get their
+    # insert/remove operation need to be adjusted. Since child nodes get their
     # offsets via their parents, only the parent node and the direct ancestor
     # followers need to be adjusted.
     # @param after_child [BigArrayNode] specifies the modified leaf node
@@ -913,7 +913,7 @@ module PEROBS
         # Root Node             +--------------------------------+
         # Offsets               | 0                           11 |
         # Children                |                            |
-        #              prepd      v                child       v
+        #              pred       v                child       v
         # Level 1    +--------------------------++--------------------------+
         # Offsets    | 0         4         7    ||   0          2         5 |
         # Children     |         |         |         |          |         |
@@ -925,8 +925,9 @@ module PEROBS
         #
         # Remove the last predecessor offset and update the child offset with
         # it
-        delta = @offsets[child_index] - pred.offsets.last
-        @offsets[child_index] = pred.offsets.pop
+        delta = pred.children.last.values_count
+        @offsets[child_index] -= delta
+        pred.offsets.pop
         # Adjust all the offsets of the child
         child.offsets.map! { |o| o += delta }
         # And prepend the 0 offset
