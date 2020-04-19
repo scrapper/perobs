@@ -192,12 +192,14 @@ module PEROBS
       # performance impact of compression is not compensated by writing
       # less data to the storage.
       compressed = false
-      if raw_obj.bytesize > 256
+      raw_obj_bytesize = raw_obj.bytesize
+      if raw_obj_bytesize > 256
         raw_obj = Zlib.deflate(raw_obj)
+        raw_obj_bytesize = raw_obj.bytesize
         compressed = true
       end
 
-      addr, length = find_free_blob(raw_obj.bytesize)
+      addr, length = find_free_blob(raw_obj_bytesize)
       begin
         if length != -1
           # Just a safeguard so we don't overwrite current data.
@@ -206,8 +208,8 @@ module PEROBS
             PEROBS.log.fatal "Length in free list (#{length}) and header " +
               "(#{header.length}) for address #{addr} don't match."
           end
-          if raw_obj.bytesize > header.length
-            PEROBS.log.fatal "Object (#{raw_obj.bytesize}) is longer than " +
+          if raw_obj_bytesize > header.length
+            PEROBS.log.fatal "Object (#{raw_obj_bytesize}) is longer than " +
               "blob space (#{header.length})."
           end
           if header.is_valid?
@@ -217,19 +219,19 @@ module PEROBS
         end
         flags = 1 << FlatFileBlobHeader::VALID_FLAG_BIT
         flags |= (1 << FlatFileBlobHeader::COMPRESSED_FLAG_BIT) if compressed
-        FlatFileBlobHeader.new(@f, addr, flags, raw_obj.bytesize, id, crc).write
+        FlatFileBlobHeader.new(@f, addr, flags, raw_obj_bytesize, id, crc).write
         @f.write(raw_obj)
-        if length != -1 && raw_obj.bytesize < length
+        if length != -1 && raw_obj_bytesize < length
           # The new object was not appended and it did not completely fill the
           # free space. So we have to write a new header to mark the remaining
           # empty space.
-          unless length - raw_obj.bytesize >= FlatFileBlobHeader::LENGTH
+          unless length - raw_obj_bytesize >= FlatFileBlobHeader::LENGTH
             PEROBS.log.fatal "Not enough space to append the empty space " +
-              "header (space: #{length} bytes, object: #{raw_obj.bytesize} " +
+              "header (space: #{length} bytes, object: #{raw_obj_bytesize} " +
               "bytes)."
           end
           space_address = @f.pos
-          space_length = length - FlatFileBlobHeader::LENGTH - raw_obj.bytesize
+          space_length = length - FlatFileBlobHeader::LENGTH - raw_obj_bytesize
           FlatFileBlobHeader.new(@f, space_address, 0, space_length,
                                  0, 0).write
           # Register the new space with the space list.
