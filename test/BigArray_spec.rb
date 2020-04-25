@@ -229,6 +229,15 @@ describe PEROBS::BigArray do
     end
   end
 
+  it 'should insert at the beginning' do
+    (5 * NODE_ENTRIES).downto(0) do |i|
+      @a.insert(0, i)
+    end
+    expect(@a.check).to be true
+    a = Array.new(5 * NODE_ENTRIES + 1) { |i| i }
+    expect(@a.to_a).to eq(a)
+  end
+
   it 'should persist the data' do
     db_name = generate_db_name(__FILE__ + "_persist")
     store = PEROBS::Store.new(db_name)
