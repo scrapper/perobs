@@ -117,7 +117,7 @@ describe PEROBS::BigArray do
 
   it 'should support the [] operator' do
     expect(@a[0]).to be nil
-    expect{@a[-1]}.to raise_error(IndexError)
+    expect(@a[-1]).to be nil
     @a[0] = 0
     expect(@a[0]).to eq(0)
     1.upto(3 * NODE_ENTRIES) do |i|
@@ -130,7 +130,7 @@ describe PEROBS::BigArray do
     0.upto(3 * NODE_ENTRIES) do |i|
       expect(@a[-3 * NODE_ENTRIES + i - 1]).to eq(i)
     end
-    expect{@a[-3 * NODE_ENTRIES - 2]}.to raise_error(IndexError)
+    expect(@a[-3 * NODE_ENTRIES - 2]).to be nil
     (3 * NODE_ENTRIES + 1).upto(4 * NODE_ENTRIES) do |i|
       expect(@a[i]).to be nil
     end

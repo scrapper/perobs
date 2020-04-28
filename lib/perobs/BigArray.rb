@@ -123,7 +123,11 @@ module PEROBS
     # @param index [Integer] Position in the array
     # @return [Integer or nil] found value or nil
     def [](index)
-      index = validate_index_range(index)
+      begin
+        index = validate_index_range(index)
+      rescue IndexError
+        return nil
+      end
 
       return nil if index >= @entry_counter
 
