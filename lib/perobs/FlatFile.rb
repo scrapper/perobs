@@ -524,18 +524,7 @@ module PEROBS
               if repair
                 # We have two blobs with the same ID and we must discard one of
                 # them.
-                if header.is_outdated?
-                  discard_damaged_blob(header)
-                elsif previous_header.is_outdated?
-                  discard_damaged_blob(previous_header)
-                else
-                  PEROBS.log.error "None of the blobs with same ID have " +
-                    "the outdated flag set. Deleting the smaller one."
-                  errors += 1
-                  discard_damaged_blob(header.length < previous_header.length ?
-                                       header : previous_header)
-                end
-                next
+                discard_duplicate_blobs(header, previous_header)
               end
             else
               # ID is unique so far. Add it to the shadow index.
@@ -687,17 +676,7 @@ module PEROBS
                                                         header.id)
               # We have two blobs with the same ID and we must discard one of
               # them.
-              if header.is_outdated?
-                discard_damaged_blob(header)
-              elsif previous_header.is_outdated?
-                discard_damaged_blob(previous_header)
-              else
-                PEROBS.log.error "None of the blobs with same ID have " +
-                  "the outdated flag set. Deleting the smaller one."
-                errors += 1
-                discard_damaged_blob(header.length < previous_header.length ?
-                                     header : previous_header)
-              end
+              discard_duplicate_blobs(header, previous_header)
             else
               # ID is unique so far. Add it to the shadow index.
               @index.insert(header.id, header.addr)
@@ -925,6 +904,22 @@ module PEROBS
       PEROBS.log.error "Discarding corrupted data blob for ID #{header.id} " +
         "at offset #{header.addr}"
       header.clear_flags
+    end
+
+    def discard_duplicate_blobs(header, previous_header)
+      if header.is_outdated?
+        discard_damaged_blob(header)
+      elsif previous_header.is_outdated?
+        discard_damaged_blob(previous_header)
+      else
+        smaller = header.length < previous_header.length ?
+          header : previous_header
+        PEROBS.log.error "None of the blobs with same ID have " +
+          "the outdated flag set. Deleting the smaller one " +
+          "at address #{smaller.addr}"
+        discard_damaged_blob(smaller)
+        new_index.insert(smaller.id, smaller.addr)
+      end
     end
 
     def open_index_files(abort_on_missing_files = false)
