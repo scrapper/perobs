@@ -59,7 +59,7 @@ module PEROBS
     #        if not
     def initialize(tree, node_address = nil, parent = nil, is_leaf = true,
                    prev_sibling = nil, next_sibling = nil,
-                   keys = [], values = [], children = [])
+                   keys = nil, values = nil, children = nil)
       @tree = tree
       if node_address == 0
         PEROBS.log.fatal "Node address may not be 0"
@@ -68,13 +68,13 @@ module PEROBS
       @parent = link(parent)
       @prev_sibling = link(prev_sibling)
       @next_sibling = link(next_sibling)
-      @keys = keys
+      @keys = keys || []
       if (@is_leaf = is_leaf)
-        @values = values
-        @children = []
+        @values = values || []
+        @children = nil
       else
-        @children = children
-        @values = []
+        @children = children || []
+        @values = nil
       end
     end
 
@@ -585,11 +585,11 @@ module PEROBS
     end
 
     def trim(idx)
-      @keys = @keys[0..idx - 1]
+      @keys.slice!(idx, @keys.length - idx)
       if @is_leaf
-        @values = @values[0..idx - 1]
+        @values.slice!(idx, @values.length - idx)
       else
-        @children = @children[0..idx]
+        @children.slice!(idx + 1, @children.length - idx - 1)
       end
       @tree.node_cache.insert(self)
     end
@@ -661,6 +661,10 @@ module PEROBS
         if position == 0
           stats.nodes_count += 1
           if node.parent
+            unless node.parent.is_a?(BTreeNodeLink)
+              node.error "parent is a #{node.parent.class} instead of a " +
+                "BTreeNodeLink"
+            end
             # After a split the nodes will only have half the maximum keys.
             # For branch nodes one of the split nodes will have even 1 key
             # less as this will become the branch key in a parent node.
@@ -695,6 +699,14 @@ module PEROBS
             else
               stats.branch_depth = node.tree_level
             end
+            if node.prev_sibling && !node.prev_sibling.is_a?(BTreeNodeLink)
+              node.error "prev_sibling is a #{node.prev_sibling.class} " +
+                "instead of a BTreeNodeLink"
+            end
+            if node.next_sibling && !node.next_sibling.is_a?(BTreeNodeLink)
+              node.error "next_sibling is a #{node.next_sibling.class} " +
+                "instead of a BTreeNodeLink"
+            end
             if node.prev_sibling.nil? && @tree.first_leaf != node
               node.error "Leaf node #{node.node_address} has no previous " +
                 "sibling but is not the first leaf of the tree"
@@ -710,7 +722,7 @@ module PEROBS
                 "count (#{node.values.size}) don't match"
                 return nil
             end
-            unless node.children.empty?
+            unless node.children.nil?
               node.error "@children must be nil for a leaf node"
               return nil
             end
@@ -718,7 +730,7 @@ module PEROBS
             stats.leave_nodes += 1
             stats.leaves += node.keys.length
           else
-            unless node.values.empty?
+            unless node.values.nil?
               node.error "@values must be nil for a branch node"
               return nil
             end
