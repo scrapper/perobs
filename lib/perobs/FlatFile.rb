@@ -452,16 +452,14 @@ module PEROBS
       regenerate_index_and_spaces
     end
 
-    # Check (and repair) the FlatFile.
-    # @param repair [Boolean] True if errors should be fixed.
+    # Check the FlatFile.
     # @return [Integer] Number of errors found
-    def check(repair = false)
+    def check()
       errors = 0
       return errors unless @f
 
       t = Time.now
-      PEROBS.log.info "Checking FlatFile database" +
-        "#{repair ? ' in repair mode' : ''}..."
+      PEROBS.log.info "Checking FlatFile database..."
 
       # First check the database blob file. Each entry should be readable and
       # correct and all IDs must be unique. We use a shadow index to keep
@@ -483,7 +481,6 @@ module PEROBS
               if buf.bytesize != header.length
                 PEROBS.log.error "Premature end of file in blob with ID " +
                   "#{header.id}."
-                discard_damaged_blob(header) if repair
                 errors += 1
                 next
               end
@@ -496,7 +493,6 @@ module PEROBS
                 rescue Zlib::BufError, Zlib::DataError
                   PEROBS.log.error "Corrupted compressed block with ID " +
                     "#{header.id} found."
-                  discard_damaged_blob(header) if repair
                   errors += 1
                   next
                 end
@@ -505,7 +501,6 @@ module PEROBS
               if header.crc && checksum(buf) != header.crc
                 PEROBS.log.error "Checksum failure while checking blob " +
                   "with ID #{header.id}"
-                discard_damaged_blob(header) if repair
                 errors += 1
                 next
               end
@@ -521,11 +516,6 @@ module PEROBS
               errors += 1
               previous_header = FlatFileBlobHeader.read(@f, previous_address,
                                                         header.id)
-              if repair
-                # We have two blobs with the same ID and we must discard one of
-                # them.
-                discard_duplicate_blobs(header, previous_header)
-              end
             else
               # ID is unique so far. Add it to the shadow index.
               new_index.insert(header.id, header.addr)
@@ -542,12 +532,6 @@ module PEROBS
           PEROBS.log.error "#{@f.size - end_of_last_healthy_blob} corrupted " +
             'bytes found at the end of FlatFile.'
           corrupted_blobs += 1
-          if repair
-            PEROBS.log.error "Truncating FlatFile to " +
-              "#{end_of_last_healthy_blob} bytes by discarding " +
-              "#{@f.size - end_of_last_healthy_blob} bytes"
-            @f.truncate(end_of_last_healthy_blob)
-          end
         end
 
         errors += corrupted_blobs
@@ -557,17 +541,19 @@ module PEROBS
       new_index.close
       new_index.erase
 
-      if repair && corrupted_blobs > 0
-        erase_index_files
-        defragmentize
-        regenerate_index_and_spaces
-      elsif corrupted_blobs == 0
+      if corrupted_blobs == 0
         # Now we check the index data. It must be correct and the entries must
         # match the blob file. All entries in the index must be in the blob file
         # and vise versa.
         begin
           index_ok = @index.check do |id, address|
-            has_id_at?(id, address)
+            unless has_id_at?(id, address)
+              PEROBS.log.error "Index contains an entry for " +
+                "ID #{id} at address #{address} that is not in FlatFile"
+              false
+            else
+              true
+            end
           end
           x_check_errs = 0
           space_check_ok = true
@@ -575,15 +561,12 @@ module PEROBS
             (x_check_errs = cross_check_entries) == 0
             errors += 1 unless index_ok && space_check_ok
             errors += x_check_errs
-            regenerate_index_and_spaces if repair
           end
         rescue PEROBS::FatalError
           errors += 1
-          regenerate_index_and_spaces if repair
         end
       end
 
-      sync if repair
       PEROBS.log.info "check_db completed in #{Time.now - t} seconds. " +
         "#{errors} errors found."
 
@@ -912,13 +895,14 @@ module PEROBS
       elsif previous_header.is_outdated?
         discard_damaged_blob(previous_header)
       else
-        smaller = header.length < previous_header.length ?
-          header : previous_header
+        smaller, larger = header.length < previous_header.length ?
+          [ header, previous_header ] : [ previous_header, header ]
         PEROBS.log.error "None of the blobs with same ID have " +
           "the outdated flag set. Deleting the smaller one " +
           "at address #{smaller.addr}"
         discard_damaged_blob(smaller)
-        new_index.insert(smaller.id, smaller.addr)
+        @space_list.add_space(smaller.addr, smaller.length)
+        @index.insert(larger.id, larger.addr)
       end
     end
 

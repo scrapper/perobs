@@ -190,7 +190,7 @@ module PEROBS
         "Number of leave nodes: #{stats.leave_nodes}; " +
         "Number of leaves: #{stats.leaves}"
 
-      !stats.nil?
+      true
     end
 
     # Register a new node as root node of the tree.

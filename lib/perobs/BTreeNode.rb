@@ -654,7 +654,7 @@ module PEROBS
     # @yield [key, value]
     # @return [nil or Hash] nil in case of errors or a hash with some
     #         statistical information about the tree
-    def check
+    def check(&block)
       stats = Stats.new(nil, 0, 0, 0)
 
       traverse do |node, position, stack|
@@ -664,6 +664,7 @@ module PEROBS
             unless node.parent.is_a?(BTreeNodeLink)
               node.error "parent is a #{node.parent.class} instead of a " +
                 "BTreeNodeLink"
+              return nil
             end
             # After a split the nodes will only have half the maximum keys.
             # For branch nodes one of the split nodes will have even 1 key
@@ -702,10 +703,12 @@ module PEROBS
             if node.prev_sibling && !node.prev_sibling.is_a?(BTreeNodeLink)
               node.error "prev_sibling is a #{node.prev_sibling.class} " +
                 "instead of a BTreeNodeLink"
+              return nil
             end
             if node.next_sibling && !node.next_sibling.is_a?(BTreeNodeLink)
               node.error "next_sibling is a #{node.next_sibling.class} " +
                 "instead of a BTreeNodeLink"
+              return nil
             end
             if node.prev_sibling.nil? && @tree.first_leaf != node
               node.error "Leaf node #{node.node_address} has no previous " +
@@ -720,7 +723,7 @@ module PEROBS
             unless node.keys.size == node.values.size
               node.error "Key count (#{node.keys.size}) and value " +
                 "count (#{node.values.size}) don't match"
-                return nil
+              return nil
             end
             unless node.children.nil?
               node.error "@children must be nil for a leaf node"
@@ -737,7 +740,7 @@ module PEROBS
             unless node.children.size == node.keys.size + 1
               node.error "Key count (#{node.keys.size}) must be one " +
                 "less than children count (#{node.children.size})"
-                return nil
+              return nil
             end
             node.children.each_with_index do |child, i|
               unless child.is_a?(BTreeNodeLink)
@@ -801,7 +804,9 @@ module PEROBS
           else
             if block_given?
               # If a block was given, call this block with the key and value.
-              return nil unless yield(node.keys[index], node.values[index])
+              unless yield(node.keys[index], node.values[index])
+                return nil
+              end
             end
           end
         end

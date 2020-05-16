@@ -265,5 +265,35 @@ describe PEROBS::FlatFileDB do
     db.close
   end
 
+  it 'should handle duplicate entries for the same ID in database.blobs file' do
+    @store.exit
+
+    db = PEROBS::FlatFileDB.new(@db_dir)
+    db_file = File.join(@db_dir, 'database.blobs')
+    db.open
+    0.upto(5) do |i|
+      db.put_object("#{i + 1}:#{'X' * (i + 1) * 30}$", i + 1)
+    end
+    db.close
+
+    # This appends the entry 2 again
+    blob2 = File.read(db_file, 319 - 199, 199)
+    File.write(db_file, blob2, File.size(db_file))
+
+    db.open
+    expect(db.check_db).to eql(2)
+    expect(db.check_db(true)).to eql(1)
+    db.close
+    db = PEROBS::FlatFileDB.new(@db_dir, { :log => $stderr,
+                                           :log_level => Logger::WARN })
+    db.open
+    expect(db.check_db).to eql(0)
+
+    0.upto(5) do |i|
+      expect(db.get_object(i + 1)).to eql("#{i + 1}:#{'X' * (i + 1) * 30}$")
+    end
+    db.close
+  end
+
 end
 
