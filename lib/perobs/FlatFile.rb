@@ -293,7 +293,7 @@ module PEROBS
       header = FlatFileBlobHeader.read(@f, addr, id)
       if header.id != id
         PEROBS.log.fatal "Database index corrupted: Index for object " +
-          "#{id} points to object with ID #{header.id}"
+          "#{id} points to object with ID #{header.id} at address #{addr}"
       end
 
       buf = nil
@@ -302,7 +302,8 @@ module PEROBS
         @f.seek(addr + FlatFileBlobHeader::LENGTH)
         buf = @f.read(header.length)
       rescue IOError => e
-        PEROBS.log.fatal "Cannot read blob for ID #{id}: #{e.message}"
+        PEROBS.log.fatal "Cannot read blob for ID #{id} at address #{addr}: " +
+          e.message
       end
 
       # Uncompress the data if the compression bit is set in the flags byte.
@@ -311,12 +312,13 @@ module PEROBS
           buf = Zlib.inflate(buf)
         rescue Zlib::BufError, Zlib::DataError
           PEROBS.log.fatal "Corrupted compressed block with ID " +
-            "#{header.id} found."
+            "#{id} found at address #{addr}."
         end
       end
 
       if checksum(buf) != header.crc
-        PEROBS.log.fatal "Checksum failure while reading blob ID #{id}"
+        PEROBS.log.fatal "Checksum failure while reading blob ID #{id} " +
+          "at address #{addr}"
       end
 
       buf
@@ -567,7 +569,7 @@ module PEROBS
         end
       end
 
-      PEROBS.log.info "check_db completed in #{Time.now - t} seconds. " +
+      PEROBS.log.info "FlatFile check completed in #{Time.now - t} seconds. " +
         "#{errors} errors found."
 
       errors
