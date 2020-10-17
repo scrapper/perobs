@@ -34,8 +34,8 @@ module PEROBS
     before(:all) do
       @db_name = generate_db_name(__FILE__)
       @store = PEROBS::Store.new(@db_name)
-      @fsm = FuzzyStringMatcher.new(@store, 'test')
-      @fsm2 = FuzzyStringMatcher.new(@store, 'test', true, 2)
+      @store['fsm'] = @fsm = @store.new(FuzzyStringMatcher)
+      @store['fsm2'] = @fsm2 = @store.new(FuzzyStringMatcher, true, 2)
     end
 
     after(:all) do
@@ -131,9 +131,9 @@ EOT
         @fsm2.learn(word, word)
       end
       stats = @fsm2.stats
-      expect(stats['dictionary_size']).to eql(363)
+      expect(stats['dictionary_size']).to eql(352)
       expect(stats['max_list_size']).to eql(22)
-      expect(stats['avg_list_size']).to be_within(0.001).of(2.366)
+      expect(stats['avg_list_size']).to be_within(0.001).of(2.409)
     end
 
     it 'should find case sensitive matches' do

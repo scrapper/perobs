@@ -26,7 +26,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 require 'perobs/Log'
-require 'perobs/ObjectBase'
+require 'perobs/Object'
 
 module PEROBS
 
@@ -36,30 +36,30 @@ module PEROBS
   # be the string, but can be something else related to the learned strings.
   # To use this class a list of strings with their references must be learned.
   # Once the dictionary has been established, fuzzy matches can be done.
-  class FuzzyStringMatcher
+  class FuzzyStringMatcher < PEROBS::Object
+
+    attr_persist :case_sensitive, :n, :dict
 
     # Create a new FuzzyStringMatcher.
     # @param store [PEROBS::Store] place to store the dictionary
-    # @param name [String] Unique name of the string matcher
     # @param case_sensitive [Boolean] True if case matters for matching
     # @param n [Integer] Determines what kind of n-gramm is used to store the
     #        references in the dictionary. It also determines the minimum word
     #        length that can be used for fuzzy matches.
-    def initialize(store, name, case_sensitive = false, n = 4)
-      @store = store
-      @dict_name = "FuzzyStringMatcher::#{name}"
+    def initialize(p, case_sensitive = false, n = 4)
+      super(p)
       if n < 2 || n > 10
         raise ArgumentError, 'n must be between 2 and 10'
       end
-      @case_sensitive = case_sensitive
-      @n = n
+      self.case_sensitive = case_sensitive
+      self.n = n
 
-      clear unless (@dict = @store[@dict_name])
+      clear unless @dict
     end
 
     # Wipe the dictionary.
     def clear
-      @store[@dict_name] = @dict = @store.new(BigHash)
+      self.dict = @store.new(BigHash)
     end
 
     # Add a string with its reference to the dictionary.
