@@ -29,6 +29,18 @@ require 'perobs/FuzzyStringMatcher'
 
 module PEROBS
 
+  class WordRef < PEROBS::Object
+
+    attr_persist :word, :line
+
+    def initialize(store, word, line)
+      super(store)
+      self.word = word
+      self.line = line
+    end
+
+  end
+
   describe FuzzyStringMatcher do
 
     before(:all) do
@@ -143,6 +155,38 @@ EOT
       }
 
       check_data_under_test(@fsm2, dut)
+    end
+
+    it 'should support references to PEROBS objects' do
+      text =<<-EOT
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+EOT
+
+      line_no = 1
+      @store['fsm'] = fsm = @store.new(FuzzyStringMatcher)
+      @store['refs'] = refs = @store.new(Array)
+      text.each_line do |line|
+        line.split.each do |word|
+          ref = @store.new(WordRef, word, line_no)
+          refs << ref
+          fsm.learn(word, ref)
+        end
+        line_no += 1
+      end
+
+      found_lines = []
+      fsm.best_matches('SOFTWARE').each do |match|
+        found_lines << match[0].line
+      end
+      expect(found_lines.sort).to eql([ 4, 5, 5, 7, 8 ])
     end
 
     def check_data_under_test(fsm, dut)

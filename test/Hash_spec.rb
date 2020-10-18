@@ -31,7 +31,6 @@ require 'spec_helper'
 
 require 'perobs'
 
-
 class PO < PEROBS::Object
 
   attr_persist :name
@@ -68,9 +67,13 @@ describe PEROBS::Hash do
     h['po'] = po = @store.new(PO)
     po.name = 'foobar'
     h['b'] = 'B'
+    @store['po_key'] = po_key = @store.new(PO)
+    po_key.name = 'po key'
+    h[po_key] = 'PO Key'
 
     expect(h['a']).to eq('A')
     expect(h['b']).to eq('B')
+    expect(h[@store['po_key']]).to eq('PO Key')
     @store.exit
 
     @store = PEROBS::Store.new(@db_name)
@@ -78,6 +81,14 @@ describe PEROBS::Hash do
     expect(h['a']).to eq('A')
     expect(h['b']).to eq('B')
     expect(h['po'].name).to eq('foobar')
+    po_key = @store['po_key']
+    expect(po_key.name).to eq('po key')
+    expect(h[po_key]).to eq('PO Key')
+  end
+
+  it 'should not allow hash keys that conflict with internal notations' do
+    @store['h'] = h = @store.new(PEROBS::Hash)
+    expect { h['#<PEROBS::POReference id=1234>'] = 'foo'; @store.sync }.to raise_error(ArgumentError)
   end
 
   it 'should have an each method to iterate' do

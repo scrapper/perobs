@@ -102,6 +102,13 @@ module PEROBS
       end
     end
 
+    # To allow POXReference objects to be used as Hash keys we need to
+    # implement this function. Conveniently, we can just use the PEROBS object
+    # ID since that is unique.
+    def hash
+      @id
+    end
+
     # Shortcut to access the _id() method of the referenced object.
     def _id
       @id

@@ -124,9 +124,9 @@ module PEROBS
 
     # Proxy for assignment method.
     def []=(key, value)
-      unless key.is_a?(String)
-        raise ArgumentError, "PEROBS::Hash[] key must be a String but is a " +
-          "#{key.class}"
+      unless key.is_a?(String) || key.respond_to?(:is_poxreference?)
+        raise ArgumentError, "PEROBS::Hash[] key must be a String or " +
+          "a PEROBS object but is a #{key.class}"
       end
       _check_assignment_value(value)
       @store.cache.cache_write(self)
@@ -143,18 +143,33 @@ module PEROBS
     # is referencing.
     # @return [Array of Integer] IDs of referenced objects
     def _referenced_object_ids
-      @data.each_value.select { |v| v && v.respond_to?(:is_poxreference?) }.
-        map { |o| o.id }
+      ids = []
+      @data.each do |k, v|
+        if k && k.respond_to?(:is_poxreference?)
+          ids << k.id
+        end
+        if v && v.respond_to?(:is_poxreference?)
+          ids << v.id
+        end
+      end
+
+      ids
     end
 
     # This method should only be used during store repair operations. It will
     # delete all referenced to the given object ID.
     # @param id [Integer] targeted object ID
     def _delete_reference_to_id(id)
+      original_length = @data.length
+
       @data.delete_if do |k, v|
-        v && v.respond_to?(:is_poxreference?) && v.id == id
+        (k && k.respond_to?(:is_poxreference?) && k.id == id) ||
+        (v && v.respond_to?(:is_poxreference?) && v.id == id)
       end
-      @store.cache.cache_write(self)
+
+      if @data.length != original_length
+        @store.cache.cache_write(self)
+      end
     end
 
     # Restore the persistent data from a single data structure.
@@ -163,8 +178,18 @@ module PEROBS
     # @private
     def _deserialize(data)
       @data = {}
-      data.each { |k, v| @data[k] = v.is_a?(POReference) ?
-                                    POXReference.new(@store, v.id) : v }
+
+      data.each do |k, v|
+        # References to other PEROBS Objects are marshalled with our own
+        # format. If we detect such a marshalled String we convert it into a
+        # POXReference object.
+        if (match = /^#<PEROBS::POReference id=([0-9]+)>$/.match(k))
+          k = POXReference.new(@store, match[1].to_i)
+        end
+        dv = v.is_a?(POReference) ? POXReference.new(@store, v.id) : v
+        @data[k] = dv
+      end
+
       @data
     end
 
@@ -185,24 +210,44 @@ module PEROBS
       data = {}
 
       @data.each do |k, v|
-        if v.respond_to?(:is_poxreference?)
-          data[k] = POReference.new(v.id)
-        else
-          # Outside of the PEROBS library all PEROBS::ObjectBase derived
-          # objects should not be used directly. The library only exposes them
-          # via POXReference proxy objects.
-          if v.is_a?(ObjectBase)
-            PEROBS.log.fatal 'A PEROBS::ObjectBase object escaped! ' +
-              "It is stored in a PEROBS::Hash with key #{k.inspect}. " +
-              'Have you used self() instead of myself() to ' +
-              "get the reference of this PEROBS object?\n" +
-              v.inspect
-          end
-          data[k] = v
+        if k.respond_to?(:is_poxreference?)
+          # JSON only supports Strings as hash keys. Since JSON is the default
+          # internal storage format in the database, we have to marshall
+          # PEROBS::Object references ourselves.
+          k = "#<PEROBS::POReference id=#{k.id}>"
+        elsif k[0..24] == '#<PEROBS::POReference id='
+          # This could obviously result in conflicts with 'normal' String hash
+          # keys. This is extremely unlikely, but we better catch this case
+          # before it causes hard to debug trouble.
+          raise ArgumentError, "Hash key #{k} conflicts with PEROBS " +
+            "internal representation of marshalled hash keys!"
         end
+        data[k] = serialize_helper(v)
       end
 
       data
+    end
+
+    def serialize_helper(v)
+      if v.respond_to?(:is_poxreference?)
+        # References to other PEROBS objects (POXReference) are stored as
+        # POReference in the database.
+        return POReference.new(v.id)
+      else
+        # Outside of the PEROBS library all PEROBS::ObjectBase derived
+        # objects should not be used directly. The library only exposes them
+        # via POXReference proxy objects.
+        if v.is_a?(ObjectBase)
+          PEROBS.log.fatal 'A PEROBS::ObjectBase object escaped! ' +
+            "It is stored in a PEROBS::Hash. " +
+            'Have you used self() instead of myself() to ' +
+            "get the reference of this PEROBS object?\n" +
+            v.inspect
+        end
+
+        # All other objects are serialized by their native methods.
+        return v
+      end
     end
 
   end

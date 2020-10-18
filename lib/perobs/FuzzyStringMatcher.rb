@@ -41,7 +41,7 @@ module PEROBS
     attr_persist :case_sensitive, :n, :dict
 
     # Create a new FuzzyStringMatcher.
-    # @param store [PEROBS::Store] place to store the dictionary
+    # @param p [PEROBS::Store] place to store the dictionary
     # @param case_sensitive [Boolean] True if case matters for matching
     # @param n [Integer] Determines what kind of n-gramm is used to store the
     #        references in the dictionary. It also determines the minimum word
