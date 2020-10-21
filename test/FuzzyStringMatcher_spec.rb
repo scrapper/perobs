@@ -115,6 +115,44 @@ module PEROBS
       expect(@fsm.best_matches('foobar')).to eql([])
     end
 
+    it 'should find a match' do
+      dut = {
+        [ 'one' ] => [ [ 'one', 1.0 ] ],
+        [ 'three' ] => [ [ 'three', 1.0 ] ],
+        [ 'four' ]=> [ [ 'four', 1.0 ], [ 'fourteen', 0.666 ] ],
+        [ 'four', 1.0 ]=> [ [ 'four', 1.0 ] ],
+        [ 'even' ] => [ [ 'seven', 0.666 ], [ 'eleven', 0.666 ] ],
+        [ 'teen' ] => [ ['thirteen', 0.6666666666666666],
+                      ['fourteen', 0.6666666666666666],
+                      ['fifteen', 0.6666666666666666],
+                      ['sixteen', 0.6666666666666666],
+                      ['seventeen', 0.6666666666666666],
+                      ['eighteen', 0.6666666666666666],
+                      ['nineteen', 0.6666666666666666] ],
+        [ 'aight' ] => [ [ 'eight', 0.5 ] ],
+        [ 'thirdteen' ] => [ [ 'thirteen', 0.5 ] ],
+        [ 'shirt teen', 0.3 ] => [ [ 'thirteen', 0.333 ] ]
+      }
+      check_data_under_test(@fsm, dut)
+    end
+
+    it 'should sort best to worst matches' do
+      @fsm.clear
+      %w( xbar xfoox foor bar foobar barfoo foo rab baar fool xbarx
+          foobarx xfoobarx foo_bar ).each do |w|
+        @fsm.learn(w, w)
+      end
+      dut = {
+        [ 'foo' ] => [["foo", 1.0], ["foor", 0.5], ["foobar", 0.5],
+                      ["fool", 0.5], ["foobarx", 0.5], ["foo_bar", 0.5],
+                      ["barfoo", 0.5]],
+        [ 'bar' ] => [["bar", 1.0], ["barfoo", 0.5], ["xbar", 0.5],
+                      ["foobar", 0.5], ["foo_bar", 0.5]],
+        [ 'foobar' ] => [["foobar", 1.0], ["foobarx", 0.8], ["xfoobarx", 0.6]]
+      }
+      check_data_under_test(@fsm, dut)
+    end
+
     it 'should handle a larger text' do
       text =<<-EOT
 MIT License
@@ -187,6 +225,14 @@ EOT
         found_lines << match[0].line
       end
       expect(found_lines.sort).to eql([ 4, 5, 5, 7, 8 ])
+    end
+
+    it 'should with small search words' do
+      @fsm.clear
+      mats = 'Yukihiro Matsumoto'
+      @fsm.learn(mats)
+      expect(@fsm.best_matches('Yukihiro').first.first).to eql(mats)
+      expect(@fsm.best_matches('Mats', 0.3).first.first).to eql(mats)
     end
 
     def check_data_under_test(fsm, dut)

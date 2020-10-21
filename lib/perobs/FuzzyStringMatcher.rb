@@ -109,22 +109,12 @@ module PEROBS
 
       matches = {}
 
-      # This will be the best possible score for a perfect match.
-      best_possible_score = 0
       each_n_gramm(string) do |n_gramm|
-        best_possible_score += 1
         if (ng_list = @dict[n_gramm])
           ng_list.each do |reference, count|
             if matches.include?(reference)
               matches[reference] += 1
             else
-              # We use internally a 10 times larger list so that we don't
-              # throw away good matches too early. If the max_count value is
-              # chosen too small there is a risk of not finding the best
-              # matches!
-              if matches.size > 10 * max_count
-                matches = discard_worst_match(matches)
-              end
               matches[reference] = 1
             end
           end
@@ -133,19 +123,23 @@ module PEROBS
 
       return [] if matches.empty?
 
-      # Sort in the order of occurance count downwards.
-      match_list = matches.to_a.sort do |a, b|
+      match_list = matches.to_a
+
+      # Set occurance counters to scores relative to the best possible score.
+      # This will be the best possible score for a perfect match.
+      best_possible_score = string.length - @n + 1
+      match_list.map! { |a, b| [ a, b.to_f / best_possible_score ] }
+
+      # Delete all matches that don't have the required minimum match score.
+      match_list.delete_if { |a| a[1] < min_score }
+
+      # Sort the list best to worst match
+      match_list.sort! do |a, b|
         b[1] <=> a[1]
       end
 
-      # Set occurance counters to scores relative to the best possible score.
-      match_list.map! { |a, b| [ a, b.to_f / best_possible_score ] }
-
-      # Delete all matches that occured less than half as often than the
-      # top match.
-      match_list.delete_if { |a| a[1] < min_score }
-
-      match_list[0..max_count]
+      # Return the top max_count matches.
+      match_list[0..max_count - 1]
     end
 
     # Returns some internal stats about the dictionary.
