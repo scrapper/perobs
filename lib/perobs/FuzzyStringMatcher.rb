@@ -79,11 +79,8 @@ module PEROBS
           @dict[n_gramm] = ng_list = @store.new(Hash)
         end
 
-        if ng_list.include?(reference)
-          ng_list[reference] += 1
-        else
-          ng_list[reference] = 0
-        end
+        # We use the Hash as a Set. The value doesn't matter.
+        ng_list[reference] = true
       end
 
       nil
@@ -111,7 +108,7 @@ module PEROBS
 
       each_n_gramm(string) do |n_gramm|
         if (ng_list = @dict[n_gramm])
-          ng_list.each do |reference, count|
+          ng_list.each do |reference, dummy|
             if matches.include?(reference)
               matches[reference] += 1
             else
@@ -168,16 +165,6 @@ module PEROBS
 
         yield(n_gramm)
       end
-    end
-
-    def discard_worst_match(matches)
-      # Sort in the order of occurance count downwards.
-      match_list = matches.to_a.sort do |a, b|
-        b[1] <=> a[1]
-      end
-      # Discard the lowest half of the matches
-      match_list = match_list[0..match_list.length / 2]
-      match_list.to_h
     end
 
   end
