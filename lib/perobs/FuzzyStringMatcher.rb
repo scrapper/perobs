@@ -32,10 +32,11 @@ module PEROBS
 
   # The fuzzy string matcher can be used to perform a fuzzy string search
   # against a known set of strings. The dictionary of known strings does not
-  # store the actual strings but references to arbitrary objects. These could
-  # be the string, but can be something else related to the learned strings.
-  # To use this class a list of strings with their references must be learned.
-  # Once the dictionary has been established, fuzzy matches can be done.
+  # store the actual strings but references to String or PEROBS objects.
+  # Once the dictionary has been established, fuzzy matches can be done. Since
+  # the actual input strings are not directly stored, you cannot remove or
+  # modified already stored strings. To remove strings, you have to clear the
+  # matcher and add the strings again that you want to keep.
   class FuzzyStringMatcher < PEROBS::Object
 
     attr_persist :case_sensitive, :n, :dict
@@ -45,7 +46,8 @@ module PEROBS
     # @param case_sensitive [Boolean] True if case matters for matching
     # @param n [Integer] Determines what kind of n-gramm is used to store the
     #        references in the dictionary. It also determines the minimum word
-    #        length that can be used for fuzzy matches.
+    #        length that can be used for fuzzy matches. Values between 2 and
+    #        10 are supported. The default is 4.
     def initialize(p, case_sensitive = false, n = 4)
       super(p)
       if n < 2 || n > 10
