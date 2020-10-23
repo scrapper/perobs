@@ -80,7 +80,7 @@ module PEROBS
         end
 
         # We use the Hash as a Set. The value doesn't matter.
-        ng_list[reference] = true
+        ng_list[reference] = true unless ng_list.include?(reference)
       end
 
       nil
