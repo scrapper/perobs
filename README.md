@@ -108,7 +108,7 @@ class Person < PEROBS::Object
     attr_init(:father) do { @store.new(Person, 'Dad') }
   end
 
-  def merry(spouse)
+  def marry(spouse)
     self.spouse = spouse
     self.status = :married
   end
