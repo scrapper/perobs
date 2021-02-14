@@ -28,3 +28,4 @@
 require "perobs/version"
 require 'perobs/Store'
 require 'perobs/ConsoleProgressMeter'
+require 'perobs/FuzzyStringMatcher'
