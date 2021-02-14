@@ -610,7 +610,7 @@ module PEROBS
       end
     end
 
-    # @param index [offset] offset to search the child index for
+    # @param offset [Integer] offset to search the child index for
     # @return [Integer] Index of the matching offset or the insert position.
     def search_child_index(offset)
       # Handle special case for empty offsets list.

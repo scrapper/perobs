@@ -65,7 +65,7 @@ module PEROBS
     end
 
     # Insert an ID into the page.
-    # @param ID [Integer] The ID to store
+    # @param id [Integer] The ID to store
     def insert(id)
       unless @min_id <= id && id <= @max_id
         raise ArgumentError, "IDs for this page must be between #{@min_id} " +

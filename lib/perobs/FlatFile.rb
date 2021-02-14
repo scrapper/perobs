@@ -578,7 +578,6 @@ module PEROBS
     # Repair the FlatFile. In contrast to the repair functionality in the
     # check() method this method is much faster. It simply re-creates the
     # index and space list from the blob file.
-    # @param repair [Boolean] True if errors should be fixed.
     # @return [Integer] Number of errors found
     def repair
       errors = 0
