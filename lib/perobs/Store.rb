@@ -599,6 +599,7 @@ module PEROBS
       @stats.swept_objects = @db.delete_unmarked_objects do |id|
         @cache.evict(id)
       end
+      @db.clear_marks
       GC.start
       PEROBS.log.debug "#{@stats.swept_objects} objects collected"
       @stats.swept_objects

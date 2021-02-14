@@ -341,7 +341,7 @@ module PEROBS
       if @marks
         @marks.clear
       else
-        @marks = IDList.new(@db_dir, 'marks', 8)
+        @marks = IDList.new(@db_dir, 'marks', item_counter)
       end
     end
 

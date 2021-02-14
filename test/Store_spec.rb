@@ -253,6 +253,20 @@ describe PEROBS::Store do
 
     capture_io { store.gc }
     capture_io { expect { store.check }.to_not raise_error }
+    capture_io { store.exit }
+
+    store = PEROBS::Store.new(@db_file)
+    capture_io { expect { store.check }.to_not raise_error }
+
+    person = store['person1']
+    i = 0
+    while (person = person.related) do
+      i += 1
+    end
+    expect(i).to eq(6)
+
+    capture_io { store.gc }
+    capture_io { expect { store.check }.to_not raise_error }
     expect { store.delete_store }.to_not raise_error
   end
 
