@@ -355,7 +355,7 @@ module PEROBS
       valid_blobs = 0
 
       # Iterate over all entries.
-      @progressmeter.start('Defragmentizing blobs file', @f.size) do |pm|
+      @progressmeter.start('Defragmenting blobs file', @f.size) do |pm|
         each_blob_header do |header|
           # If we have stumbled over a corrupted blob we treat it similar to a
           # deleted blob and reuse the space.
