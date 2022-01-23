@@ -130,6 +130,12 @@ module PEROBS
       elsif (obj = @reads[idx]) && obj._id == id
         # The object was in the read cache.
         return obj
+      elsif (obj = @transaction_objects[id])
+        # During transactions, the read cache is used to provide fast access
+        # to modified objects. But it does not store all modified objects
+        # since there can be hash collisions. So we also have to check all
+        # transaction objects as well.
+        return obj
       end
 
       nil
