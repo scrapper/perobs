@@ -78,7 +78,7 @@ module PEROBS
       end
     end
 
-    # Create a new SpaceTreeNode. This method should be used for the creation
+    # Create a new BTreeNode. This method should be used for the creation
     # of new nodes instead of calling the constructor directly.
     # @param tree [BTree] The tree the new node should belong to
     # @param parent [BTreeNode] The parent node
@@ -350,6 +350,7 @@ module PEROBS
       unless @parent
         # The node is the root node. We need to create a parent node first.
         self.parent = link(BTreeNode::create(@tree, nil, false))
+        @tree.node_cache.insert(self)
         @parent.set_child(0, self)
         @tree.set_root(@parent)
       end
@@ -382,6 +383,7 @@ module PEROBS
       end
 
       i = search_key_index(key)
+      @tree.node_cache.insert(self)
       if @keys[i] == key
         # Overwrite existing entries
         @keys[i] = key
@@ -390,7 +392,6 @@ module PEROBS
         else
           @children[i + 1] = link(value_or_child)
         end
-        @tree.node_cache.insert(self)
 
         return false
       else
@@ -401,7 +402,6 @@ module PEROBS
         else
           @children.insert(i + 1, link(value_or_child))
         end
-        @tree.node_cache.insert(self)
 
         return true
       end
@@ -417,8 +417,8 @@ module PEROBS
       update_branch_key(key) if index == 0
 
       # Delete the corresponding value.
-      removed_value = @values.delete_at(index)
       @tree.node_cache.insert(self)
+      removed_value = @values.delete_at(index)
 
       if @keys.length < min_keys
         if @prev_sibling && @prev_sibling.parent == @parent
@@ -481,9 +481,9 @@ module PEROBS
         PEROBS.log.fatal "Leaf nodes are too big to merge"
       end
 
+      @tree.node_cache.insert(self)
       @keys += node.keys
       @values += node.values
-      @tree.node_cache.insert(self)
 
       node.parent.remove_child(node)
     end
@@ -494,11 +494,11 @@ module PEROBS
       end
 
       index = @parent.search_node_index(node) - 1
+      @tree.node_cache.insert(self)
       @keys << @parent.keys[index]
       @keys += node.keys
       node.children.each { |c| c.parent = link(self) }
       @children += node.children
-      @tree.node_cache.insert(self)
 
       node.parent.remove_child(node)
     end
@@ -525,6 +525,7 @@ module PEROBS
           "#{dest_node.is_leaf} node must be of same kind"
       end
 
+      @tree.node_cache.insert(dest_node)
       dest_node.keys[dst_idx, count] = @keys[src_idx, count]
       if @is_leaf
         # For leaves we copy the keys and corresponding values.
@@ -537,17 +538,17 @@ module PEROBS
           dest_node.set_child(dst_idx + i, @children[src_idx + i])
         end
       end
-      @tree.node_cache.insert(dest_node)
     end
 
     def parent=(p)
-      @parent = p
       @tree.node_cache.insert(self)
+      @parent = p
 
       p
     end
 
     def prev_sibling=(node)
+      @tree.node_cache.insert(self)
       @prev_sibling = node
       if node.nil? && @is_leaf
         # If this node is a leaf node without a previous sibling we need to
@@ -555,14 +556,12 @@ module PEROBS
         @tree.set_first_leaf(BTreeNodeLink.new(@tree, self))
       end
 
-      @tree.node_cache.insert(self)
-
       node
     end
 
     def next_sibling=(node)
-      @next_sibling = node
       @tree.node_cache.insert(self)
+      @next_sibling = node
       if node.nil? && @is_leaf
         # If this node is a leaf node without a next sibling we need to
         # register it as the last leaf node.
@@ -573,25 +572,25 @@ module PEROBS
     end
 
     def set_child(index, child)
+      @tree.node_cache.insert(self)
       if child
         @children[index] = link(child)
         @children[index].parent = link(self)
       else
         @children[index] = nil
       end
-      @tree.node_cache.insert(self)
 
       child
     end
 
     def trim(idx)
+      @tree.node_cache.insert(self)
       @keys.slice!(idx, @keys.length - idx)
       if @is_leaf
         @values.slice!(idx, @values.length - idx)
       else
         @children.slice!(idx + 1, @children.length - idx - 1)
       end
-      @tree.node_cache.insert(self)
     end
 
     # Search the keys of the node that fits the given key. The result is
