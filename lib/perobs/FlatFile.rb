@@ -221,6 +221,7 @@ module PEROBS
         flags |= (1 << FlatFileBlobHeader::COMPRESSED_FLAG_BIT) if compressed
         FlatFileBlobHeader.new(@f, addr, flags, raw_obj_bytesize, id, crc).write
         @f.write(raw_obj)
+        @f.flush
         if length != -1 && raw_obj_bytesize < length
           # The new object was not appended and it did not completely fill the
           # free space. So we have to write a new header to mark the remaining
@@ -247,12 +248,11 @@ module PEROBS
           # If we had an existing object stored for the ID we have to mark
           # this entry as deleted now.
           old_header.clear_flags
+          @f.flush
           # And register the newly freed space with the space list.
           if @space_list.is_open?
             @space_list.add_space(old_addr, old_header.length)
           end
-        else
-          @f.flush
         end
       rescue IOError => e
         PEROBS.log.fatal "Cannot write blob for ID #{id} to FlatFileDB: " +
