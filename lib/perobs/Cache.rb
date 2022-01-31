@@ -122,19 +122,26 @@ module PEROBS
     # @param id [Integer] ID of the cached PEROBS::ObjectBase
     def object_by_id(id)
       idx = id & @mask
-      # The index is just a hash. We still need to check if the object IDs are
-      # actually the same before we can return the object.
-      if (obj = @writes[idx]) && obj._id == id
-        # The object was in the write cache.
-        return obj
-      elsif (obj = @reads[idx]) && obj._id == id
-        # The object was in the read cache.
-        return obj
-      elsif (obj = @transaction_objects[id])
+
+      if @transaction_stack.empty?
+        # The index is just a hash. We still need to check if the object IDs are
+        # actually the same before we can return the object.
+        if (obj = @writes[idx]) && obj._id == id
+          # The object was in the write cache.
+          return obj
+        end
+      else
         # During transactions, the read cache is used to provide fast access
         # to modified objects. But it does not store all modified objects
         # since there can be hash collisions. So we also have to check all
-        # transaction objects as well.
+        # transaction objects first.
+        if (obj = @transaction_objects[id])
+          return obj
+        end
+      end
+
+      if (obj = @reads[idx]) && obj._id == id
+        # The object was in the read cache.
         return obj
       end
 
