@@ -46,7 +46,7 @@ require 'perobs/ConsoleProgressMeter'
 # PErsistent Ruby OBject Store
 module PEROBS
 
-  Statistics = Struct.new(:in_memory_objects, :root_objects, :zombie_objects,
+  Statistics = Struct.new(:in_memory_objects, :root_objects,
                           :marked_objects, :swept_objects,
                           :created_objects, :collected_objects)
 
@@ -160,9 +160,6 @@ module PEROBS
       # List of PEROBS objects that are currently available as Ruby objects
       # hashed by their ID.
       @in_memory_objects = {}
-      # List of objects that were destroyed already but were still found in
-      # the in_memory_objects list. _collect has not yet been called for them.
-      @zombie_objects = {}
 
       # This objects keeps some counters of interest.
       @stats = Statistics.new
@@ -243,8 +240,8 @@ module PEROBS
         end
       end
 
-      @db = @class_map = @in_memory_objects = @zombie_objects =
-        @stats = @cache = @root_objects = nil
+      @db = @class_map = @in_memory_objects = @stats = @cache =
+        @root_objects = nil
     end
 
     # You need to call this method to create new PEROBS objects that belong to
@@ -281,8 +278,8 @@ module PEROBS
     # deletes the entire database.
     def delete_store
       @db.delete_database
-      @db = @class_map = @in_memory_objects = @zombie_objects =
-        @stats = @cache = @root_objects = nil
+      @db = @class_map = @in_memory_objects = @stats = @cache =
+        @root_objects = nil
     end
 
     # Store the provided object under the given name. Use this to make the
@@ -384,10 +381,13 @@ module PEROBS
         rescue RangeError => e
           # Due to a race condition the object can still be in the
           # @in_memory_objects list but has been collected already by the Ruby
-          # GC. In that case we need to load it again. The _collect() call
-          # will happen much later, potentially after we have registered a new
-          # object with the same ID.
-          @zombie_objects[id] = @in_memory_objects.delete(id)
+          # GC. The _collect() call has not been completed yet. We now have to
+          # wait until this has been done. I think the GC lock will prevent a
+          # race on @in_memory_objects.
+          GC.start
+          while @in_memory_objects.include?(id)
+            sleep 0.01
+          end
         end
       end
 
@@ -556,9 +556,6 @@ module PEROBS
       if @in_memory_objects[id] == ruby_object_id
         @in_memory_objects.delete(id)
         @stats[:collected_objects] += 1
-      elsif @zombie_objects[id] == ruby_object_id
-        @zombie_objects.delete(id)
-        @stats[:collected_objects] += 1
       end
     end
 
@@ -566,7 +563,6 @@ module PEROBS
     def statistics
       @stats.in_memory_objects = @in_memory_objects.length
       @stats.root_objects = @root_objects.length
-      @stats.zombie_objects = @zombie_objects.length
 
       @stats
     end
