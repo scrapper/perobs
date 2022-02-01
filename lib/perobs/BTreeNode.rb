@@ -130,7 +130,8 @@ module PEROBS
       ary = bytes.unpack(BTreeNode::node_bytes_format(tree))
       # Read is_leaf
       if ary[0] != 0 && ary[0] != 1
-        PEROBS.log.fatal "First byte of a BTreeNode entry must be 0 or 1"
+        PEROBS.log.fatal "First byte of a BTreeNode entry at address " +
+          "#{address} must be 0 or 1 but is #{ary[0]}"
       end
       is_leaf = ary[0] == 0 ? false : true
       # This is the number of keys this node has.
