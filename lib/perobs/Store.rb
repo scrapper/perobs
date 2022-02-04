@@ -27,6 +27,7 @@
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 require 'set'
+require 'monitor'
 
 require 'perobs/Log'
 require 'perobs/Handle'
@@ -170,6 +171,9 @@ module PEROBS
       # objects in memory.
       @cache = Cache.new(options[:cache_bits] || 16)
 
+      # Lock to serialize access to the Store and all stored data.
+      @lock = Monitor.new
+
       # The named (global) objects IDs hashed by their name
       unless options[:no_root_objects]
         unless (@root_objects = object_by_id(0))
@@ -256,11 +260,13 @@ module PEROBS
         PEROBS.log.fatal "#{klass} is not a BasicObject derivative"
       end
 
-      obj = _construct_po(klass, _new_id, *args)
-      # Mark the new object as modified so it gets pushed into the database.
-      @cache.cache_write(obj)
-      # Return a POXReference proxy for the newly created object.
-      obj.myself
+      @lock.synchronize do
+        obj = _construct_po(klass, _new_id, *args)
+        # Mark the new object as modified so it gets pushed into the database.
+        @cache.cache_write(obj)
+        # Return a POXReference proxy for the newly created object.
+        obj.myself
+      end
     end
 
     # For library internal use only!
@@ -277,9 +283,11 @@ module PEROBS
     # method was called. This is an alternative to exit() that additionaly
     # deletes the entire database.
     def delete_store
-      @db.delete_database
-      @db = @class_map = @in_memory_objects = @stats = @cache =
-        @root_objects = nil
+      @lock.synchronize do
+        @db.delete_database
+        @db = @class_map = @in_memory_objects = @stats = @cache =
+          @root_objects = nil
+      end
     end
 
     # Store the provided object under the given name. Use this to make the
@@ -291,25 +299,27 @@ module PEROBS
     # @param obj [PEROBS::Object] The object to store
     # @return [PEROBS::Object] The stored object.
     def []=(name, obj)
-      # If the passed object is nil, we delete the entry if it exists.
-      if obj.nil?
-        @root_objects.delete(name)
-        return nil
-      end
+      @lock.synchronize do
+        # If the passed object is nil, we delete the entry if it exists.
+        if obj.nil?
+          @root_objects.delete(name)
+          return nil
+        end
 
-      # We only allow derivatives of PEROBS::Object to be stored in the
-      # store.
-      unless obj.is_a?(ObjectBase)
-        PEROBS.log.fatal 'Object must be of class PEROBS::Object but ' +
-          "is of class #{obj.class}"
-      end
+        # We only allow derivatives of PEROBS::Object to be stored in the
+        # store.
+        unless obj.is_a?(ObjectBase)
+          PEROBS.log.fatal 'Object must be of class PEROBS::Object but ' +
+            "is of class #{obj.class}"
+        end
 
-      unless obj.store == self
-        PEROBS.log.fatal 'The object does not belong to this store.'
-      end
+        unless obj.store == self
+          PEROBS.log.fatal 'The object does not belong to this store.'
+        end
 
-      # Store the name and mark the name list as modified.
-      @root_objects[name] = obj._id
+        # Store the name and mark the name list as modified.
+        @root_objects[name] = obj._id
+      end
 
       obj
     end
@@ -319,28 +329,34 @@ module PEROBS
     #        returned.
     # @return The requested object or nil if it doesn't exist.
     def [](name)
-      # Return nil if there is no object with that name.
-      return nil unless (id = @root_objects[name])
+      @lock.synchronize do
+        # Return nil if there is no object with that name.
+        return nil unless (id = @root_objects[name])
 
-      POXReference.new(self, id)
+        POXReference.new(self, id)
+      end
     end
 
     # Return a list with all the names of the root objects.
     # @return [Array of Symbols]
     def names
-      @root_objects.keys
+      @lock.synchronize do
+        @root_objects.keys
+      end
     end
 
     # Flush out all modified objects to disk and shrink the in-memory list if
     # needed.
     def sync
-      if @cache.in_transaction?
-        @cache.abort_transaction
+      @lock.synchronize do
+        if @cache.in_transaction?
+          @cache.abort_transaction
+          @cache.flush
+          PEROBS.log.fatal "You cannot call sync() during a transaction: \n" +
+            Kernel.caller.join("\n")
+        end
         @cache.flush
-        PEROBS.log.fatal "You cannot call sync() during a transaction: \n" +
-          Kernel.caller.join("\n")
       end
-      @cache.flush
     end
 
     # Return the number of object stored in the store. CAVEAT: This method
@@ -350,7 +366,9 @@ module PEROBS
     def size
       # We don't include the Hash that stores the root objects into the object
       # count.
-      @db.item_counter - 1
+      @lock.synchronize do
+        @db.item_counter - 1
+      end
     end
 
     # Discard all objects that are not somehow connected to the root objects
@@ -359,54 +377,20 @@ module PEROBS
     # method periodically.
     # @return [Integer] The number of collected objects
     def gc
-      sync
-      mark
-      sweep
+      @lock.synchronize do
+        sync
+        mark
+        sweep
+      end
     end
 
     # Return the object with the provided ID. This method is not part of the
     # public API and should never be called by outside users. It's purely
     # intended for internal use.
     def object_by_id(id)
-      if (ruby_object_id = @in_memory_objects[id])
-        # We have the object in memory so we can just return it.
-        begin
-          object = ObjectSpace._id2ref(ruby_object_id)
-          # Let's make sure the object is really the object we are looking
-          # for. The GC might have recycled it already and the Ruby object ID
-          # could now be used for another object.
-          if object.is_a?(ObjectBase) && object._id == id
-            return object
-          end
-        rescue RangeError => e
-          # Due to a race condition the object can still be in the
-          # @in_memory_objects list but has been collected already by the Ruby
-          # GC. The _collect() call has not been completed yet. We now have to
-          # wait until this has been done. I think the GC lock will prevent a
-          # race on @in_memory_objects.
-          GC.start
-          while @in_memory_objects.include?(id)
-            sleep 0.01
-          end
-        end
+      @lock.synchronize do
+        object_by_id_internal(id)
       end
-
-      if (obj = @cache.object_by_id(id))
-        PEROBS.log.fatal "Object #{id} with Ruby #{obj.object_id} is in cache but not in_memory"
-      end
-
-      # We don't have the object in memory. Let's find it in the storage.
-      if @db.include?(id)
-        # Great, object found. Read it into memory and return it.
-        obj = ObjectBase::read(self, id)
-        # Add the object to the in-memory storage list.
-        @cache.cache_read(obj)
-
-        return obj
-      end
-
-      # The requested object does not exist. Return nil.
-      nil
     end
 
     # This method can be used to check the database and optionally repair it.
@@ -471,38 +455,40 @@ module PEROBS
     # beginning of the transaction. The exception is passed on to the
     # enclosing scope, so you probably want to handle it accordingly.
     def transaction
-      @cache.begin_transaction
+      @lock.synchronize { @cache.begin_transaction }
       begin
         yield if block_given?
       rescue => e
-        @cache.abort_transaction
+        @lock.synchronize { @cache.abort_transaction }
         raise e
       end
-      @cache.end_transaction
+      @lock.synchronize { @cache.end_transaction }
     end
 
     # Calls the given block once for each object, passing that object as a
     # parameter.
     def each
-      @db.clear_marks
-      # Start with the object 0 and the indexes of the root objects. Push them
-      # onto the work stack.
-      stack = [ 0 ] + @root_objects.values
-      while !stack.empty?
-        # Get an object index from the stack.
-        id = stack.pop
-        next if @db.is_marked?(id)
+      @lock.synchronize do
+        @db.clear_marks
+        # Start with the object 0 and the indexes of the root objects. Push them
+        # onto the work stack.
+        stack = [ 0 ] + @root_objects.values
+        while !stack.empty?
+          # Get an object index from the stack.
+          id = stack.pop
+          next if @db.is_marked?(id)
 
-        unless (obj = object_by_id(id))
-          PEROBS.log.fatal "Database is corrupted. Object with ID #{id} " +
-            "not found."
-        end
-        # Mark the object so it will never be pushed to the stack again.
-        @db.mark(id)
-        yield(obj.myself) if block_given?
-        # Push the IDs of all unmarked referenced objects onto the stack
-        obj._referenced_object_ids.each do |r_id|
-          stack << r_id unless @db.is_marked?(r_id)
+          unless (obj = object_by_id_internal(id))
+            PEROBS.log.fatal "Database is corrupted. Object with ID #{id} " +
+              "not found."
+          end
+          # Mark the object so it will never be pushed to the stack again.
+          @db.mark(id)
+          yield(obj.myself) if block_given?
+          # Push the IDs of all unmarked referenced objects onto the stack
+          obj._referenced_object_ids.each do |r_id|
+            stack << r_id unless @db.is_marked?(r_id)
+          end
         end
       end
     end
@@ -510,7 +496,7 @@ module PEROBS
     # Rename classes of objects stored in the data base.
     # @param rename_map [Hash] Hash that maps the old name to the new name
     def rename_classes(rename_map)
-      @class_map.rename(rename_map)
+      @lock.synchronize { @class_map.rename(rename_map) }
     end
 
     # Internal method. Don't use this outside of this library!
@@ -518,14 +504,16 @@ module PEROBS
     # random numbers between 0 and 2**64 - 1.
     # @return [Integer]
     def _new_id
-      begin
-        # Generate a random number. It's recommended to not store more than
-        # 2**62 objects in the same store.
-        id = rand(2**64)
-        # Ensure that we don't have already another object with this ID.
-      end while @in_memory_objects.include?(id) || @db.include?(id)
+      @lock.synchronize do
+        begin
+          # Generate a random number. It's recommended to not store more than
+          # 2**62 objects in the same store.
+          id = rand(2**64)
+          # Ensure that we don't have already another object with this ID.
+        end while @in_memory_objects.include?(id) || @db.include?(id)
 
-      id
+        id
+      end
     end
 
     # Internal method. Don't use this outside of this library!
@@ -536,16 +524,18 @@ module PEROBS
     # @param obj [BasicObject] Object to register
     # @param id [Integer] object ID
     def _register_in_memory(obj, id)
-      unless obj.is_a?(ObjectBase)
-        PEROBS.log.fatal "You can only register ObjectBase objects"
-      end
-      if @in_memory_objects.include?(id)
-        PEROBS.log.fatal "The Store::_in_memory_objects list already " +
-          "contains an object for ID #{id}"
-      end
+      @lock.synchronize do
+        unless obj.is_a?(ObjectBase)
+          PEROBS.log.fatal "You can only register ObjectBase objects"
+        end
+        if @in_memory_objects.include?(id)
+          PEROBS.log.fatal "The Store::_in_memory_objects list already " +
+            "contains an object for ID #{id}"
+        end
 
-      @in_memory_objects[id] = obj.object_id
-      @stats[:created_objects] += 1
+        @in_memory_objects[id] = obj.object_id
+        @stats[:created_objects] += 1
+      end
     end
 
     # Remove the object from the in-memory list. This is an internal method
@@ -553,6 +543,10 @@ module PEROBS
     # finalizer, so many restrictions apply!
     # @param id [Integer] Object ID of object to remove from the list
     def _collect(id, ruby_object_id)
+      # This method should only be called from the Ruby garbage collector.
+      # Therefor no locking is needed or even possible. The GC can kick in at
+      # any time and we could be anywhere in the code. So there is a small
+      # risk for a race here, but it should not have any serious consequences.
       if @in_memory_objects[id] == ruby_object_id
         @in_memory_objects.delete(id)
         @stats[:collected_objects] += 1
@@ -561,13 +555,60 @@ module PEROBS
 
     # This method returns a Hash with some statistics about this store.
     def statistics
-      @stats.in_memory_objects = @in_memory_objects.length
-      @stats.root_objects = @root_objects.length
+      @lock.synchronize do
+        @stats.in_memory_objects = @in_memory_objects.length
+        @stats.root_objects = @root_objects.length
+      end
 
       @stats
     end
 
     private
+
+    def object_by_id_internal(id)
+      if (ruby_object_id = @in_memory_objects[id])
+        # We have the object in memory so we can just return it.
+        begin
+          object = ObjectSpace._id2ref(ruby_object_id)
+          # Let's make sure the object is really the object we are looking
+          # for. The GC might have recycled it already and the Ruby object ID
+          # could now be used for another object.
+          if object.is_a?(ObjectBase) && object._id == id
+            return object
+          end
+        rescue RangeError => e
+          # Due to a race condition the object can still be in the
+          # @in_memory_objects list but has been collected already by the Ruby
+          # GC. The _collect() call has not been completed yet. We now have to
+          # wait until this has been done. I think the GC lock will prevent a
+          # race on @in_memory_objects.
+          GC.start
+          while @in_memory_objects.include?(id)
+            sleep 0.01
+          end
+        end
+      end
+
+      # This is just a safety check. It has never triggered, so we can disable
+      # it for now.
+      #if (obj = @cache.object_by_id(id))
+      #  PEROBS.log.fatal "Object #{id} with Ruby #{obj.object_id} is in " +
+      #    "cache but not in_memory"
+      #end
+
+      # We don't have the object in memory. Let's find it in the storage.
+      if @db.include?(id)
+        # Great, object found. Read it into memory and return it.
+        obj = ObjectBase::read(self, id)
+        # Add the object to the in-memory storage list.
+        @cache.cache_read(obj)
+
+        return obj
+      end
+
+      # The requested object does not exist. Return nil.
+      nil
+    end
 
     # Mark phase of a mark-and-sweep garbage collector. It will mark all
     # objects that are reachable from the root objects.

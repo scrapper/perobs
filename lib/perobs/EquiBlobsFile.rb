@@ -425,6 +425,8 @@ module PEROBS
                    pack("Q#{@custom_data_values.length}"))
         end
         @f.flush
+      rescue IOError => e
+        PEROBS.log.fatal "Cannot write EquiBlobsFile header: " + e.message
       end
     end
 
