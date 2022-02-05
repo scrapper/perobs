@@ -2,7 +2,7 @@
 #
 # = Store.rb -- Persistent Ruby Object Store
 #
-# Copyright (c) 2015, 2016, 2017, 2018, 2019
+# Copyright (c) 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022
 # by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License

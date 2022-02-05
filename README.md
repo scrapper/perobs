@@ -6,11 +6,12 @@ them from PEROBS::Object. They will be in memory when needed and
 transparently stored into a persistent storage.
 
 This library is ideal for Ruby applications that work on huge, mostly
-constant data sets and usually handle a small subset of the data at a
+static data sets and usually process a small subset of the data at a
 time. To ensure data consistency of a larger data set, you can use
 transactions to make modifications of multiple objects atomicaly.
 Transactions can be nested and are aborted when an exception is
-raised.
+raised. PEROBS is thread-safe, so you can use it in a multi-threaded
+application.
 
 ## Usage
 
@@ -120,15 +121,18 @@ class Person < PEROBS::Object
 
 end
 
-store = PEROBS::Store.new('family')
-store['grandpa'] = joe = store.new(Person, 'Joe')
-store['grandma'] = jane = store.new(Person, 'Jane')
-jim = store.new(Person, 'Jim')
-jim.father = joe
-joe.kids << jim
-jim.mother = jane
-jane.kids << jim
-store.exit
+begin
+  store = PEROBS::Store.new('family')
+  store['grandpa'] = joe = store.new(Person, 'Joe')
+  store['grandma'] = jane = store.new(Person, 'Jane')
+  jim = store.new(Person, 'Jim')
+  jim.father = joe
+  joe.kids << jim
+  jim.mother = jane
+  jane.kids << jim
+ensure
+  store.exit
+end
 ```
 
 When you run this script, a folder named 'family' will be created. It
@@ -166,9 +170,15 @@ object to another object.
 
 ### Caveats and known issues
 
-PEROBS is currently not thread-safe. You cannot simultaneously access
-the database from multiple application. The library uses locks to
-ensure that only one Store object is accessing the database at a time.
+You cannot simultaneously access the database from multiple
+applications concurrently. The library uses locks to ensure that only
+one Store object is accessing the database at a time.
+
+In case the application terminates without calling Store::exit(), the
+database or the database index could get corrupted. To check the
+consistency of your database you can use Store::check(). To check and
+repair the database you can call Store::repair(). Depending on the
+size of your database, these operations can last minutes to hours.
 
 ## Installation
 
@@ -188,7 +198,8 @@ Or install it yourself as:
 
 ## Copyright and License
 
-Copyright (c) 2015, 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
+Copyright (c) 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022 by
+Chris Schlaeger <chris@taskjuggler.org>
 
 PEROBS and all accompanying files are licensed under this MIT License
 
