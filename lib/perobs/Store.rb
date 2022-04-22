@@ -547,7 +547,7 @@ module PEROBS
       # Therefor no locking is needed or even possible. The GC can kick in at
       # any time and we could be anywhere in the code. So there is a small
       # risk for a race here, but it should not have any serious consequences.
-      if @in_memory_objects[id] == ruby_object_id
+      if @in_memory_objects && @in_memory_objects[id] == ruby_object_id
         @in_memory_objects.delete(id)
         @stats[:collected_objects] += 1
       end
