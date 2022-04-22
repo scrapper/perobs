@@ -135,27 +135,29 @@ module PEROBS
       node = self
 
       # Traverse the tree to find the right node to add or replace the value.
+      idx = index
       while node do
         # Once we have reached a leaf node we can insert or replace the value.
         if node.is_leaf?
-          if index >= node.values.size
+          if idx >= node.values.size
             node.fatal "Set index (#{index}) larger than values array " +
-              "(#{node.values.size})."
+              "(#{idx} >= #{node.values.size})."
           end
-          node.values[index] = value
+          node.values[idx] = value
           return
         else
           # Descend into the right child node to add the value to.
-          cidx = node.search_child_index(index)
-          if (index -= node.offsets[cidx]) < 0
-            node.fatal "Index (#{index}) became negative"
+          cidx = node.search_child_index(idx)
+          if (idx -= node.offsets[cidx]) < 0
+            node.fatal "Idx (#{idx}) became negative while looking for " +
+              "index #{index}."
           end
           node = node.children[cidx]
         end
       end
 
       node.fatal "Could not find proper node to set the value while " +
-        "looking for index #{index}"
+        "looking for index #{index}."
     end
 
     # Insert the given value at the given index. All following values will be
@@ -811,7 +813,7 @@ module PEROBS
 
     # Print and log an error message for the node.
     def fatal(msg)
-      msg = "Fatal error in BigArray node @#{@_id}: #{msg}\n" + @tree.to_s
+      msg = "Fatal error in BigArray node @#{@_id}: #{msg}\n"
       $stderr.puts msg
       PEROBS.log.fatal msg
     end
