@@ -455,7 +455,21 @@ module PEROBS
     # beginning of the transaction. The exception is passed on to the
     # enclosing scope, so you probably want to handle it accordingly.
     def transaction
-      @lock.synchronize { @cache.begin_transaction }
+      transaction_not_started = true
+      while transaction_not_started do
+        begin
+          @lock.synchronize do
+            @cache.begin_transaction
+            # If we get to this point, the transaction was successfully
+            # started. We can exit the loop.
+            transaction_not_started = false
+          end
+        rescue TransactionInOtherThread
+          # sleep up to 50ms
+          sleep(rand(50) / 1000.0)
+        end
+      end
+
       begin
         yield if block_given?
       rescue => e

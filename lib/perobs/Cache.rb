@@ -165,10 +165,20 @@ module PEROBS
     # active, the write cache is flushed before the transaction is started.
     def begin_transaction
       if @transaction_stack.empty?
+        if @transaction_thread
+          PEROBS.log.fatal 'transaction_thread must be nil'
+        end
+        @transaction_thread = Thread.current
         # The new transaction is the top-level transaction. Flush the write
         # buffer to save the current state of all objects.
         flush
       else
+        # Nested transactions are currently only supported within the same
+        # thread. If we are in another thread, raise TransactionInOtherThread
+        # to pause the calling thread for a bit.
+        if @transaction_thread != Thread.current
+          raise TransactionInOtherThread
+        end
         # Save a copy of all objects that were modified during the enclosing
         # transaction.
         @transaction_stack.last.each do |id|
@@ -192,6 +202,7 @@ module PEROBS
         # into the backend storage.
         @transaction_stack.pop.each { |id| @transaction_objects[id]._sync }
         @transaction_objects = ::Hash.new
+        @transaction_thread = nil
       else
         # A nested transaction completed successfully. We add the list of
         # modified objects to the list of the enclosing transaction.
@@ -213,6 +224,7 @@ module PEROBS
       @transaction_stack.pop.each do |id|
         @transaction_objects[id]._restore(@transaction_stack.length)
       end
+      @transaction_thread = nil
     end
 
     # Clear all cached entries. You must call flush before calling this
@@ -224,6 +236,7 @@ module PEROBS
       @reads = ::Array.new(2 ** @bits)
       @writes = ::Array.new(2 ** @bits)
       @transaction_stack = ::Array.new
+      @transaction_thread = nil
       @transaction_objects = ::Hash.new
     end
 

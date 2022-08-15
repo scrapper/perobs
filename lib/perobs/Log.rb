@@ -42,6 +42,11 @@ module PEROBS
   # are caused by user error rather than program logic errors.
   class UsageError < StandardError ; end
 
+  # This is the Exception type that will be thrown when a transaction start
+  # failed because there is an ongoing transaction from another thread in
+  # progress.
+  class TransactionInOtherThread < StandardError ; end
+
   # The ILogger class is a singleton that provides a common logging mechanism
   # to all objects. It exposes essentially the same interface as the Logger
   # class, just as a singleton and extends fatal to raise an FatalError
