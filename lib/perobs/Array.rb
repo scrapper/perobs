@@ -1,5 +1,5 @@
-# encoding: UTF-8
-#
+# frozen_string_literal: true
+
 # = Array.rb -- Persistent Ruby Object Store
 #
 # Copyright (c) 2015, 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
@@ -25,11 +25,10 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-require 'perobs/Log'
-require 'perobs/ObjectBase'
+require_relative 'Log'
+require_relative 'ObjectBase'
 
 module PEROBS
-
   # An Array that is transparently persisted onto the back-end storage. It is
   # very similar to the Ruby built-in Array class but like other PEROBS
   # object classes it converts direct references to other PEROBS objects into
@@ -41,7 +40,6 @@ module PEROBS
   # with BasicObject.initialize_copy. You can use PEROBS::Array.replace()
   # instead.
   class Array < ObjectBase
-
     attr_reader :data
 
     # These methods do not mutate the Array but create a new PEROBS::Array
@@ -123,7 +121,7 @@ module PEROBS
 
     # Proxy for the assignment method.
     def []=(*args)
-      if (args.length == 2)
+      if args.length == 2
         _check_assignment_value(args[1])
       else
         _check_assignment_value(args[2])
@@ -199,8 +197,5 @@ module PEROBS
         end
       end
     end
-
   end
-
 end
-

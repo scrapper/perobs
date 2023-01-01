@@ -1,5 +1,5 @@
-# encoding: UTF-8
-#
+# frozen_string_literal: true
+
 # Copyright (c) 2015, 2016 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # This file contains tests for Array that are similar to the tests for the
@@ -27,12 +27,11 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-require 'spec_helper'
+require_relative 'spec_helper'
 
-require 'perobs'
+require_relative '../lib/perobs'
 
 class PO < PEROBS::Object
-
   attr_persist :name
 
   def initialize(store, name = nil)
@@ -43,11 +42,9 @@ class PO < PEROBS::Object
   def get_self
     self # Never do this in real user code!
   end
-
 end
 
 describe PEROBS::Array do
-
   before(:all) do
     @db_name = generate_db_name(__FILE__)
   end
@@ -99,14 +96,14 @@ describe PEROBS::Array do
     a[0] = 'A'
     a[1] = 'B'
     a[2] = 'C'
-    vs = ''
+    vs = String.new
     a.each { |v| vs << v }
     expect(vs).to eq('ABC')
     @store.exit
 
     @store = PEROBS::Store.new(@db_name)
     a = @store['a']
-    vs = ''
+    vs = String.new
     a[3] = @store.new(PO, 'D')
     a.each { |v| vs << (v.is_a?(String) ? v : v.name) }
     expect(vs).to eq('ABCD')
@@ -127,125 +124,125 @@ describe PEROBS::Array do
   end
 
   it 'should support reading methods' do
-    expect(cpa([ 1, 1, 3, 5 ]) & cpa([ 1, 2, 3 ])).to eq([ 1, 3 ])
-    expect(cpa & cpa([ 1, 2, 3 ])).to eq([])
+    expect(cpa([1, 1, 3, 5]) & cpa([1, 2, 3])).to eq([1, 3])
+    expect(cpa & cpa([1, 2, 3])).to eq([])
 
     expect(cpa.empty?).to be true
-    expect(cpa([ 0 ]).empty?).to be false
+    expect(cpa([0]).empty?).to be false
 
-    x = cpa([ 'it', 'came', 'to', 'pass', 'that', '...'])
+    x = cpa(['it', 'came', 'to', 'pass', 'that', '...'])
     x = x.sort.join(' ')
     expect(x).to eq('... came it pass that to')
   end
 
   it 'should support Enumberable methods' do
-    x = cpa([ 2, 5, 3, 1, 7 ])
+    x = cpa([2, 5, 3, 1, 7])
     expect(x.find { |e| e == 4 }).to be_nil
     expect(x.find { |e| e == 3 }).to eq(3)
   end
 
   it 'should support re-writing methods' do
     x = cpa([2, 5, 3, 1, 7])
-    x.sort!{ |a, b| a <=> b }
-    pcheck { expect(@store['a']).to eq([ 1, 2, 3, 5, 7 ]) }
-    @store['a'].sort!{ |a, b| b - a }
-    pcheck { expect(@store['a']).to eq([ 7, 5, 3, 2, 1 ]) }
+    x.sort! { |a, b| a <=> b }
+    pcheck { expect(@store['a']).to eq([1, 2, 3, 5, 7]) }
+    @store['a'].sort! { |a, b| b - a }
+    pcheck { expect(@store['a']).to eq([7, 5, 3, 2, 1]) }
 
     @store['a'].clear
     pcheck { expect(@store['a']).to eq([]) }
   end
 
   it 'should support <<()' do
-    a = cpa([ 0, 1, 2 ])
+    a = cpa([0, 1, 2])
     a << 4
-    pcheck { expect(@store['a']).to eq([ 0, 1, 2, 4 ]) }
+    pcheck { expect(@store['a']).to eq([0, 1, 2, 4]) }
   end
 
   it 'should support []=' do
-    a = cpa([ 0, nil, 2 ])
+    a = cpa([0, nil, 2])
     a[1] = 1
-    pcheck { expect(@store['a']).to eq([ 0, 1, 2 ]) }
+    pcheck { expect(@store['a']).to eq([0, 1, 2]) }
   end
 
   it 'should support collect!()' do
-    a = cpa([ 1, 'cat', 1..1 ])
+    a = cpa([1, 'cat', 1..1])
     if RUBY_VERSION < '2.2'
-      expect(a.collect! { |e| e.class.to_s }.to_a).to eq([ 'Fixnum', 'String', 'Range' ])
-      pcheck { expect(@store['a'].to_a).to eq([ 'Fixnum', 'String', 'Range' ]) }
+      expect(a.collect! { |e| e.class.to_s }.to_a).to eq(%w[Fixnum String Range])
+      pcheck { expect(@store['a'].to_a).to eq(%w[Fixnum String Range]) }
     else
-      expect(a.collect! { |e| e.class.to_s }.to_a).to eq([ 'Integer', 'String', 'Range' ])
-      pcheck { expect(@store['a'].to_a).to eq([ 'Integer', 'String', 'Range' ]) }
+      expect(a.collect! { |e| e.class.to_s }.to_a).to eq(%w[Integer String Range])
+      pcheck { expect(@store['a'].to_a).to eq(%w[Integer String Range]) }
     end
 
-    a = cpa([ 1, 'cat', 1..1 ])
-    expect(a.collect! { 99 }).to eq([ 99, 99, 99])
-    pcheck { expect(@store['a']).to eq([ 99, 99, 99]) }
+    a = cpa([1, 'cat', 1..1])
+    expect(a.collect! { 99 }).to eq([99, 99, 99])
+    pcheck { expect(@store['a']).to eq([99, 99, 99]) }
   end
 
   it 'should support map!()' do
-    a = cpa([ 1, 'cat', 1..1 ])
+    a = cpa([1, 'cat', 1..1])
     if RUBY_VERSION < '2.2'
-      expect(a.map! { |e| e.class.to_s }.to_a).to eq([ 'Fixnum', 'String', 'Range' ])
-      pcheck { expect(@store['a'].to_a).to eq([ 'Fixnum', 'String', 'Range' ]) }
+      expect(a.map! { |e| e.class.to_s }.to_a).to eq(%w[Fixnum String Range])
+      pcheck { expect(@store['a'].to_a).to eq(%w[Fixnum String Range]) }
     else
-      expect(a.map! { |e| e.class.to_s }.to_a).to eq([ 'Integer', 'String', 'Range' ])
-      pcheck { expect(@store['a'].to_a).to eq([ 'Integer', 'String', 'Range' ]) }
+      expect(a.map! { |e| e.class.to_s }.to_a).to eq(%w[Integer String Range])
+      pcheck { expect(@store['a'].to_a).to eq(%w[Integer String Range]) }
     end
 
-    a = cpa([ 1, 'cat', 1..1 ])
-    expect(a.map! { 99 }).to eq([ 99, 99, 99])
-    pcheck { expect(@store['a']).to eq ([ 99, 99, 99]) }
+    a = cpa([1, 'cat', 1..1])
+    expect(a.map! { 99 }).to eq([99, 99, 99])
+    pcheck { expect(@store['a']).to eq([99, 99, 99]) }
   end
 
   it 'should support fill()' do
     pcheck { expect(cpa([]).fill(99)).to eq([]) }
     pcheck { expect(cpa([]).fill(99, 0)).to eq([]) }
-    pcheck { expect(cpa([]).fill(99, 0, 1)).to eq([ 99 ]) }
+    pcheck { expect(cpa([]).fill(99, 0, 1)).to eq([99]) }
   end
 
   it 'should support flatten!()' do
-    a1 = cpa([ 1, 2, 3], 'a1')
-    a2 = cpa([ 5, 6 ], 'a2')
-    a3 = cpa([ 4, a2 ], 'a3')
-    a4 = cpa([ a1, a3 ], 'a4')
-    pcheck { expect(@store['a4'].flatten).to eq([ 1, 2, 3, 4, 5, 6 ]) }
+    a1 = cpa([1, 2, 3], 'a1')
+    a2 = cpa([5, 6], 'a2')
+    a3 = cpa([4, a2], 'a3')
+    a4 = cpa([a1, a3], 'a4')
+    pcheck { expect(@store['a4'].flatten).to eq([1, 2, 3, 4, 5, 6]) }
   end
 
   it 'should support replace()' do
-    a1 = cpa([ 1, 2, 3], 'a1')
+    a1 = cpa([1, 2, 3], 'a1')
     a_id = a1.__id__
-    expect(a1.replace(cpa([4, 5, 6], 'a2'))).to eq([ 4, 5, 6 ])
-    pcheck { expect(@store['a1']).to eq ([ 4, 5, 6 ]) }
+    expect(a1.replace(cpa([4, 5, 6], 'a2'))).to eq([4, 5, 6])
+    pcheck { expect(@store['a1']).to eq([4, 5, 6]) }
   end
 
   it 'should support insert()' do
-    a = cpa([ 0 ])
+    a = cpa([0])
     a.insert(1)
-    pcheck { expect(@store['a']).to eq([ 0 ]) }
+    pcheck { expect(@store['a']).to eq([0]) }
     @store['a'].insert(1, 1)
-    pcheck { expect(@store['a']).to eq([ 0, 1]) }
+    pcheck { expect(@store['a']).to eq([0, 1]) }
   end
 
   it 'should support push()' do
-    a = cpa([ 1, 2, 3 ])
+    a = cpa([1, 2, 3])
     a.push(4, 5)
-    pcheck { expect(@store['a']).to eq([ 1, 2, 3, 4, 5 ]) }
+    pcheck { expect(@store['a']).to eq([1, 2, 3, 4, 5]) }
     @store['a'].push(nil)
-    pcheck { expect(@store['a']).to eq([ 1, 2, 3, 4, 5, nil ]) }
+    pcheck { expect(@store['a']).to eq([1, 2, 3, 4, 5, nil]) }
   end
 
   it 'should support inspect' do
-    a1 = cpa([ 1 ], 'a1')
-    a2 = cpa([ 1, a1 ], 'a2')
+    a1 = cpa([1], 'a1')
+    a2 = cpa([1, a1], 'a2')
     expect(a1.inspect).to eq("<PEROBS::Array:#{a1._id}>\n[\n  1\n]\n")
     expect(a2.inspect).to eq("<PEROBS::Array:#{a2._id}>\n[\n  1,\n  <PEROBS::ObjectBase:#{a1._id}>\n]\n")
   end
 
   it 'should only provide POXReference objects' do
-    a = cpa([ @store.new(PO), @store.new(PO) ])
+    a = cpa([@store.new(PO), @store.new(PO)])
     expect(a[0].respond_to?(:is_poxreference?)).to be true
-    a.each do |a|
-      expect(a.respond_to?(:is_poxreference?)).to be true
+    a.each do |ai|
+      expect(ai.respond_to?(:is_poxreference?)).to be true
     end
   end
 
@@ -256,5 +253,4 @@ describe PEROBS::Array do
     expect { a[0] = o.get_self }.to raise_error(PEROBS::FatalError)
     PEROBS.log.open($stderr)
   end
-
 end
