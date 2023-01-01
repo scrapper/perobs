@@ -40,7 +40,7 @@ describe PEROBS::BTreeDB do
 
   it 'should create database' do
     @db = PEROBS::BTreeDB.new('fs_test')
-    expect(Dir.exists?('fs_test')).to be true
+    expect(Dir.exist?('fs_test')).to be true
   end
 
   it 'should write and read a simple Hash' do
@@ -72,6 +72,10 @@ describe PEROBS::BTreeDB do
   it 'should support most Ruby objects types' do
     [ :marshal, :yaml ].each do |serializer|
       @db = PEROBS::BTreeDB.new('fs_test', { :serializer => serializer })
+      class_map = PEROBS::ClassMap.new(@db)
+      @db.register_class_map(class_map)
+      class_map.class_to_id(Time)
+      class_map.class_to_id(UStruct)
       expect(@db.include?(0)).to be false
       h = {
         'String' => 'What god has wrought',

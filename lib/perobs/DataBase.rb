@@ -34,6 +34,7 @@ require 'fileutils'
 
 require 'perobs/Log'
 require 'perobs/ObjectBase'
+require_relative 'ProgressMeter'
 
 module PEROBS
 
@@ -46,6 +47,12 @@ module PEROBS
       @serializer = options[:serializer] || :json
       @progressmeter = options[:progressmeter] || ProgressMeter.new
       @config = {}
+      @class_map = nil
+    end
+
+    # Register the class map object needed to de-serialize objects.
+    def register_class_map(class_map)
+      @class_map = class_map
     end
 
     # A dummy open method. Deriving classes must overload them to insert their
@@ -88,7 +95,7 @@ module PEROBS
         when :json
           JSON.parse(raw, :create_additions => true)
         when :yaml
-          YAML.load(raw)
+          YAML.load(raw, permitted_classes: [Symbol, POReference] + @class_map.classes)
         end
       rescue => e
         PEROBS.log.fatal "Cannot de-serialize object with #{@serializer} " +

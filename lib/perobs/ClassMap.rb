@@ -60,6 +60,12 @@ module PEROBS
       @by_id[id]
     end
 
+    # Get a list of all classes used in the Store.
+    # @return [Array] list of Ruby classes
+    def classes
+      @by_class.keys
+    end
+
     # Rename a set of classes to new names.
     # @param rename_map [Hash] Hash that maps old names to new names
     def rename(rename_map)

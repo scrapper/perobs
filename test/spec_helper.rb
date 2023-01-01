@@ -35,7 +35,7 @@ def generate_db_name(caller_file)
   begin
     db_name = File.join(Dir.tmpdir,
                         "#{File.basename(caller_file)}.#{rand(2**32)}")
-  end while File.exists?(db_name)
+  end while File.exist?(db_name)
 
   db_name
 end

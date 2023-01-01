@@ -46,7 +46,7 @@ module PEROBS
     #        that will be kept in memory. If the list is larger, values will
     #        be cached in the specified file.
     # @param page_size [Integer] The number of values per page. The default
-    #        value is 32 which was found the best performing config in  tests.
+    #        value is 32 which was found the best performing config in tests.
     def initialize(dir, name, max_in_memory, page_size = 32)
       # The page_file manages the pages that store the values.
       @page_file = IDListPageFile.new(self, dir, name,
@@ -63,7 +63,7 @@ module PEROBS
       page = @page_records[index]
 
       # In case the page is already full we'll have to create a new page.
-      # There is no guarantee that a split will yield an page with space as we
+      # There is no guarantee that a split will yield a page with space as we
       # split by ID range, not by distributing the values evenly across the
       # two pages.
       while page.is_full?

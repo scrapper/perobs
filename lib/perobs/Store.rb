@@ -157,6 +157,7 @@ module PEROBS
       # Create a map that can translate classes to numerical IDs and vice
       # versa.
       @class_map = ClassMap.new(@db)
+      @db.register_class_map(@class_map)
 
       # List of PEROBS objects that are currently available as Ruby objects
       # hashed by their ID.
@@ -712,4 +713,3 @@ module PEROBS
   end
 
 end
-
