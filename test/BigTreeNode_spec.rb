@@ -1,5 +1,5 @@
-# encoding: UTF-8
-#
+# frozen_string_literal: true
+
 # Copyright (c) 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
 #
 # MIT License
@@ -25,12 +25,11 @@
 
 require 'fileutils'
 
-require 'spec_helper'
-require 'perobs/Store'
-require 'perobs/BigTree'
+require_relative 'spec_helper'
+require_relative '../lib/perobs/Store'
+require_relative '../lib/perobs/BigTree'
 
 describe PEROBS::BigTreeNode do
-
   before(:all) do
     @db_name = generate_db_name(__FILE__)
     @store = PEROBS::Store.new(@db_name)
@@ -148,6 +147,4 @@ describe PEROBS::BigTreeNode do
     expect(s.leaf_nodes).to eql(3)
     expect(s.branch_nodes).to eql(1)
   end
-
 end
-

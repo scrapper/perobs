@@ -1,5 +1,5 @@
-# encoding: UTF-8
-#
+# frozen_string_literal: true
+
 # = BigTreeNode.rb -- Persistent Ruby Object Store
 #
 # Copyright (c) 2016, 2017 by Chris Schlaeger <chris@taskjuggler.org>
@@ -25,11 +25,10 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-require 'perobs/Object'
-require 'perobs/Array'
+require_relative 'Object'
+require_relative 'Array'
 
 module PEROBS
-
   # The BigTreeNode class provides the BTree nodes for the BigTree objects.
   # A node can either be a branch node or a leaf node. Branch nodes don't
   # store values, only references to child nodes. Leaf nodes don't have child
@@ -38,9 +37,8 @@ module PEROBS
   # associated with a value or determines the lower key boundary for the
   # following child node.
   class BigTreeNode < PEROBS::Object
-
     attr_persist :tree, :parent, :keys, :values, :children,
-      :prev_sibling, :next_sibling
+                 :prev_sibling, :next_sibling
 
     # Internal constructor. Use Store.new(BigTreeNode, ...) instead.
     # @param p [Handle]
@@ -94,7 +92,7 @@ module PEROBS
       node = myself
 
       # Traverse the tree to find the right node to add or replace the value.
-      while node do
+      while node
         # All nodes that we find on the way that are full will be split into
         # two half-full nodes.
         if node.keys.size >= @tree.node_size
@@ -110,7 +108,7 @@ module PEROBS
         end
       end
 
-      PEROBS.log.fatal "Could not find proper node to insert into"
+      PEROBS.log.fatal 'Could not find proper node to insert into'
     end
 
     # Return the value that matches the given key or return nil if they key is
@@ -120,7 +118,7 @@ module PEROBS
     def get(key)
       node = self
 
-      while node do
+      while node
         # Find index of the entry that best fits the key.
         i = node.search_key_index(key)
         if node.is_leaf?
@@ -133,7 +131,7 @@ module PEROBS
         node = node.children[i]
       end
 
-      PEROBS.log.fatal "Could not find proper node to get from while " +
+      PEROBS.log.fatal 'Could not find proper node to get from while ' \
         "looking for key #{key}"
     end
 
@@ -143,9 +141,9 @@ module PEROBS
     # @return [Array of BigTreeNode] node list (may be empty)
     def node_chain(key)
       node = myself
-      list = [ node ]
+      list = [node]
 
-      while node do
+      while node
         # Find index of the entry that best fits the key.
         i = node.search_key_index(key)
         if node.is_leaf?
@@ -169,7 +167,7 @@ module PEROBS
     def has_key?(key)
       node = self
 
-      while node do
+      while node
         # Find index of the entry that best fits the key.
         i = node.search_key_index(key)
         if node.is_leaf?
@@ -182,7 +180,7 @@ module PEROBS
         node = node.children[i]
       end
 
-      PEROBS.log.fatal "Could not find proper node to get from while " +
+      PEROBS.log.fatal 'Could not find proper node to get from while ' \
         "looking for key #{key}"
     end
 
@@ -193,18 +191,16 @@ module PEROBS
     def remove(key)
       node = self
 
-      while node do
+      while node
         # Find index of the entry that best fits the key.
         i = node.search_key_index(key)
         if node.is_leaf?
           # This is a leaf node. Check if there is an exact match for the
           # given key and return the corresponding value or nil.
-          if node.keys[i] == key
-            @tree.entry_counter -= 1
-            return node.remove_element(i)
-          else
-            return nil
-          end
+          return nil if node.keys[i] != key
+
+          @tree.entry_counter -= 1
+          return node.remove_element(i)
         end
 
         # Descend into the right child node to continue the search.
@@ -217,10 +213,9 @@ module PEROBS
     # Iterate over all the key/value pairs in this node and all sub-nodes.
     # @yield [key, value]
     def each
-      traverse do |node, position, stack|
-        if node.is_leaf? && position < node.keys.size
+      traverse do |node, position, _|
+        node.is_leaf? && position < node.keys.size &&
           yield(node.keys[position], node.values[position])
-        end
       end
     end
 
@@ -252,7 +247,7 @@ module PEROBS
       branch_depth = nil
 
       traverse do |node, position, stack|
-        if position == 0
+        if position.zero?
           if node.parent
             # After a split the nodes will only have half the maximum keys.
             # For branch nodes one of the split nodes will have even 1 key
@@ -264,7 +259,7 @@ module PEROBS
           end
 
           if node.keys.size > @tree.node_size
-            node.error "BigTree node must not have more then " +
+            node.error 'BigTree node must not have more then ' \
               "#{@tree.node_size} keys, but has #{node.keys.size} keys"
             return false
           end
@@ -272,7 +267,7 @@ module PEROBS
           last_key = nil
           node.keys.each do |key|
             if last_key && key < last_key
-              node.error "Keys are not increasing monotoneously: " +
+              node.error 'Keys are not increasing monotoneously: ' \
                 "#{node.keys.inspect}"
               return false
             end
@@ -290,53 +285,53 @@ module PEROBS
             end
             if node.prev_sibling.nil?
               if @tree.first_leaf != node
-                node.error "Leaf node #{node._id} has no previous sibling " +
+                node.error "Leaf node #{node._id} has no previous sibling " \
                   "but is not the first leaf of the tree"
                 return false
               end
             elsif node.prev_sibling.next_sibling != node
-              node.error "next_sibling of previous sibling does not point to " +
-                "this node"
+              node.error 'next_sibling of previous sibling does not point to ' \
+                'this node'
               return false
             end
             if node.next_sibling.nil?
               if @tree.last_leaf != node
-                node.error "Leaf node #{node._id} has no next sibling " +
-                  "but is not the last leaf of the tree"
+                node.error "Leaf node #{node._id} has no next sibling " \
+                  'but is not the last leaf of the tree'
                 return false
               end
             elsif node.next_sibling.prev_sibling != node
-              node.error "previous_sibling of next sibling does not point to " +
-                "this node"
+              node.error 'previous_sibling of next sibling does not point to ' \
+                'this node'
               return false
             end
             unless node.keys.size == node.values.size
-              node.error "Key count (#{node.keys.size}) and value " +
+              node.error "Key count (#{node.keys.size}) and value " \
                 "count (#{node.values.size}) don't match"
-                return false
+              return false
             end
             if node.children
-              node.error "children must be nil for a leaf node"
+              node.error 'children must be nil for a leaf node'
               return false
             end
           else
             if node.values
-              node.error "values must be nil for a branch node"
+              node.error 'values must be nil for a branch node'
               return false
             end
             unless node.children.size == node.keys.size + 1
-              node.error "Key count (#{node.keys.size}) must be one " +
+              node.error "Key count (#{node.keys.size}) must be one " \
                 "less than children count (#{node.children.size})"
                 return false
             end
             node.children.each_with_index do |child, i|
               unless child.is_a?(BigTreeNode)
-                node.error "Child #{i} is of class #{child.class} " +
-                  "instead of BigTreeNode"
+                node.error "Child #{i} is of class #{child.class} " \
+                  'instead of BigTreeNode'
                 return false
               end
               unless child.parent.is_a?(BigTreeNode)
-                node.error "Parent reference of child #{i} is of class " +
+                node.error "Parent reference of child #{i} is of class " \
                   "#{child.class} instead of BigTreeNode"
                 return false
               end
@@ -349,25 +344,22 @@ module PEROBS
                 return false
               end
               unless child.parent == node
-                node.error "Child #{i} does not have parent pointing " +
-                  "to this node"
+                node.error "Child #{i} does not have parent pointing " \
+                  'to this node'
                 return false
               end
-              if i > 0
-                unless node.children[i - 1].next_sibling == child
-                  node.error "next_sibling of node " +
-                    "#{node.children[i - 1]._id} " +
-                    "must point to node #{child._id}"
-                  return false
-                end
+              if i.positive? && node.children[i - 1].next_sibling != child
+                node.error 'next_sibling of node ' \
+                  "#{node.children[i - 1]._id} " \
+                  "must point to node #{child._id}"
+                return false
               end
-              if i < node.children.length - 1
-                unless child == node.children[i + 1].prev_sibling
-                  node.error "prev_sibling of node " +
-                    "#{node.children[i + 1]._id} " +
-                    "must point to node #{child._id}"
-                  return false
-                end
+              if i < node.children.length - 1 &&
+                 child != node.children[i + 1].prev_sibling
+                node.error 'prev_sibling of node ' \
+                  "#{node.children[i + 1]._id} " \
+                  "must point to node #{child._id}"
+                return false
               end
             end
           end
@@ -382,14 +374,14 @@ module PEROBS
             end
           else
             unless node.children[index].keys.last < node.keys[index]
-              node.error "Child #{node.children[index]._id} " +
-                "has too large key #{node.children[index].keys.last}. " +
+              node.error "Child #{node.children[index]._id} " \
+                "has too large key #{node.children[index].keys.last}. " \
                 "Must be smaller than #{node.keys[index]}."
               return false
             end
             unless node.children[position].keys.first >= node.keys[index]
-              node.error "Child #{node.children[position]._id} " +
-                "has too small key #{node.children[position].keys.first}. " +
+              node.error "Child #{node.children[position]._id} " \
+                "has too small key #{node.children[position].keys.first}. " \
                 "Must be larger than or equal to #{node.keys[index]}."
               return false
             end
@@ -404,11 +396,11 @@ module PEROBS
     def to_s
       str = ''
 
-      traverse do |node, position, stack|
-        if position == 0
+      traverse do |node, position, _|
+        if position.zero?
           begin
-            str += "#{node.parent ? node.parent.tree_prefix + '  +' : 'o'}" +
-              "#{node.tree_branch_mark}-" +
+            str += "#{node.parent ? node.parent.tree_prefix + '  +' : 'o'}" \
+              "#{node.tree_branch_mark}-" \
               "#{node.keys.first.nil? ? '--' : 'v-'}#{node.tree_summary}\n"
           rescue => e
             str += "@@@@@@@@@@: #{e.message}\n"
@@ -417,8 +409,8 @@ module PEROBS
           begin
             if node.is_leaf?
               if node.keys[position - 1]
-                str += "#{node.tree_prefix}  |" +
-                  "[#{node.keys[position - 1]}, " +
+                str += "#{node.tree_prefix}  |" \
+                  "[#{node.keys[position - 1]}, " \
                   "#{node.values[position - 1]}]\n"
               end
             else
@@ -459,16 +451,16 @@ module PEROBS
       if is_leaf?
         # Copy the keys and values from the mid element onwards into the new
         # sibling node.
-        sibling.keys += @keys[mid..-1]
-        sibling.values += @values[mid..-1]
+        sibling.keys += @keys[mid..]
+        sibling.values += @values[mid..]
         # Delete the copied keys and values from this node.
         @values.slice!(mid..-1)
       else
         # Copy the keys from after the mid value onwards to the new sibling
         # node.
-        sibling.keys += @keys[mid + 1..-1]
+        sibling.keys += @keys[mid + 1..]
         # Same for the children.
-        sibling.children += @children[mid + 1..-1]
+        sibling.children += @children[mid + 1..]
         # Reparent the children to the new sibling parent.
         sibling.children.each { |c| c.parent = sibling }
         # And delete the copied children references.
@@ -518,10 +510,10 @@ module PEROBS
     def remove_element(index)
       # Delete the key at the specified index.
       unless (key = @keys.delete_at(index))
-        PEROBS.log.fatal "Could not remove element #{index} from BigTreeNode " +
+        PEROBS.log.fatal "Could not remove element #{index} from BigTreeNode " \
           "@#{@_id}"
       end
-      update_branch_key(key) if index == 0
+      update_branch_key(key) if index.zero?
 
       # Delete the corresponding value.
       removed_value = @values.delete_at(index)
@@ -533,7 +525,7 @@ module PEROBS
           borrow_from_next_sibling(@next_sibling) ||
             merge_with_leaf_node(@next_sibling)
         elsif @parent
-          PEROBS.log.fatal "Cannot not find adjecent leaf siblings"
+          PEROBS.log.fatal 'Cannot not find adjecent leaf siblings'
         end
       end
 
@@ -549,7 +541,7 @@ module PEROBS
         PEROBS.log.fatal "Cannot remove child #{node._id} from node #{@_id}"
       end
 
-      if index == 0
+      if index.zero?
         # Removing the first child is a bit more complicated as the
         # corresponding branch key is in a parent node.
         key = @keys.shift
@@ -592,7 +584,7 @@ module PEROBS
 
     def merge_with_leaf_node(node)
       if @keys.length + node.keys.length > @tree.node_size
-        PEROBS.log.fatal "Leaf nodes are too big to merge"
+        PEROBS.log.fatal 'Leaf nodes are too big to merge'
       end
 
       self.keys += node.keys
@@ -603,7 +595,7 @@ module PEROBS
 
     def merge_with_branch_node(node)
       if @keys.length + 1 + node.keys.length > @tree.node_size
-        PEROBS.log.fatal "Branch nodes are too big to merge"
+        PEROBS.log.fatal 'Branch nodes are too big to merge'
       end
 
       index = @parent.search_node_index(node) - 1
@@ -670,9 +662,9 @@ module PEROBS
     def traverse
       # We use a non-recursive implementation to traverse the tree. This stack
       # keeps track of all the known still to be checked nodes.
-      stack = [ [ self, 0 ] ]
+      stack = [[self, 0]]
 
-      while !stack.empty?
+      until stack.empty?
         node, position = stack.pop
 
         # Call the payload method. The position marks where we are in the node
@@ -684,15 +676,15 @@ module PEROBS
         # to return to the parent node.
         yield(node, position, stack)
 
-        if position <= node.keys.size
-          # Push the next position for this node onto the stack.
-          stack.push([ node, position + 1 ])
+        next unless position <= node.keys.size
 
-          if !node.is_leaf? && node.children[position]
-            # If we have a child node for this position, push the linked node
-            # and the starting position onto the stack.
-            stack.push([ node.children[position], 0 ])
-          end
+        # Push the next position for this node onto the stack.
+        stack.push([node, position + 1])
+
+        if !node.is_leaf? && node.children[position]
+          # If we have a child node for this position, push the linked node
+          # and the starting position onto the stack.
+          stack.push([node.children[position], 0])
         end
       end
     end
@@ -701,16 +693,12 @@ module PEROBS
     # @param stats [Stats] Data structure that stores the gathered data
     def statistics(stats)
       traverse do |node, position, stack|
-        if position == 0
+        if position.zero?
           if node.is_leaf?
             stats.leaf_nodes += 1
             depth = stack.size + 1
-            if stats.min_depth.nil? || stats.min_depth < depth
-              stats.min_depth = depth
-            end
-            if stats.max_depth.nil? || stats.max_depth > depth
-              stats.max_depth = depth
-            end
+            stats.min_depth = depth if stats.min_depth.nil? || stats.min_depth < depth
+            stats.max_depth = depth if stats.max_depth.nil? || stats.max_depth > depth
           else
             stats.branch_nodes += 1
           end
@@ -743,6 +731,7 @@ module PEROBS
     # Branch node decoration for the inspection method.
     def tree_branch_mark
       return '' unless @parent
+
       '-'
     end
 
@@ -866,8 +855,5 @@ module PEROBS
 
       # The smallest element has no branch key.
     end
-
   end
-
 end
-
