@@ -451,8 +451,8 @@ module PEROBS
       if is_leaf?
         # Copy the keys and values from the mid element onwards into the new
         # sibling node.
-        sibling.keys += @keys[mid..]
-        sibling.values += @values[mid..]
+        sibling.keys += @keys[mid..-1]
+        sibling.values += @values[mid..-1]
         # Delete the copied keys and values from this node.
         @values.slice!(mid..-1)
       else
