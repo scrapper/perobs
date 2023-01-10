@@ -458,9 +458,9 @@ module PEROBS
       else
         # Copy the keys from after the mid value onwards to the new sibling
         # node.
-        sibling.keys += @keys[mid + 1..]
+        sibling.keys += @keys[mid + 1..-1]
         # Same for the children.
-        sibling.children += @children[mid + 1..]
+        sibling.children += @children[mid + 1..-1]
         # Reparent the children to the new sibling parent.
         sibling.children.each { |c| c.parent = sibling }
         # And delete the copied children references.
