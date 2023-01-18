@@ -1,4 +1,4 @@
-# encoding: UTF-8
+# # frozen_string_literal: true
 #
 # = BigHash.rb -- Persistent Ruby Object Store
 #
@@ -31,7 +31,6 @@ require 'perobs/Array'
 require 'perobs/FNV_Hash_1a_64'
 
 module PEROBS
-
   # The BigHash is similar to the Hash object in that it provides a simple
   # hash functionality. The difference is that this class scales to much
   # larger data sets essentially limited to the amount of space available on
@@ -40,7 +39,6 @@ module PEROBS
   # subset of the methods provided by the native Hash class that make sense
   # for giant data sets.
   class BigHash < PEROBS::Object
-
     # Internally this class uses BigTree to store the values by the hashed
     # key. We are using a 64 bit hash space so collisions are fairly unlikely
     # but not impossible. Therefor we have to store the originial key with the
@@ -52,7 +50,6 @@ module PEROBS
     # hashed key in a Collisions object instead of storing the Entry
     # directly in the BigTree.
     class Entry < PEROBS::Object
-
       attr_persist :key, :value
 
       def initialize(p, key, value)
@@ -60,7 +57,6 @@ module PEROBS
         self.key = key
         self.value = value
       end
-
     end
 
     # Since the BigHash can also store PEROBS::Array values we need to
@@ -78,8 +74,7 @@ module PEROBS
       self.btree = @store.new(PEROBS::BigTree)
     end
 
-    def restore
-    end
+    def restore; end
 
     # Insert a value that is associated with the given key. If a value for
     # this key already exists, the value will be overwritten with the newly
@@ -180,9 +175,7 @@ module PEROBS
 
       if entry.is_a?(PEROBS::Array)
         entry.each_with_index do |ae, i|
-          if ae.key == key
-            return entry.delete_at(i).value
-          end
+          return entry.delete_at(i).value if ae.key == key
         end
       else
         return entry.value if entry.key == key
@@ -202,7 +195,7 @@ module PEROBS
     # Return true if hash is empty. False otherweise.
     # @return [TrueClass, FalseClass]
     def empty?
-      @btree.entry_counter == 0
+      @btree.entry_counter.zero?
     end
 
     # Calls the given block for each key/value pair.
@@ -231,16 +224,13 @@ module PEROBS
     # Check if the data structure contains any errors.
     # @return [Boolean] true if no erros were found, false otherwise
     def check
-      return @btree.check
+      @btree.check
     end
 
     private
 
     def hash_key(key)
-      FNV_Hash_1a_64::digest(key)
+      FNV_Hash_1a_64.digest(key)
     end
-
   end
-
 end
-

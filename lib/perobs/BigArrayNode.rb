@@ -1,4 +1,4 @@
-# encoding: UTF-8
+# # frozen_string_literal: true
 #
 # = BigArrayNode.rb -- Persistent Ruby Object Store
 #
@@ -26,8 +26,8 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-require 'perobs/Object'
-require 'perobs/Array'
+require_relative 'Object'
+require_relative 'Array'
 
 module PEROBS
 
@@ -997,8 +997,5 @@ module PEROBS
         @parent.consolidate_child_nodes(self)
       end
     end
-
   end
-
 end
-

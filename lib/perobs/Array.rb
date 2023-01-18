@@ -44,10 +44,10 @@ module PEROBS
 
     # These methods do not mutate the Array but create a new PEROBS::Array
     # object. They only perform read operations.
-    ([
-      :|, :&, :+, :-, :collect, :compact, :drop, :drop_while,
-      :flatten, :map, :reject, :reverse, :rotate, :select, :shuffle, :slice,
-      :sort, :take, :take_while, :uniq, :values_at
+    (%i[
+      | & + - collect compact drop drop_while
+      flatten map reject reverse rotate select shuffle slice
+      sort take take_while uniq values_at
     ] + Enumerable.instance_methods).uniq.each do |method_sym|
       define_method(method_sym) do |*args, &block|
         @store.cache.cache_read(self)
@@ -57,12 +57,12 @@ module PEROBS
 
     # These methods do not mutate the Array and only perform read operations.
     # They do not return basic objects types.
-    ([
-      :==, :[], :<=>, :at, :bsearch, :bsearch_index, :count, :cycle,
-      :each, :each_index, :empty?, :eql?, :fetch, :find_index, :first,
-      :frozen?, :include?, :index, :join, :last, :length, :pack,
-      :pretty_print, :pretty_print_cycle, :reverse_each, :rindex, :sample,
-      :size, :to_a, :to_ary, :to_s
+    (%i[
+      == [] <=> at bsearch bsearch_index count cycle
+      each each_index empty? eql? fetch find_index first
+      frozen? include? index join last length pack
+      pretty_print pretty_print_cycle reverse_each rindex sample
+      size to_a to_ary to_s
     ] + Enumerable.instance_methods).uniq.each do |method_sym|
       define_method(method_sym) do |*args, &block|
         @store.cache.cache_read(self)
@@ -71,11 +71,11 @@ module PEROBS
     end
 
     # These methods mutate the Array and return self.
-    [
-      :<<, :clear, :collect!, :compact!, :concat,
-      :fill, :flatten!, :insert, :keep_if, :map!, :push,
-      :reject!, :replace, :select!, :reverse!, :rotate!, :shuffle!,
-      :slice!, :sort!, :sort_by!, :uniq!
+    %i[
+      << clear collect! compact! concat
+      fill flatten! insert keep_if map! push
+      reject! replace select! reverse! rotate! shuffle!
+      slice! sort! sort_by! uniq!
     ].each do |method_sym|
       define_method(method_sym) do |*args, &block|
         @store.cache.cache_write(self)
@@ -85,8 +85,8 @@ module PEROBS
     end
 
     # These methods mutate the Array.
-    [
-      :delete, :delete_at, :delete_if, :shift, :pop
+    %i[
+      delete delete_at delete_if shift pop
     ].each do |method_sym|
       define_method(method_sym) do |*args, &block|
         @store.cache.cache_write(self)
@@ -102,7 +102,7 @@ module PEROBS
     #        Array to initialize
     # @param default [Any] The default value that is returned when no value is
     #        stored for a specific key.
-    def initialize(p, arg1 = 0, default = nil, &block)
+    def initialize(p, arg1 = 0, default = nil)
       super(p)
       if arg1.is_a?(::Array)
         arg1.each { |v| _check_assignment_value(v) }
@@ -142,8 +142,8 @@ module PEROBS
     # @return [Array of Integer] IDs of referenced objects
     def _referenced_object_ids
       @data.each.select do |v|
-        v && v.respond_to?(:is_poxreference?)
-      end.map { |o| o.id }
+        v&.respond_to?(:is_poxreference?)
+      end.map(&:id)
     end
 
     # This method should only be used during store repair operations. It will

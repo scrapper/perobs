@@ -1,4 +1,4 @@
-# encoding: UTF-8
+# # frozen_string_literal: true
 #
 # = BigArray.rb -- Persistent Ruby Object Store
 #
@@ -26,20 +26,16 @@
 # OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 # WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-require 'perobs/Object'
-require 'perobs/BigArrayNode'
+require_relative 'Object'
+require_relative 'BigArrayNode'
 
 module PEROBS
-
   # The BigArray class implements an Array that stores the data in segments. It
   # only loads the currently needed parts of the Array into memory. To provide
   # an efficient access to the data by index a B+Tree like data structure is
   # used. Each segment is stored in a leaf node of the B+Tree.
   class BigArray < PEROBS::Object
-
-    class Stats < Struct.new(:leaf_nodes, :branch_nodes, :min_depth,
-                             :max_depth)
-    end
+    Stats = Struct.new(:leaf_nodes, :branch_nodes, :min_depth, :max_depth)
 
     attr_persist :node_size, :root, :first_leaf, :last_leaf, :entry_counter
 
@@ -53,12 +49,8 @@ module PEROBS
     #        range to try.
     def initialize(p, node_size = 150)
       super(p)
-      unless node_size > 3
-        PEROBS.log.fatal "Node size (#{node_size}) must be larger than 3"
-      end
-      unless node_size % 2 == 0
-        PEROBS.log.fatal "Node size (#{node_size}) must be an even number"
-      end
+      PEROBS.log.fatal "Node size (#{node_size}) must be larger than 3" unless node_size > 3
+      PEROBS.log.fatal "Node size (#{node_size}) must be an even number" unless node_size % 2 == 0
 
       self.node_size = node_size
       clear
@@ -146,11 +138,11 @@ module PEROBS
     # @param index [Integer] Index in the BigArray
     # @return [Object] found value or nil
     def delete_at(index)
-      if index < 0
+      if index.negative?
         index = @entry_counter + index
       end
 
-      return nil if index < 0 || index >= @entry_counter
+      return nil if index.negative? || index >= @entry_counter
 
       deleted_value = nil
       @store.transaction do
@@ -176,9 +168,7 @@ module PEROBS
       old_root = @root
       clear
       old_root.each do |k, v|
-        if !yield(k, v)
-          insert(k, v)
-        end
+        insert(k, v) unless yield(k, v)
       end
     end
 
@@ -191,7 +181,7 @@ module PEROBS
 
     # Return true if the BigArray has no stored entries.
     def empty?
-      @entry_counter == 0
+      @entry_counter.zero?
     end
 
     # Return the first entry of the Array.
@@ -215,6 +205,7 @@ module PEROBS
       node = @first_leaf
       while node
         break unless node.each(&block)
+
         node = node.next_sibling
       end
     end
@@ -226,6 +217,7 @@ module PEROBS
       node = @last_leaf
       while node
         break unless node.reverse_each(&block)
+
         node = node.prev_sibling
       end
     end
@@ -236,7 +228,7 @@ module PEROBS
     def to_a
       ary = []
       node = @first_leaf
-      while node do
+      while node
         ary += node.values
         node = node.next_sibling
       end
@@ -267,10 +259,10 @@ module PEROBS
     private
 
     def validate_index_range(index)
-      if index < 0
+      if index.negative?
         if -index > @entry_counter
-          raise IndexError, "index #{index} too small for array; " +
-            "minimum #{-@entry_counter}"
+          raise IndexError, "index #{index} too small for array; " \
+                            "minimum #{-@entry_counter}"
         end
 
         index = @entry_counter + index
@@ -278,8 +270,5 @@ module PEROBS
 
       index
     end
-
   end
-
 end
-
