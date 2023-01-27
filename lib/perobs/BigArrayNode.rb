@@ -30,7 +30,6 @@ require_relative 'Object'
 require_relative 'Array'
 
 module PEROBS
-
   # The BigArrayNode class provides the BTree nodes for the BigArray objects.
   # A node can either be a branch node or a leaf node. Branch nodes don't
   # store values, only offsets and references to child nodes. Leaf nodes don't
@@ -57,9 +56,8 @@ module PEROBS
   # Index     0 1 2 3    4 5 6    7 8 9 10    11 12    13 14 15    16 17
   #
   class BigArrayNode < PEROBS::Object
-
     attr_persist :tree, :parent, :offsets, :values, :children,
-      :prev_sibling, :next_sibling
+                 :prev_sibling, :next_sibling
 
     # Internal constructor. Use Store.new(BigArrayNode, ...) instead.
     # @param p [Handle]
@@ -118,15 +116,12 @@ module PEROBS
       count = 0
       node = self
       while node
-        if node.is_leaf?
-          return count + node.values.size
-        else
-          count += node.offsets.last
-          node = node.children.last
-        end
+        return count + node.values.size if node.is_leaf?
+
+        count += node.offsets.last
+        node = node.children.last
       end
     end
-
 
     # Set the given value at the given index.
     # @param index [Integer] Position to insert at
@@ -136,28 +131,28 @@ module PEROBS
 
       # Traverse the tree to find the right node to add or replace the value.
       idx = index
-      while node do
+      while node
         # Once we have reached a leaf node we can insert or replace the value.
         if node.is_leaf?
           if idx >= node.values.size
-            node.fatal "Set index (#{index}) larger than values array " +
-              "(#{idx} >= #{node.values.size})."
+            node.fatal "Set index (#{index}) larger than values array " \
+                       "(#{idx} >= #{node.values.size})."
           end
           node.values[idx] = value
           return
         else
           # Descend into the right child node to add the value to.
           cidx = node.search_child_index(idx)
-          if (idx -= node.offsets[cidx]) < 0
-            node.fatal "Idx (#{idx}) became negative while looking for " +
-              "index #{index}."
+          if (idx -= node.offsets[cidx]).negative?
+            node.fatal "Idx (#{idx}) became negative while looking for " \
+                       "index #{index}."
           end
           node = node.children[cidx]
         end
       end
 
-      node.fatal "Could not find proper node to set the value while " +
-        "looking for index #{index}."
+      node.fatal 'Could not find proper node to set the value while ' \
+                 "looking for index #{index}."
     end
 
     # Insert the given value at the given index. All following values will be
@@ -169,7 +164,7 @@ module PEROBS
       cidx = nil
 
       # Traverse the tree to find the right node to add or replace the value.
-      while node do
+      while node
         # All nodes that we find on the way that are full will be split into
         # two half-full nodes.
         if node.size >= @tree.node_size
@@ -182,20 +177,20 @@ module PEROBS
         # Once we have reached a leaf node we can insert or replace the value.
         if node.is_leaf?
           node.values.insert(index, value)
-          node.parent.adjust_offsets(node, 1) if node.parent
+          node.parent&.adjust_offsets(node, 1)
           return
         else
           # Descend into the right child node to add the value to.
           cidx = node.search_child_index(index)
-          if (index -= node.offsets[cidx]) < 0
+          if (index -= node.offsets[cidx]).negative?
             node.fatal "Index (#{index}) became negative"
           end
           node = node.children[cidx]
         end
       end
 
-      node.fatal "Could not find proper node to insert the value while " +
-        "looking for index #{index}"
+      node.fatal 'Could not find proper node to insert the value while ' \
+                 "looking for index #{index}"
     end
 
     # Return the value that matches the given key or return nil if they key is
@@ -206,23 +201,21 @@ module PEROBS
       node = self
 
       # Traverse the tree to find the right node to add or replace the value.
-      while node do
+      while node
         # Once we have reached a leaf node we can insert or replace the value.
-        if node.is_leaf?
-          return node.values[index]
-        else
-          # Descend into the right child node to add the value to.
-          cidx = (node.offsets.bsearch_index { |o| o > index } ||
-                  node.offsets.length) - 1
-          if (index -= node.offsets[cidx]) < 0
-            node.fatal "Index (#{index}) became negative"
-          end
-          node = node.children[cidx]
+        return node.values[index] if node.is_leaf?
+
+        # Descend into the right child node to add the value to.
+        cidx = (node.offsets.bsearch_index { |o| o > index } ||
+                node.offsets.length) - 1
+        if (index -= node.offsets[cidx]).negative?
+          node.fatal "Index (#{index}) became negative"
         end
+        node = node.children[cidx]
       end
 
-      PEROBS.log.fatal "Could not find proper node to get from while " +
-        "looking for index #{index}"
+      PEROBS.log.fatal 'Could not find proper node to get from while ' \
+                       "looking for index #{index}"
     end
 
     # Delete the element at the specified index, returning that element, or
@@ -233,14 +226,12 @@ module PEROBS
       node = self
       deleted_value = nil
 
-      while node do
+      while node
         if node.is_leaf?
           deleted_value = node.values.delete_at(index)
           if node.parent
             node.parent.adjust_offsets(node, -1)
-            if node.size < min_size
-              node.parent.consolidate_child_nodes(node)
-            end
+            node.parent.consolidate_child_nodes(node) if node.size < min_size
           end
 
           return deleted_value
@@ -248,15 +239,15 @@ module PEROBS
           # Descend into the right child node to add the value to.
           cidx = (node.offsets.bsearch_index { |o| o > index } ||
                   node.offsets.length) - 1
-          if (index -= node.offsets[cidx]) < 0
+          if (index -= node.offsets[cidx]).negative?
             node.fatal "Index (#{index}) became negative"
           end
           node = node.children[cidx]
         end
       end
 
-      PEROBS.log.fatal "Could not find proper node to delete from while " +
-        "looking for index #{index}"
+      PEROBS.log.fatal 'Could not find proper node to delete from while ' \
+                       "looking for index #{index}"
     end
 
     # Iterate over all the values of the node.
@@ -287,13 +278,13 @@ module PEROBS
       branch_depth = nil
 
       traverse do |node, position, stack|
-        if position == 0
+        if position.zero?
           # Nodes should have between min_size() and
           # @tree.node_size children or values. Only the root node may have
           # less.
           if node.size > @tree.node_size
-            node.error "BigArray node #{node._id} is too large. It has " +
-              "#{node.size} nodes instead of max. #{@tree.node_size}."
+            node.error "BigArray node #{node._id} is too large. It has " \
+                       "#{node.size} nodes instead of max. #{@tree.node_size}."
             return false
           end
           if node.parent && node.size < min_size
@@ -305,7 +296,7 @@ module PEROBS
             # All leaf nodes must have same distance from root node.
             if branch_depth
               unless branch_depth == stack.size
-                node.error "All leaf nodes must have same distance from root"
+                node.error 'All leaf nodes must have same distance from root'
                 return false
               end
             else
@@ -315,24 +306,24 @@ module PEROBS
             return false unless node.check_leaf_node_links
 
             if node.children
-              node.error "children must be nil for a leaf node"
+              node.error 'children must be nil for a leaf node'
               return false
             end
           else
             unless node.children.size == node.offsets.size
-              node.error "Offset count (#{node.offsets.size}) must be equal " +
-                "to children count (#{node.children.size})"
-                return false
+              node.error "Offset count (#{node.offsets.size}) must be equal " \
+                         "to children count (#{node.children.size})"
+              return false
             end
 
             if node.values
-              node.error "values must be nil for a branch node"
+              node.error 'values must be nil for a branch node'
               return false
             end
 
             unless @prev_sibling.nil? && @next_sibling.nil?
-              node.error "prev_sibling and next_sibling must be nil for " +
-                "branch nodes"
+              node.error 'prev_sibling and next_sibling must be nil for ' \
+                         'branch nodes'
             end
 
             return false unless node.check_offsets
@@ -343,12 +334,10 @@ module PEROBS
           # These checks are done after we have completed the respective child
           # node with index 'position - 1'.
           index = position - 1
-          if node.is_leaf?
-            if block_given?
-              # If a block was given, call this block with the key and value.
-              return false unless yield(node.first_index + index,
-                                        node.values[index])
-            end
+          if node.is_leaf? && block_given?
+            # If a block was given, call this block with the key and value.
+            return false unless yield(node.first_index + index,
+                                      node.values[index])
           end
         end
       end
@@ -359,25 +348,25 @@ module PEROBS
     def check_leaf_node_links
       if @prev_sibling.nil?
         if @tree.first_leaf != self
-          error "Leaf node #{@_id} has no previous sibling " +
-            "but is not the first leaf of the tree"
+          error "Leaf node #{@_id} has no previous sibling " \
+                'but is not the first leaf of the tree'
           return false
         end
       elsif @prev_sibling.next_sibling != self
-        error "next_sibling of previous sibling does not point to " +
-          "this node"
+        error 'next_sibling of previous sibling does not point to ' \
+              'this node'
         return false
       end
 
       if @next_sibling.nil?
         if @tree.last_leaf != self
-          error "Leaf node #{@_id} has no next sibling " +
-            "but is not the last leaf of the tree"
+          error "Leaf node #{@_id} has no next sibling " \
+                'but is not the last leaf of the tree'
           return false
         end
       elsif @next_sibling.prev_sibling != self
-        error "previous_sibling of next sibling does not point to " +
-          "this node"
+        error 'previous_sibling of next sibling does not point to ' \
+              'this node'
         return false
       end
 
@@ -394,16 +383,16 @@ module PEROBS
 
       last_offset = nil
       @offsets.each_with_index do |offset, i|
-        if i > 0
+        if i.positive?
           if offset < last_offset
-            error "Offsets are not strictly monotoneously " +
-              "increasing: #{@offsets.inspect}"
+            error 'Offsets are not strictly monotoneously ' \
+                  "increasing: #{@offsets.inspect}"
             return false
           end
           expected_offset = last_offset + @children[i - 1].values_count
           if offset != expected_offset
-            error "Offset #{i} must be #{expected_offset} " +
-              "but is #{offset}."
+            error "Offset #{i} must be #{expected_offset} " \
+                  "but is #{offset}."
             return false
           end
         end
@@ -422,20 +411,20 @@ module PEROBS
 
       @children.each_with_index do |child, i|
         unless child.is_a?(BigArrayNode)
-          error "Child #{@_id} is of class #{child.class} " +
-            "instead of BigArrayNode"
+          error "Child #{@_id} is of class #{child.class} " \
+                'instead of BigArrayNode'
           return false
         end
 
         unless child.parent.is_a?(BigArrayNode)
-          error "Parent reference of child #{i} is of class " +
-            "#{child.class} instead of BigArrayNode"
+          error "Parent reference of child #{i} is of class " \
+                "#{child.class} instead of BigArrayNode"
           return false
         end
 
         if child.parent != self
-          error "Child node #{child._id} has wrong parent " +
-            "#{child.parent._id}. It should be #{@_id}."
+          error "Child node #{child._id} has wrong parent " \
+                "#{child.parent._id}. It should be #{@_id}."
           return false
         end
 
@@ -450,8 +439,8 @@ module PEROBS
         end
 
         unless child.parent == self
-          error "Child #{i} does not have parent pointing " +
-            "to this node"
+          error "Child #{i} does not have parent pointing " \
+                'to this node'
           return false
         end
       end
@@ -464,11 +453,11 @@ module PEROBS
       str = ''
 
       traverse do |node, position, stack|
-        if position == 0
+        if position.zero?
           begin
-            str += "#{node.parent ? node.parent.tree_prefix + '  +' : 'o'}" +
-              "#{node.tree_branch_mark}-" +
-              "#{node.size == 0 ? '--' : 'v-'}#{node.tree_summary}\n"
+            str += "#{node.parent ? node.parent.tree_prefix + '  +' : 'o'}" \
+                   "#{node.tree_branch_mark}-" \
+                   "#{node.empty? ? '--' : 'v-'}#{node.tree_summary}\n"
           rescue => e
             str += "@@@@@@@@@@: #{e.message}\n"
           end
@@ -476,11 +465,11 @@ module PEROBS
           begin
             if node.is_leaf?
               if position <= node.size
-                str += "#{node.tree_prefix}  " +
-                  "#{position == node.size ? '-' : '|'} " +
-                  "[ #{node.value_index(position - 1)}: " +
-                  "#{node.values[position - 1].nil? ?
-                  'nil' : node.values[position - 1]} ]\n"
+                str += "#{node.tree_prefix}  " \
+                       "#{position == node.size ? '-' : '|'} " \
+                       "[ #{node.value_index(position - 1)}: " \
+                       "#{node.values[position - 1].nil? ?
+                       'nil' : node.values[position - 1]} ]\n"
               end
             end
           rescue => e
