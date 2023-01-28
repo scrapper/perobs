@@ -1,4 +1,4 @@
-# encoding: UTF-8
+# frozen_string_literal: true
 #
 # = BigTree.rb -- Persistent Ruby Object Store
 #
@@ -35,10 +35,7 @@ module PEROBS
   # entries is limited by the space on the backing store, not the main
   # memory. Entries are addressed by a Integer key.
   class BigTree < PEROBS::Object
-
-    class Stats < Struct.new(:leaf_nodes, :branch_nodes, :min_depth,
-                             :max_depth)
-    end
+    Stats = Struct.new(:leaf_nodes, :branch_nodes, :min_depth, :max_depth)
 
     attr_persist :node_size, :root, :first_leaf, :last_leaf, :entry_counter
 
@@ -118,9 +115,7 @@ module PEROBS
       old_root = @root
       clear
       old_root.each do |k, v|
-        if !yield(k, v)
-          insert(k, v)
-        end
+        insert(k, v) unless yield(k, v)
       end
     end
 
@@ -131,16 +126,17 @@ module PEROBS
 
     # Return true if the BigTree has no stored entries.
     def empty?
-      @entry_counter == 0
+      @entry_counter.zero?
     end
 
     # Iterate over all entries in the tree. Entries are always sorted by the
     # key.
     # @yield [key, value]
-    def each(&block)
+    def each(&)
       node = @first_leaf
       while node
-        break if node.each_element(&block).nil?
+        break if node.each_element(&).nil?
+
         node = node.next_sibling
       end
     end
@@ -148,14 +144,13 @@ module PEROBS
     # Iterate over all entries in the tree in reverse order. Entries are
     # always sorted by the key.
     # @yield [key, value]
-    def reverse_each(&block)
+    def reverse_each(&)
       node = @last_leaf
       while node
-        node.reverse_each_element(&block)
+        node.reverse_each_element(&)
         node = node.prev_sibling
       end
     end
-
 
     # @return [String] Human reable form of the tree.
     def to_s
@@ -164,8 +159,8 @@ module PEROBS
 
     # Check if the tree file contains any errors.
     # @return [Boolean] true if no erros were found, false otherwise
-    def check(&block)
-      @root.check(&block)
+    def check(&)
+      @root.check(&)
 
       i = 0
       each do |k, v|
@@ -173,8 +168,8 @@ module PEROBS
       end
 
       unless @entry_counter == i
-        PEROBS.log.error "BigTree contains #{i} values but entry counter " +
-          "is #{@entry_counter}"
+        PEROBS.log.error "BigTree contains #{i} values but entry counter " \
+                         "is #{@entry_counter}"
         return false
       end
 
@@ -188,10 +183,5 @@ module PEROBS
       @root.statistics(stats)
       stats
     end
-
-    private
-
   end
-
 end
-

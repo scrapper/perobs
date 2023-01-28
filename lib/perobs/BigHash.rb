@@ -134,8 +134,8 @@ module PEROBS
         entry.each do |ae|
           return ae.value if ae.key == key
         end
-      else
-        return entry.value if entry.key == key
+      elsif entry.key == key
+        return entry.value
       end
 
       nil
@@ -154,8 +154,8 @@ module PEROBS
         entry.each do |ae|
           return true if ae.key == key
         end
-      else
-        return true if entry.key == key
+      elsif entry.key == key
+        return true
       end
 
       false
@@ -177,8 +177,8 @@ module PEROBS
         entry.each_with_index do |ae, i|
           return entry.delete_at(i).value if ae.key == key
         end
-      else
-        return entry.value if entry.key == key
+      elsif entry.key == key
+        return entry.value
       end
 
       nil
@@ -201,7 +201,7 @@ module PEROBS
     # Calls the given block for each key/value pair.
     # @yield(key, value)
     def each(&block)
-      @btree.each do |index, entry|
+      @btree.each do |_, entry|
         if entry.is_a?(Collisions)
           break if entry.each do |c_entry|
             yield(c_entry.key, c_entry.value)
@@ -217,7 +217,7 @@ module PEROBS
     # @return [Array] A list of all keys
     def keys
       ks = []
-      each { |k, v| ks << k }
+      each { |k, _| ks << k }
       ks
     end
 

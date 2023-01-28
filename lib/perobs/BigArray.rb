@@ -50,7 +50,7 @@ module PEROBS
     def initialize(p, node_size = 150)
       super(p)
       PEROBS.log.fatal "Node size (#{node_size}) must be larger than 3" unless node_size > 3
-      PEROBS.log.fatal "Node size (#{node_size}) must be an even number" unless node_size % 2 == 0
+      PEROBS.log.fatal "Node size (#{node_size}) must be an even number" unless (node_size % 2).zero?
 
       self.node_size = node_size
       clear
@@ -138,9 +138,7 @@ module PEROBS
     # @param index [Integer] Index in the BigArray
     # @return [Object] found value or nil
     def delete_at(index)
-      if index.negative?
-        index = @entry_counter + index
-      end
+      index = @entry_counter + index if index.negative?
 
       return nil if index.negative? || index >= @entry_counter
 
@@ -201,10 +199,10 @@ module PEROBS
     # Iterate over all entries in the tree. Entries are always sorted by the
     # key.
     # @yield [key, value]
-    def each(&block)
+    def each(&)
       node = @first_leaf
       while node
-        break unless node.each(&block)
+        break unless node.each(&)
 
         node = node.next_sibling
       end
@@ -213,10 +211,10 @@ module PEROBS
     # Iterate over all entries in the tree in reverse order. Entries are
     # always sorted by the key.
     # @yield [key, value]
-    def reverse_each(&block)
+    def reverse_each(&)
       node = @last_leaf
       while node
-        break unless node.reverse_each(&block)
+        break unless node.reverse_each(&)
 
         node = node.prev_sibling
       end
@@ -244,8 +242,8 @@ module PEROBS
 
     # Check if the tree file contains any errors.
     # @return [Boolean] true if no erros were found, false otherwise
-    def check(&block)
-      @root.check(&block)
+    def check(&)
+      @root.check(&)
     end
 
     # Gather some statistics regarding the tree structure.
