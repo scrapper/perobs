@@ -199,10 +199,10 @@ module PEROBS
     # Iterate over all entries in the tree. Entries are always sorted by the
     # key.
     # @yield [key, value]
-    def each(&)
+    def each(&block)
       node = @first_leaf
       while node
-        break unless node.each(&)
+        break unless node.each(&block)
 
         node = node.next_sibling
       end
@@ -211,10 +211,10 @@ module PEROBS
     # Iterate over all entries in the tree in reverse order. Entries are
     # always sorted by the key.
     # @yield [key, value]
-    def reverse_each(&)
+    def reverse_each(&block)
       node = @last_leaf
       while node
-        break unless node.reverse_each(&)
+        break unless node.reverse_each(&block)
 
         node = node.prev_sibling
       end
