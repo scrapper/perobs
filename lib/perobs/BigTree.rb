@@ -132,10 +132,10 @@ module PEROBS
     # Iterate over all entries in the tree. Entries are always sorted by the
     # key.
     # @yield [key, value]
-    def each(&)
+    def each(&block)
       node = @first_leaf
       while node
-        break if node.each_element(&).nil?
+        break if node.each_element(&block).nil?
 
         node = node.next_sibling
       end
@@ -144,10 +144,10 @@ module PEROBS
     # Iterate over all entries in the tree in reverse order. Entries are
     # always sorted by the key.
     # @yield [key, value]
-    def reverse_each(&)
+    def reverse_each(&block)
       node = @last_leaf
       while node
-        node.reverse_each_element(&)
+        node.reverse_each_element(&block)
         node = node.prev_sibling
       end
     end
@@ -159,8 +159,8 @@ module PEROBS
 
     # Check if the tree file contains any errors.
     # @return [Boolean] true if no erros were found, false otherwise
-    def check(&)
-      @root.check(&)
+    def check(&block)
+      @root.check(&block)
 
       i = 0
       each do |k, v|
