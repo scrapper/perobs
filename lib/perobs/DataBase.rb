@@ -37,10 +37,8 @@ require 'perobs/ObjectBase'
 require_relative 'ProgressMeter'
 
 module PEROBS
-
   # Base class for all storage back-ends.
   class DataBase
-
     # Create a new DataBase object. This method must be overwritten by the
     # deriving classes and then called via their constructor.
     def initialize(options)
@@ -88,19 +86,21 @@ module PEROBS
     # @param raw [String]
     # @return [Hash] Deserialized version
     def deserialize(raw)
-      begin
-        case @serializer
-        when :marshal
-          Marshal.load(raw)
-        when :json
-          JSON.parse(raw, :create_additions => true)
-        when :yaml
+      case @serializer
+      when :marshal
+        Marshal.load(raw)
+      when :json
+        JSON.parse(raw, create_additions: true)
+      when :yaml
+        if RUBY_VERSION < '3.2'
+          YAML.load(raw)
+        else
           YAML.load(raw, permitted_classes: [Symbol, POReference] + @class_map.classes)
         end
-      rescue => e
-        PEROBS.log.fatal "Cannot de-serialize object with #{@serializer} " +
-          "parser: " + e.message
       end
+    rescue => e
+      PEROBS.log.fatal "Cannot de-serialize object with #{@serializer} " +
+        "parser: " + e.message
     end
 
     # Check a config option and adjust it if needed.
@@ -134,7 +134,5 @@ module PEROBS
         end
       end
     end
-
   end
-
 end
