@@ -242,8 +242,8 @@ module PEROBS
 
     # Check if the tree file contains any errors.
     # @return [Boolean] true if no erros were found, false otherwise
-    def check(&)
-      @root.check(&)
+    def check(&block)
+      @root.check(&block)
     end
 
     # Gather some statistics regarding the tree structure.
