@@ -199,16 +199,30 @@ module PEROBS
     end
 
     # Calls the given block for each key/value pair.
+    # @param start_at_key [Object] Start the iteration at the object that
+    #        matches the given key. Start with all elements if given key is
+    #        nil (default).
+    # @param max_count [Integer] The maximum number of elements that should be
+    #        iterated over. If nil (default) iterate over all elements.
     # @yield(key, value)
-    def each(start_after_key = nil, &block)
-      @btree.each(start_after_key) do |_, entry|
+    def each(start_at_key = nil, max_count = nil, &block)
+      # Convert the key to the BigHash key if a key is given.
+      start_at_key = start_at_key ? hash_key(start_at_key) : nil
+
+      count = 0
+      @btree.each(start_at_key) do |_, entry|
         if entry.is_a?(Collisions)
-          break if entry.each do |c_entry|
+          entry.each do |c_entry|
             yield(c_entry.key, c_entry.value)
-          end.nil?
+            count += 1
+            break if max_count && count >= max_count
+          end
         else
           yield(entry.key, entry.value)
+          count += 1
         end
+
+        break if max_count && count >= max_count
       end
     end
 

@@ -148,5 +148,27 @@ describe PEROBS::Hash do
     store.delete_store
   end
 
+  it 'should iterate over all elements' do
+    ENTRIES.times do |i|
+      @h["key#{i * 100}"] = i
+    end
+
+    i = 0
+    @h.each do |k, v|
+      expect(k).to eql("key#{v * 100}")
+      i += 1
+    end
+    expect(i).to eql(ENTRIES)
+
+    [ 0, 11, 17, 53, 97 ].each do |start_i|
+      i = 0
+      @h.each("key#{start_i * 100}", 23) do |k, v|
+        expect(k).to eql("key#{v * 100}")
+        i += 1
+      end
+      expect(i).to eql(23)
+    end
+  end
+
 end
 
