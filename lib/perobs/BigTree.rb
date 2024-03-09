@@ -131,11 +131,24 @@ module PEROBS
 
     # Iterate over all entries in the tree. Entries are always sorted by the
     # key.
+    # @param start_at_key Start the iteration with the element that matches the key. If
+    #        the key is nil (default) the iteration starts with the first element.
+    # @param max_count [Integer or nil] Specify the maximum number of elements
+    #        that should be iterated over. The default is all (nil).
     # @yield [key, value]
-    def each(&block)
-      node = @first_leaf
+    def each(start_at_key = nil, max_count = nil, &block)
+      # Select the start node. Use @first_leaf unless a start_at_key is given.
+      node = start_at_key ? node_chain(start_at_key).last : @first_leaf
+
       while node
-        break if node.each_element(&block).nil?
+        elements = node.each_element(start_at_key, max_count, &block)
+
+        if max_count
+          break if (max_count -= elements) <= 0
+        end
+
+        # We only need the start_after_key for the first node.
+        start_after_key = nil
 
         node = node.next_sibling
       end

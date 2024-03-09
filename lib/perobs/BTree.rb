@@ -235,7 +235,7 @@ module PEROBS
 
     # Either return the key/value pair that exactly matches the key or a
     # key/value pair that has a key that is at least min_miss_increment larger
-    # than the key.
+    # than the key or nil if no match is found.
     def get_best_match(key, min_miss_increment)
       @root.get_best_match(key, min_miss_increment)
     end

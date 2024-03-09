@@ -78,6 +78,18 @@ describe PEROBS::BigTree do
     expect(i).to eql(ORDER ** 3 + 1)
   end
 
+  it 'should iterate over segments of the stored key and value pairs' do
+    [ 0, 6, 7, 11, 23 ].each do |start_key|
+      i = start_key
+      @t.each(start_key, 11) do |k, v|
+        expect(k).to eql(i)
+        expect(v).to eql(3 * i)
+        i += 1
+      end
+      expect(i).to eql(start_key + 11)
+    end
+  end
+
   it 'should iterate in reverse order over the stored key and value pairs' do
     i = ORDER ** 3
     @t.reverse_each do |k, v|

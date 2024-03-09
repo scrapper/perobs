@@ -148,10 +148,10 @@ module PEROBS
           return node.keys[i] == key ? list : []
         end
 
-        # Add current node to chain.
-        list << node
         # Descend into the right child node to continue the search.
         node = node.children[i]
+        # Add current node to chain.
+        list << node
       end
 
       PEROBS.log.fatal "Could not find node chain for key #{key}"
@@ -216,13 +216,27 @@ module PEROBS
     end
 
     # Iterate over all the key/value pairs of the node.
+    # @param start_at_key [Object] Start the iteration with the element that
+    #        matches the given key. If key is nil the iteration starts with
+    #        the first element.
+    # @return The number of elements that we iterated over
     # @yield [key, value]
-    def each_element
-      return self unless is_leaf?
+    def each_element(start_at_key = nil, max_count = nil)
+      return 0 unless is_leaf?
 
-      0.upto(@keys.length - 1) do |i|
+      # If a start_after_key is given, we start the iteration after the index
+      # of that key.
+      start_index = start_at_key ? search_key_index(start_at_key) : 0
+
+      counter = 0
+      start_index.upto(@keys.length - 1) do |i|
         yield(@keys[i], @values[i])
+        counter += 1
+
+        break if max_count && (max_count -= 1).zero?
       end
+
+      counter
     end
 
     # Iterate over all the key/value pairs of the node in reverse order.

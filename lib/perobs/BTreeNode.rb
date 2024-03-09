@@ -266,7 +266,8 @@ module PEROBS
     # @param key [Integer] key to search for
     # @param min_miss_increment [Integer] minimum required key increment in
     #        case an exact key match could not be found
-    # @return [Integer or nil] value that matches the key
+    # @return [Array or nil] key/value pair that matches the key or nil in
+    #         case no match is found
     def get_best_match(key, min_miss_increment)
       node = self
 

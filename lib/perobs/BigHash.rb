@@ -107,7 +107,7 @@ module PEROBS
             @btree.insert(hashed_key, entry)
           else
             # There is a single existing entry, but for a different key. Create
-            # a new PEROBS::Array and store both entries.
+            # a new Collisions and store both entries.
             array_entry = @store.new(Collisions)
             array_entry << existing_entry
             array_entry << entry
@@ -150,7 +150,7 @@ module PEROBS
         return false
       end
 
-      if entry.is_a?(PEROBS::Array)
+      if entry.is_a?(Collisions)
         entry.each do |ae|
           return true if ae.key == key
         end
@@ -173,7 +173,7 @@ module PEROBS
         return nil
       end
 
-      if entry.is_a?(PEROBS::Array)
+      if entry.is_a?(Collisions)
         entry.each_with_index do |ae, i|
           return entry.delete_at(i).value if ae.key == key
         end
@@ -200,8 +200,8 @@ module PEROBS
 
     # Calls the given block for each key/value pair.
     # @yield(key, value)
-    def each(&block)
-      @btree.each do |_, entry|
+    def each(start_after_key = nil, &block)
+      @btree.each(start_after_key) do |_, entry|
         if entry.is_a?(Collisions)
           break if entry.each do |c_entry|
             yield(c_entry.key, c_entry.value)
